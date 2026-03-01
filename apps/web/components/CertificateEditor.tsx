@@ -1,7 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
-import type { ReactNode } from "react";
+import type { ComponentType, ReactNode } from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import {
@@ -21,6 +21,11 @@ import { CertificateTemplate, LayoutConfig, LayoutItem } from "@/lib/types";
 const ItemTypes = {
   FIELD: "field",
 };
+
+const SafeDndProvider = DndProvider as unknown as ComponentType<{
+  backend: typeof HTML5Backend;
+  children?: ReactNode;
+}>;
 
 const PAGE_WIDTH = 842; // A4 Landscape width in points
 const PAGE_HEIGHT = 595; // A4 Landscape height in points
@@ -636,10 +641,12 @@ const CertificateEditor: React.FC<CertificateEditorProps> = ({
 };
 
 // Wrap with DndProvider for use
-const CertificateEditorWrapper: React.FC<CertificateEditorProps> = (props) => (
-  <DndProvider backend={HTML5Backend}>
-    <CertificateEditor {...props} />
-  </DndProvider>
-);
+function CertificateEditorWrapper(props: CertificateEditorProps) {
+  return (
+    <SafeDndProvider backend={HTML5Backend}>
+      <CertificateEditor {...props} />
+    </SafeDndProvider>
+  );
+}
 
 export default CertificateEditorWrapper;
