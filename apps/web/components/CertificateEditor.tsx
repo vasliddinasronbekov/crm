@@ -160,6 +160,7 @@ const Field: React.FC<{ id: string; label: string; icon: ReactNode }> = ({
   label,
   icon,
 }) => {
+  const ref = useRef<HTMLDivElement>(null);
   const [{ isDragging }, drag] = useDrag(() => ({
     type: ItemTypes.FIELD,
     item: { id, type: "new" },
@@ -167,10 +168,11 @@ const Field: React.FC<{ id: string; label: string; icon: ReactNode }> = ({
       isDragging: !!monitor.isDragging(),
     }),
   }));
+  drag(ref);
 
   return (
     <div
-      ref={drag}
+      ref={ref}
       style={{ opacity: isDragging ? 0.5 : 1 }}
       className="p-2 border border-border rounded-lg flex items-center gap-2 cursor-grab bg-background hover:bg-border/50 transition-colors"
     >
