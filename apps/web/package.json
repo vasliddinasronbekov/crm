@@ -17,10 +17,10 @@
     "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.263.1",
     "next": "^15.0.0",
-    "react": "^18.2.0",
+    "react": "^19.1.0",
     "react-dnd": "^16.0.1",
     "react-dnd-html5-backend": "^16.0.1",
-    "react-dom": "^18.2.0",
+    "react-dom": "^19.1.0",
     "react-hot-toast": "^2.6.0",
     "react-rnd": "^10.4.11",
     "xlsx": "^0.18.5"
@@ -28,8 +28,8 @@
   "devDependencies": {
     "@types/file-saver": "^2.0.7",
     "@types/node": "^20.10.0",
-    "@types/react": "^18.2.45",
-    "@types/react-dom": "^18.2.18",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
     "autoprefixer": "^10.4.21",
     "eslint": "^8.56.0",
     "eslint-config-next": "^15.0.0",
