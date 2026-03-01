@@ -16,8 +16,10 @@ export const metadata: Metadata = {
 export default function RootLayout({
   children,
 }: {
-  children: ReactNode
+  children: unknown
 }) {
+  const content = children as ReactNode
+
   return (
     <html lang="en">
       <body className="antialiased" suppressHydrationWarning>
@@ -26,7 +28,7 @@ export default function RootLayout({
             <AuthProvider>
               <AIProvider>
                 <GlobalLanguageBridge />
-                {children}
+                {content}
                 <ToasterProvider />
               </AIProvider>
             </AuthProvider>

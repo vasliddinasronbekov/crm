@@ -15,12 +15,13 @@ import InboxNotificationButton from '@/components/InboxNotificationButton'
 export default function DashboardLayout({
   children,
 }: {
-  children: ReactNode
+  children: unknown
 }) {
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()
   const { currency, language, theme, translateText } = useSettings()
   const [aiModeEnabled, setAiModeEnabled] = useState(false)
+  const content = children as ReactNode
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
@@ -83,7 +84,7 @@ export default function DashboardLayout({
         </div>
 
         <main className="flex-1 overflow-y-auto bg-background">
-          {children}
+          {content}
         </main>
       </div>
 
