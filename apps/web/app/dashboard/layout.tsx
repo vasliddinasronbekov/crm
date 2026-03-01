@@ -1,5 +1,6 @@
 'use client'
 
+import type { ReactNode } from 'react'
 import { useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/Sidebar'
@@ -14,7 +15,7 @@ import InboxNotificationButton from '@/components/InboxNotificationButton'
 export default function DashboardLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: ReactNode
 }) {
   const router = useRouter()
   const { isAuthenticated, isLoading } = useAuth()

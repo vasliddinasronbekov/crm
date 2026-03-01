@@ -5,6 +5,7 @@
 
 'use client'
 
+import type { ReactNode } from 'react'
 import { Loader2 } from 'lucide-react'
 
 interface LoadingSpinnerProps {
@@ -79,7 +80,7 @@ export function CardSkeleton({ count = 3 }: { count?: number }) {
 
 interface ButtonLoadingProps {
   loading: boolean
-  children: React.ReactNode
+  children: ReactNode
   className?: string
   disabled?: boolean
   onClick?: () => void

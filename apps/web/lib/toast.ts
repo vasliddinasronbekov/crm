@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react'
 import toast from 'react-hot-toast'
 
 /**
@@ -138,7 +139,7 @@ export const dismissToast = (toastId?: string) => {
 /**
  * Custom toast with custom content
  */
-export const showCustom = (content: React.ReactNode) => {
+export const showCustom = (content: ReactNode) => {
   return toast.custom(content as any, toastConfig)
 }
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
+import type { ReactNode } from "react";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import {
@@ -149,7 +150,7 @@ const AVAILABLE_FIELDS = [
   { id: "qr_code", label: "QR Code", icon: <QrCode size={18} /> },
 ];
 
-const Field: React.FC<{ id: string; label: string; icon: React.ReactNode }> = ({
+const Field: React.FC<{ id: string; label: string; icon: ReactNode }> = ({
   id,
   label,
   icon,
