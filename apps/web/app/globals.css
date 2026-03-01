@@ -1,0 +1,113 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html {
+    font-size: 62.5%; /* 1rem = 10px */
+    scrollbar-gutter: stable both-edges;
+  }
+
+  :root {
+    /* Default to dark theme - will be overridden by SettingsContext */
+    --background: 17 24 39;
+    --foreground: 243 244 246;
+    --surface: 31 41 55;
+    --primary: 99 102 241;
+    --border: 55 65 81;
+    --text-primary: 243 244 246;
+    --text-secondary: 156 163 175;
+
+    /* Static colors (don't change with theme) */
+    --success: 16 185 129;
+    --warning: 245 158 11;
+    --error: 239 68 68;
+  }
+
+  * {
+    border-color: rgb(var(--border));
+    scrollbar-width: thin;
+    scrollbar-color: rgb(var(--primary) / 0.78) rgb(var(--surface) / 0.9);
+  }
+
+  body {
+    background-color: rgb(var(--background));
+    color: rgb(var(--text-primary));
+  }
+
+  *::-webkit-scrollbar {
+    width: 1.2rem;
+    height: 1.2rem;
+  }
+
+  *::-webkit-scrollbar-track {
+    background:
+      linear-gradient(180deg, rgb(var(--surface) / 0.96), rgb(var(--background) / 0.88));
+    border: 1px solid rgb(var(--border) / 0.5);
+    border-radius: 999px;
+  }
+
+  *::-webkit-scrollbar-thumb {
+    background:
+      linear-gradient(180deg, rgb(var(--primary) / 0.96), rgb(var(--primary) / 0.72));
+    border: 2px solid rgb(var(--surface));
+    border-radius: 999px;
+    box-shadow:
+      0 0 0 1px rgb(var(--primary) / 0.14),
+      inset 0 1px 2px rgb(255 255 255 / 0.18);
+  }
+
+  *::-webkit-scrollbar-thumb:hover {
+    background:
+      linear-gradient(180deg, rgb(var(--primary)), rgb(var(--primary) / 0.82));
+  }
+
+  *::-webkit-scrollbar-thumb:active {
+    background:
+      linear-gradient(180deg, rgb(var(--primary) / 0.9), rgb(var(--primary) / 0.65));
+  }
+
+  *::-webkit-scrollbar-corner {
+    background: rgb(var(--background));
+  }
+
+  *::-webkit-scrollbar-button {
+    display: none;
+  }
+}
+
+/* Mobile-style Card */
+.card {
+  @apply bg-surface rounded-xl p-4 border border-border;
+}
+
+/* Mobile-style Button */
+.btn-primary {
+  @apply bg-primary text-background font-semibold py-3 px-6 rounded-xl hover:opacity-90 transition-opacity;
+}
+
+.btn-secondary {
+  @apply bg-surface text-text-primary font-semibold py-3 px-6 rounded-xl border border-border hover:bg-border transition-colors;
+}
+
+/* Progress Bar (from mobile courses screen) */
+.progress-container {
+  @apply h-1.5 bg-border rounded-full overflow-hidden;
+}
+
+.progress-bar {
+  @apply h-full bg-primary rounded-full transition-all duration-300;
+}
+
+/* Stat Card (from mobile progress screen) */
+.stat-card {
+  @apply bg-surface rounded-xl p-4 border border-border text-center;
+}
+
+.stat-value {
+  @apply text-3xl font-bold text-primary mb-1;
+}
+
+.stat-label {
+  @apply text-sm text-text-secondary;
+}

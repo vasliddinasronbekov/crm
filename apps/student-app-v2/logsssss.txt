@@ -1,0 +1,95 @@
+console.js:661 TypeError: courses.map is not a function (it is undefined)
+    at CoursesScreen (192.168.0.106:8081/a…es-stable:179455:30)
+    at react-stack-bottom-frame (192.168.0.106:8081/a…mes-stable:20080:29)
+    at renderWithHooks (192.168.0.106:8081/a…mes-stable:13772:40)
+    at updateFunctionComponent (192.168.0.106:8081/a…mes-stable:15406:34)
+    at beginWork (192.168.0.106:8081/a…mes-stable:15914:41)
+    at runWithFiberInDEV (192.168.0.106:8081/a…es-stable:11940:135)
+    at performUnitOfWork (192.168.0.106:8081/a…mes-stable:17642:97)
+    at workLoopSync (192.168.0.106:8081/a…mes-stable:17535:57)
+    at renderRootSync (192.168.0.106:8081/a…mes-stable:17519:21)
+    at performWorkOnRoot (192.168.0.106:8081/a…mes-stable:17290:53)
+    at performSyncWorkOnRoot (192.168.0.106:8081/a…mes-stable:13289:24)
+    at flushSyncWorkAcrossRoots_impl (192.168.0.106:8081/a…es-stable:13209:329)
+    at processRootScheduleInMicrotask (192.168.0.106:8081/a…mes-stable:13228:36)
+    at anonymous (192.168.0.106:8081/a…es-stable:13300:184) Error Stack:
+    at SceneView (192.168.0.106:8081/a…es-stable:107218:88)
+    at render (192.168.0.106:8081/a…es-stable:106842:54)
+    at anonymous (192.168.0.106:8081/a…es-stable:106876:27)
+    at reduce (native)
+    at useDescriptors (192.168.0.106:8081/a…es-stable:106873:36)
+    at useNavigationBuilder (192.168.0.106:8081/a…es-stable:106103:97)
+    at NativeStackNavigator (192.168.0.106:8081/a…s-stable:116537:113)
+    at AppNavigator (192.168.0.106:8081/a…rmes-stable:4212:57)
+    at App (192.168.0.106:8081/a…rmes-stable:4243:58)
+    at withDevTools(App) (192.168.0.106:8081/a…es-stable:197950:53)
+anonymous	@	console.js:661
+overrideMethod	@	backend.js:17416
+reactConsoleErrorHandler	@	ExceptionsManager.js:184
+anonymous	@	setUpDeveloperTools.js:42
+reportException	@	ExceptionsManager.js:108
+handleException	@	ExceptionsManager.js:173
+onUncaughtError	@	ErrorHandlers.js:63
+logUncaughtError	@	ReactFabric-dev.js:6747
+runWithFiberInDEV	@	ReactFabric-dev.js:683
+anonymous	@	ReactFabric-dev.js:6777
+callCallback	@	ReactFabric-dev.js:3691
+commitCallbacks	@	ReactFabric-dev.js:3711
+runWithFiberInDEV	@	ReactFabric-dev.js:683
+commitLayoutEffectOnFiber	@	ReactFabric-dev.js:10231
+flushLayoutEffects	@	ReactFabric-dev.js:12547
+commitRoot	@	ReactFabric-dev.js:12490
+commitRootWhenReady	@	ReactFabric-dev.js:11740
+performWorkOnRoot	@	ReactFabric-dev.js:11702
+performSyncWorkOnRoot	@	ReactFabric-dev.js:3088
+flushSyncWorkAcrossRoots_impl	@	ReactFabric-dev.js:2942
+processRootScheduleInMicrotask	@	ReactFabric-dev.js:2973
+anonymous	@	ReactFabric-dev.js:3108
+console.js:661 TypeError: items.map is not a function (it is undefined)
+    at ShopTab (192.168.0.106:8081/a…es-stable:178543:26)
+    at react-stack-bottom-frame (192.168.0.106:8081/a…mes-stable:20080:29)
+    at renderWithHooks (192.168.0.106:8081/a…mes-stable:13772:40)
+    at updateFunctionComponent (192.168.0.106:8081/a…mes-stable:15406:34)
+    at beginWork (192.168.0.106:8081/a…mes-stable:15914:41)
+    at runWithFiberInDEV (192.168.0.106:8081/a…es-stable:11940:135)
+    at performUnitOfWork (192.168.0.106:8081/a…mes-stable:17642:97)
+    at workLoopSync (192.168.0.106:8081/a…mes-stable:17535:57)
+    at renderRootSync (192.168.0.106:8081/a…mes-stable:17519:21)
+    at performWorkOnRoot (192.168.0.106:8081/a…mes-stable:17290:53)
+    at performSyncWorkOnRoot (192.168.0.106:8081/a…mes-stable:13289:24)
+    at flushSyncWorkAcrossRoots_impl (192.168.0.106:8081/a…es-stable:13209:329)
+    at processRootScheduleInMicrotask (192.168.0.106:8081/a…mes-stable:13228:36)
+    at anonymous (192.168.0.106:8081/a…es-stable:13300:184) Error Stack:
+    at CoinsScreen (192.168.0.106:8081/a…es-stable:178447:81)
+    at SceneView (192.168.0.106:8081/a…es-stable:107218:88)
+    at render (192.168.0.106:8081/a…es-stable:106842:54)
+    at anonymous (192.168.0.106:8081/a…es-stable:106876:27)
+    at reduce (native)
+    at useDescriptors (192.168.0.106:8081/a…es-stable:106873:36)
+    at useNavigationBuilder (192.168.0.106:8081/a…es-stable:106103:97)
+    at NativeStackNavigator (192.168.0.106:8081/a…s-stable:116537:113)
+    at AppNavigator (192.168.0.106:8081/a…rmes-stable:4212:57)
+    at App (192.168.0.106:8081/a…rmes-stable:4243:58)
+    at withDevTools(App) (192.168.0.106:8081/a…es-stable:197950:53)
+anonymous	@	console.js:661
+overrideMethod	@	backend.js:17416
+reactConsoleErrorHandler	@	ExceptionsManager.js:184
+anonymous	@	setUpDeveloperTools.js:42
+reportException	@	ExceptionsManager.js:108
+handleException	@	ExceptionsManager.js:173
+onUncaughtError	@	ErrorHandlers.js:63
+logUncaughtError	@	ReactFabric-dev.js:6747
+runWithFiberInDEV	@	ReactFabric-dev.js:683
+anonymous	@	ReactFabric-dev.js:6777
+callCallback	@	ReactFabric-dev.js:3691
+commitCallbacks	@	ReactFabric-dev.js:3711
+runWithFiberInDEV	@	ReactFabric-dev.js:683
+commitLayoutEffectOnFiber	@	ReactFabric-dev.js:10231
+flushLayoutEffects	@	ReactFabric-dev.js:12547
+commitRoot	@	ReactFabric-dev.js:12490
+commitRootWhenReady	@	ReactFabric-dev.js:11740
+performWorkOnRoot	@	ReactFabric-dev.js:11702
+performSyncWorkOnRoot	@	ReactFabric-dev.js:3088
+flushSyncWorkAcrossRoots_impl	@	ReactFabric-dev.js:2942
+processRootScheduleInMicrotask	@	ReactFabric-dev.js:2973
+anonymous	@	ReactFabric-dev.js:3108

@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Payment Reminder</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;
+            line-height: 1.6;
+            color: #333;
+            max-width: 600px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            background: #ffffff;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+        }
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 25px;
+            border-radius: 12px 12px 0 0;
+            margin: -30px -30px 30px -30px;
+        }
+        .header h1 {
+            margin: 0;
+            font-size: 24px;
+            font-weight: 600;
+        }
+        .payment-details {
+            background: #f7fafc;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            margin: 25px 0;
+            border-radius: 8px;
+        }
+        .payment-row {
+            display: flex;
+            justify-content: space-between;
+            margin: 10px 0;
+            padding: 8px 0;
+            border-bottom: 1px solid #e2e8f0;
+        }
+        .payment-row:last-child {
+            border-bottom: none;
+        }
+        .label {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        .value {
+            color: #1a202c;
+            font-weight: 500;
+        }
+        .amount {
+            font-size: 28px;
+            font-weight: 700;
+            color: #667eea;
+        }
+        .button {
+            display: inline-block;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 14px 32px;
+            text-decoration: none;
+            border-radius: 8px;
+            font-weight: 600;
+            margin: 20px 0;
+            text-align: center;
+        }
+        .button:hover {
+            opacity: 0.9;
+        }
+        .footer {
+            margin-top: 30px;
+            padding-top: 20px;
+            border-top: 1px solid #e2e8f0;
+            text-align: center;
+            color: #718096;
+            font-size: 14px;
+        }
+        .custom-message {
+            background: #fff3cd;
+            border-left: 4px solid #ffc107;
+            padding: 15px;
+            margin: 20px 0;
+            border-radius: 8px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>💳 Payment Reminder</h1>
+        </div>
+
+        <p>Dear <strong>{{ student_name }}</strong>,</p>
+
+        <p>This is a friendly reminder about your pending payment for <strong>{{ group_name }}</strong>.</p>
+
+        {% if custom_message %}
+        <div class="custom-message">
+            <strong>Note:</strong> {{ custom_message }}
+        </div>
+        {% endif %}
+
+        <div class="payment-details">
+            <div class="payment-row">
+                <span class="label">Payment ID:</span>
+                <span class="value">#{{ payment_id }}</span>
+            </div>
+            <div class="payment-row">
+                <span class="label">Group/Course:</span>
+                <span class="value">{{ group_name }}</span>
+            </div>
+            <div class="payment-row">
+                <span class="label">Payment Date:</span>
+                <span class="value">{{ payment_date|date:"F d, Y" }}</span>
+            </div>
+            {% if payment_due_date %}
+            <div class="payment-row">
+                <span class="label">Due Date:</span>
+                <span class="value">{{ payment_due_date|date:"F d, Y" }}</span>
+            </div>
+            {% endif %}
+            <div class="payment-row" style="margin-top: 15px; padding-top: 15px; border-top: 2px solid #667eea;">
+                <span class="label">Amount Due:</span>
+                <span class="amount">{{ payment_amount|floatformat:0 }} UZS</span>
+            </div>
+        </div>
+
+        <div style="text-align: center;">
+            <a href="#" class="button">Make Payment</a>
+        </div>
+
+        <p style="margin-top: 25px;">If you have already made this payment, please disregard this reminder. Your payment may take 1-2 business days to process.</p>
+
+        <p>If you have any questions or need assistance, please don't hesitate to contact us.</p>
+
+        <div class="footer">
+            <p><strong>EDU Admin Platform</strong></p>
+            <p>Automated Payment Reminder System</p>
+            <p style="font-size: 12px; color: #a0aec0;">This is an automated message, please do not reply directly to this email.</p>
+        </div>
+    </div>
+</body>
+</html>

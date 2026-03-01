@@ -1,0 +1,99 @@
+{
+  "common": {
+    "loading": "Cargando...",
+    "error": "Error",
+    "success": "Éxito",
+    "cancel": "Cancelar",
+    "save": "Guardar",
+    "delete": "Eliminar",
+    "confirm": "Confirmar",
+    "back": "Atrás",
+    "logout": "Cerrar sesión",
+    "login": "Iniciar sesión"
+  },
+  "auth": {
+    "welcomeBack": "¡Bienvenido de nuevo!",
+    "trackProgress": "Rastrea el progreso de tu hijo",
+    "email": "Correo electrónico",
+    "password": "Contraseña",
+    "forgotPassword": "¿Olvidaste tu contraseña?",
+    "noAccount": "¿No tienes una cuenta?",
+    "contactAdmin": "Contacta al administrador de la escuela",
+    "loginWith": "Iniciar sesión con {{type}}",
+    "loginFailed": "Error al iniciar sesión",
+    "invalidCredentials": "Credenciales inválidas",
+    "enterBoth": "Por favor ingresa correo y contraseña"
+  },
+  "dashboard": {
+    "hello": "¡Hola, {{name}}!",
+    "trackChildren": "Rastrea el progreso de tus hijos",
+    "myChildren": "Mis Hijos",
+    "noStudents": "No se encontraron estudiantes",
+    "contactSchool": "Contacta al administrador para vincular las cuentas de tus hijos",
+    "quickActions": "Acciones Rápidas",
+    "messages": "Mensajes",
+    "chatWithTeachers": "Habla con los profesores",
+    "notifications": "Notificaciones",
+    "viewUpdates": "Ver actualizaciones",
+    "grade": "Grado {{grade}}"
+  },
+  "student": {
+    "details": "Detalles del Estudiante",
+    "averageGrade": "Promedio",
+    "attendance": "Asistencia",
+    "completed": "Completado",
+    "studyTime": "Tiempo de Estudio",
+    "courseProgress": "Progreso del Curso",
+    "currentModule": "Actual: {{module}}",
+    "hours": "{{hours}}h",
+    "viewAttendance": "Ver Asistencia",
+    "viewGrades": "Ver Calificaciones",
+    "messageTeachers": "Mensaje a Profesores",
+    "noCoursesEnrolled": "Sin cursos inscritos"
+  },
+  "messages": {
+    "title": "Mensajes",
+    "noConversations": "Sin conversaciones aún",
+    "startConversation": "Inicia una conversación con los profesores de tu hijo",
+    "timeAgo": {
+      "justNow": "Ahora mismo",
+      "minutesAgo": "hace {{count}}m",
+      "hoursAgo": "hace {{count}}h",
+      "daysAgo": "hace {{count}}d"
+    }
+  },
+  "notifications": {
+    "title": "Notificaciones",
+    "unread": "{{count}} sin leer",
+    "markAllRead": "Marcar todo como leído",
+    "noNotifications": "Sin notificaciones aún",
+    "receiveUpdates": "Recibirás actualizaciones sobre las actividades de tus hijos aquí",
+    "types": {
+      "grade": "Nueva calificación",
+      "attendance": "Actualización de asistencia",
+      "message": "Nuevo mensaje",
+      "announcement": "Anuncio escolar",
+      "achievement": "Logro desbloqueado"
+    }
+  },
+  "settings": {
+    "title": "Configuración",
+    "account": "Cuenta",
+    "name": "Nombre",
+    "email": "Correo",
+    "role": "Rol",
+    "appearance": "Apariencia",
+    "lightMode": "Modo Claro",
+    "darkMode": "Modo Oscuro",
+    "systemDefault": "Predeterminado del Sistema",
+    "security": "Seguridad",
+    "useBiometric": "Usar {{type}} para desbloquear la app",
+    "biometricEnabled": "{{type}} habilitado correctamente",
+    "biometricFailed": "No se pudo habilitar {{type}}",
+    "language": "Idioma",
+    "selectLanguage": "Seleccionar Idioma",
+    "appVersion": "Portal de Padres v1.0.0",
+    "platform": "Plataforma EduVoice",
+    "logoutConfirm": "¿Estás seguro de que quieres cerrar sesión?"
+  }
+}

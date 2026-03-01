@@ -1,0 +1,27 @@
+{
+  "common": {
+    "loading": "Chargement...",
+    "error": "Erreur",
+    "success": "Succès",
+    "cancel": "Annuler",
+    "save": "Enregistrer",
+    "delete": "Supprimer",
+    "confirm": "Confirmer",
+    "back": "Retour",
+    "logout": "Déconnexion",
+    "login": "Connexion"
+  },
+  "auth": {
+    "welcomeBack": "Bienvenue!",
+    "trackProgress": "Suivez les progrès de votre enfant",
+    "email": "E-mail",
+    "password": "Mot de passe",
+    "forgotPassword": "Mot de passe oublié?",
+    "noAccount": "Pas de compte?",
+    "contactAdmin": "Contactez l'administrateur",
+    "loginWith": "Se connecter avec {{type}}",
+    "loginFailed": "Échec de connexion",
+    "invalidCredentials": "Identifiants invalides",
+    "enterBoth": "Veuillez entrer l'e-mail et le mot de passe"
+  }
+}

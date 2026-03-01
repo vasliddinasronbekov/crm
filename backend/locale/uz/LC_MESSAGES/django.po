@@ -1,0 +1,414 @@
+# Uzbek translations for EduVoice LMS
+# Copyright (C) 2025
+# This file is distributed under the same license as the EduVoice package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: EduVoice 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 00:00+0500\n"
+"PO-Revision-Date: 2025-10-21 00:00+0500\n"
+"Last-Translator: EduVoice Team\n"
+"Language-Team: Uzbek\n"
+"Language: uz\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=1; plural=0;\n"
+
+# Languages
+msgid "Uzbek"
+msgstr "O'zbekcha"
+
+msgid "Russian"
+msgstr "Ruscha"
+
+msgid "English"
+msgstr "Inglizcha"
+
+# General Actions
+msgid "Yes"
+msgstr "Ha"
+
+msgid "No"
+msgstr "Yo'q"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Cancel"
+msgstr "Bekor qilish"
+
+msgid "Save"
+msgstr "Saqlash"
+
+msgid "Delete"
+msgstr "O'chirish"
+
+msgid "Edit"
+msgstr "Tahrirlash"
+
+msgid "Create"
+msgstr "Yaratish"
+
+msgid "Update"
+msgstr "Yangilash"
+
+msgid "Submit"
+msgstr "Yuborish"
+
+msgid "Back"
+msgstr "Orqaga"
+
+msgid "Next"
+msgstr "Keyingi"
+
+msgid "Previous"
+msgstr "Oldingi"
+
+msgid "Close"
+msgstr "Yopish"
+
+msgid "Search"
+msgstr "Qidirish"
+
+msgid "Filter"
+msgstr "Filtrlash"
+
+msgid "Loading..."
+msgstr "Yuklanmoqda..."
+
+msgid "No data available"
+msgstr "Ma'lumot topilmadi"
+
+# Success Messages
+msgid "Successfully saved"
+msgstr "Muvaffaqiyatli saqlandi"
+
+msgid "Successfully created"
+msgstr "Muvaffaqiyatli yaratildi"
+
+msgid "Successfully updated"
+msgstr "Muvaffaqiyatli yangilandi"
+
+msgid "Successfully deleted"
+msgstr "Muvaffaqiyatli o'chirildi"
+
+msgid "Successfully sent"
+msgstr "Muvaffaqiyatli yuborildi"
+
+msgid "Successfully completed"
+msgstr "Muvaffaqiyatli bajarildi"
+
+msgid "Operation successful"
+msgstr "Operatsiya muvaffaqiyatli"
+
+# Error Messages
+msgid "An error occurred"
+msgstr "Xatolik yuz berdi"
+
+msgid "Not found"
+msgstr "Topilmadi"
+
+msgid "Permission denied"
+msgstr "Ruxsat berilmagan"
+
+msgid "Invalid data"
+msgstr "Noto'g'ri ma'lumot"
+
+msgid "This field is required"
+msgstr "Bu maydon to'ldirilishi shart"
+
+msgid "Already exists"
+msgstr "Allaqachon mavjud"
+
+msgid "Authentication required"
+msgstr "Autentifikatsiya talab qilinadi"
+
+# Validation Messages
+msgid "Invalid email address"
+msgstr "Noto'g'ri email manzil"
+
+msgid "Invalid phone number"
+msgstr "Noto'g'ri telefon raqam"
+
+msgid "Password is too weak"
+msgstr "Parol juda zaif"
+
+msgid "Length is invalid"
+msgstr "Uzunlik noto'g'ri"
+
+msgid "Invalid format"
+msgstr "Noto'g'ri format"
+
+msgid "Validation failed"
+msgstr "Tekshirish muvaffaqiyatsiz"
+
+# Auth
+msgid "Login"
+msgstr "Kirish"
+
+msgid "Logout"
+msgstr "Chiqish"
+
+msgid "Register"
+msgstr "Ro'yxatdan o'tish"
+
+msgid "Email"
+msgstr "Email"
+
+msgid "Password"
+msgstr "Parol"
+
+msgid "Username"
+msgstr "Foydalanuvchi nomi"
+
+msgid "First Name"
+msgstr "Ism"
+
+msgid "Last Name"
+msgstr "Familiya"
+
+msgid "Phone Number"
+msgstr "Telefon raqam"
+
+msgid "Profile"
+msgstr "Profil"
+
+msgid "Settings"
+msgstr "Sozlamalar"
+
+# Student
+msgid "Students"
+msgstr "O'quvchilar"
+
+msgid "Student"
+msgstr "O'quvchi"
+
+msgid "Enrollment"
+msgstr "Ro'yxatdan o'tish"
+
+msgid "Schedule"
+msgstr "Dars jadvali"
+
+msgid "Courses"
+msgstr "Kurslar"
+
+msgid "Progress"
+msgstr "Taraqqiyot"
+
+msgid "Grades"
+msgstr "Baholar"
+
+msgid "Attendance"
+msgstr "Davomat"
+
+msgid "Assignments"
+msgstr "Vazifalar"
+
+msgid "Exams"
+msgstr "Imtihonlar"
+
+# Course
+msgid "Course"
+msgstr "Kurs"
+
+msgid "Lesson"
+msgstr "Dars"
+
+msgid "Lessons"
+msgstr "Darslar"
+
+msgid "Module"
+msgstr "Modul"
+
+msgid "Modules"
+msgstr "Modullar"
+
+msgid "Instructor"
+msgstr "O'qituvchi"
+
+msgid "Syllabus"
+msgstr "Dastur"
+
+msgid "Duration"
+msgstr "Davomiyligi"
+
+msgid "Price"
+msgstr "Narx"
+
+msgid "Start Date"
+msgstr "Boshlanish sanasi"
+
+msgid "End Date"
+msgstr "Tugash sanasi"
+
+# Payment
+msgid "Payment"
+msgstr "To'lov"
+
+msgid "Payments"
+msgstr "To'lovlar"
+
+msgid "Balance"
+msgstr "Balans"
+
+msgid "Amount"
+msgstr "Miqdor"
+
+msgid "Paid"
+msgstr "To'landi"
+
+msgid "Unpaid"
+msgstr "To'lanmagan"
+
+msgid "Invoice"
+msgstr "Hisob-faktura"
+
+msgid "Receipt"
+msgstr "Kvitansiya"
+
+msgid "Discount"
+msgstr "Chegirma"
+
+msgid "Total"
+msgstr "Jami"
+
+# Time
+msgid "Today"
+msgstr "Bugun"
+
+msgid "Yesterday"
+msgstr "Kecha"
+
+msgid "Tomorrow"
+msgstr "Ertaga"
+
+msgid "Week"
+msgstr "Hafta"
+
+msgid "Month"
+msgstr "Oy"
+
+msgid "Year"
+msgstr "Yil"
+
+msgid "Date"
+msgstr "Sana"
+
+msgid "Time"
+msgstr "Vaqt"
+
+msgid "From"
+msgstr "Dan"
+
+msgid "To"
+msgstr "Gacha"
+
+# Status
+msgid "Active"
+msgstr "Faol"
+
+msgid "Inactive"
+msgstr "Nofaol"
+
+msgid "Pending"
+msgstr "Kutilmoqda"
+
+msgid "Completed"
+msgstr "Bajarildi"
+
+msgid "Cancelled"
+msgstr "Bekor qilindi"
+
+msgid "Approved"
+msgstr "Tasdiqlandi"
+
+msgid "Rejected"
+msgstr "Rad etildi"
+
+# Dashboard
+msgid "Dashboard"
+msgstr "Boshqaruv paneli"
+
+msgid "Overview"
+msgstr "Umumiy ko'rinish"
+
+msgid "Statistics"
+msgstr "Statistika"
+
+msgid "Reports"
+msgstr "Hisobotlar"
+
+msgid "Analytics"
+msgstr "Analitika"
+
+# Communication
+msgid "Messages"
+msgstr "Xabarlar"
+
+msgid "Notifications"
+msgstr "Bildirishnomalar"
+
+msgid "Announcements"
+msgstr "E'lonlar"
+
+msgid "SMS"
+msgstr "SMS"
+
+msgid "Send"
+msgstr "Yuborish"
+
+# CRM
+msgid "Leads"
+msgstr "Lidlar"
+
+msgid "Lead"
+msgstr "Lid"
+
+msgid "Conversions"
+msgstr "Konversiyalar"
+
+msgid "Follow-up"
+msgstr "Kuzatuv"
+
+msgid "Source"
+msgstr "Manba"
+
+# Admin
+msgid "Administration"
+msgstr "Boshqaruv"
+
+msgid "Users"
+msgstr "Foydalanuvchilar"
+
+msgid "Roles"
+msgstr "Rollar"
+
+msgid "Permissions"
+msgstr "Ruxsatlar"
+
+msgid "Backup"
+msgstr "Zaxira nusxa"
+
+msgid "Groups"
+msgstr "Guruhlar"
+
+msgid "Group"
+msgstr "Guruh"
+
+# Help
+msgid "Help"
+msgstr "Yordam"
+
+msgid "Support"
+msgstr "Qo'llab-quvvatlash"
+
+msgid "FAQ"
+msgstr "FAQ"
+
+msgid "Contact"
+msgstr "Aloqa"
+
+msgid "About"
+msgstr "Haqida"

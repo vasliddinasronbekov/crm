@@ -1,0 +1,111 @@
+diff --git a/apps/web/lib/api.ts b/apps/web/lib/api.ts
+index 9c388eb..5154698 100644
+--- a/apps/web/lib/api.ts
++++ b/apps/web/lib/api.ts
+@@ -733,7 +733,7 @@ class ApiService {
+   }
+ 
+   async generateCertificate(data: any) {
+-    const response = await this.api.post('/task/certificates/generate/', data);
++    const response = await this.api.post('/task/certificates/', data);
+     return response.data;
+   }
+ 
+@@ -749,27 +749,27 @@ class ApiService {
+ 
+   // Certificate Templates
+   async getCertificateTemplates(params?: any) {
+-    const response = await this.api.get('/v1/certificate-templates/', { params });
++    const response = await this.api.get('/task/certificate-templates/', { params });
+     return response.data;
+   }
+ 
+   async getCertificateTemplate(id: number) {
+-    const response = await this.api.get(`/v1/certificate-templates/${id}/`);
++    const response = await this.api.get(`/task/certificate-templates/${id}/`);
+     return response.data;
+   }
+ 
+   async createCertificateTemplate(data: any) {
+-    const response = await this.api.post('/v1/certificate-templates/', data);
++    const response = await this.api.post('/task/certificate-templates/', data);
+     return response.data;
+   }
+ 
+   async updateCertificateTemplate(id: number, data: any) {
+-    const response = await this.api.patch(`/v1/certificate-templates/${id}/`, data);
++    const response = await this.api.patch(`/task/certificate-templates/${id}/`);
+     return response.data;
+   }
+ 
+   async deleteCertificateTemplate(id: number) {
+-    const response = await this.api.delete(`/v1/certificate-templates/${id}/`);
++    const response = await this.api.delete(`/task/certificate-templates/${id}/`);
+     return response.data;
+   }
+ 
+diff --git a/backend/edu_project/urls.py b/backend/edu_project/urls.py
+index 945e081..ae46796 100755
+--- a/backend/edu_project/urls.py
++++ b/backend/edu_project/urls.py
+@@ -70,16 +70,6 @@ router.register(r'v1/student', StudentViewSet, basename='student')
+ router.register(r'users/teachers', TeacherViewSet, basename='teachers')  # For frontend
+ router.register(r'task/teachers', TeacherViewSet, basename='teacher')
+ 
+-# `task` moduli endpoint'lari
+-router.register(r'task/autotasks', AutoTaskViewSet, basename='autotask')
+-router.register(r'task/board', BoardViewSet, basename='board')
+-router.register(r'task/lists', ListViewSet, basename='list')
+-router.register(r'task/tasks', TaskViewSet, basename='task')
+-router.register(r'v1/certificates', CertificateViewSet, basename='certificate')
+-router.register(r'task/certificates', CertificateViewSet, basename='certificates')  # For frontend
+-router.register(r'v1/certificate-templates', CertificateTemplateViewSet, basename='certificate-template')
+-router.register(r'v1/certificate-verifications', CertificateVerificationViewSet, basename='certificate-verification')
+-
+ # `student_profile` va boshqa modullar uchun endpoint'lar
+ router.register(r'v1/super_user/branch', BranchViewSet, basename='branch')
+ router.register(r'crm/branches', BranchViewSet, basename='branches')  # For frontend
+@@ -180,6 +170,7 @@ urlpatterns = [
+     path('api/', include(router.urls)),
+ 
+     # --- AUTHENTICATION ENDPOINTS ---
++    path('api/task/', include('task.urls')),
+     path('api/auth/login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
+     path('api/v1/student-profile/login/', MyTokenObtainPairView.as_view(), name='student_token_obtain_pair'),
+     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
+@@ -188,7 +179,7 @@ urlpatterns = [
+     path('api/auth/logout/', LogoutView.as_view(), name='logout'),
+     
+     # Maxsus, routerga kirmaydigan URL'lar
+-    path('api/task/tasks-create/', TaskBulkCreateView.as_view(), name='task-bulk-create'),
++
+     path('api/v1/student-profile/student/statistics/', StudentStatisticsView.as_view(), name='student-statistics'),
+     path('api/v1/student-profile/student/update/', StudentUpdateView.as_view(), name='student-update'),
+     path('api/v1/student-profile/payment/create/', CreatePaymentView.as_view(), name='payment-create'),
+diff --git a/backend/task/urls.py b/backend/task/urls.py
+index 8f43bd0..fefe62e 100755
+--- a/backend/task/urls.py
++++ b/backend/task/urls.py
+@@ -4,12 +4,18 @@
+ from django.urls import path, include
+ from rest_framework.routers import DefaultRouter
+ from .views import BoardViewSet, ListViewSet, TaskViewSet, TaskBulkCreateView
++from .certificate_views import CertificateViewSet, CertificateTemplateViewSet, CertificateVerificationViewSet
++
+ router = DefaultRouter()
+-router.register(r'boards', BoardViewSet) # /api/task/boards/
+-router.register(r'lists', ListViewSet)   # /api/task/lists/
+-router.register(r'tasks', TaskViewSet)   # /api/task/tasks/
++router.register(r'boards', BoardViewSet)
++router.register(r'lists', ListViewSet)
++router.register(r'tasks', TaskViewSet)
++router.register(r'certificates', CertificateViewSet, basename='certificates')
++router.register(r'certificate-templates', CertificateTemplateViewSet, basename='certificate-templates')
++router.register(r'certificate-verifications', CertificateVerificationViewSet, basename='certificate-verifications')
+ 
+ urlpatterns = [
+     # Bu manzil /api/task/tasks-create/ bo'ladi
+     path('tasks-create/', TaskBulkCreateView.as_view(), name='task-bulk-create'),
++    path('', include(router.urls)),
+ ]
+\ No newline at end of file

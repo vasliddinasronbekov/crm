@@ -1,0 +1,99 @@
+{
+  "common": {
+    "loading": "Loading...",
+    "error": "Error",
+    "success": "Success",
+    "cancel": "Cancel",
+    "save": "Save",
+    "delete": "Delete",
+    "confirm": "Confirm",
+    "back": "Back",
+    "logout": "Logout",
+    "login": "Login"
+  },
+  "auth": {
+    "welcomeBack": "Welcome back!",
+    "trackProgress": "Track your child's progress",
+    "email": "Email",
+    "password": "Password",
+    "forgotPassword": "Forgot Password?",
+    "noAccount": "Don't have an account?",
+    "contactAdmin": "Contact school admin",
+    "loginWith": "Login with {{type}}",
+    "loginFailed": "Login Failed",
+    "invalidCredentials": "Invalid credentials",
+    "enterBoth": "Please enter both email and password"
+  },
+  "dashboard": {
+    "hello": "Hello, {{name}}!",
+    "trackChildren": "Track your children's progress",
+    "myChildren": "My Children",
+    "noStudents": "No students found",
+    "contactSchool": "Contact your school administrator to link your children's accounts",
+    "quickActions": "Quick Actions",
+    "messages": "Messages",
+    "chatWithTeachers": "Chat with teachers",
+    "notifications": "Notifications",
+    "viewUpdates": "View updates",
+    "grade": "Grade {{grade}}"
+  },
+  "student": {
+    "details": "Student Details",
+    "averageGrade": "Average Grade",
+    "attendance": "Attendance",
+    "completed": "Completed",
+    "studyTime": "Study Time",
+    "courseProgress": "Course Progress",
+    "currentModule": "Current: {{module}}",
+    "hours": "{{hours}}h",
+    "viewAttendance": "View Attendance",
+    "viewGrades": "View Grades",
+    "messageTeachers": "Message Teachers",
+    "noCoursesEnrolled": "No courses enrolled"
+  },
+  "messages": {
+    "title": "Messages",
+    "noConversations": "No conversations yet",
+    "startConversation": "Start a conversation with your child's teachers",
+    "timeAgo": {
+      "justNow": "Just now",
+      "minutesAgo": "{{count}}m ago",
+      "hoursAgo": "{{count}}h ago",
+      "daysAgo": "{{count}}d ago"
+    }
+  },
+  "notifications": {
+    "title": "Notifications",
+    "unread": "{{count}} unread",
+    "markAllRead": "Mark all as read",
+    "noNotifications": "No notifications yet",
+    "receiveUpdates": "You'll receive updates about your children's activities here",
+    "types": {
+      "grade": "New grade posted",
+      "attendance": "Attendance update",
+      "message": "New message",
+      "announcement": "School announcement",
+      "achievement": "Achievement unlocked"
+    }
+  },
+  "settings": {
+    "title": "Settings",
+    "account": "Account",
+    "name": "Name",
+    "email": "Email",
+    "role": "Role",
+    "appearance": "Appearance",
+    "lightMode": "Light Mode",
+    "darkMode": "Dark Mode",
+    "systemDefault": "System Default",
+    "security": "Security",
+    "useBiometric": "Use {{type}} to unlock the app",
+    "biometricEnabled": "{{type}} enabled successfully",
+    "biometricFailed": "Could not enable {{type}}",
+    "language": "Language",
+    "selectLanguage": "Select Language",
+    "appVersion": "Parent Portal v1.0.0",
+    "platform": "EduVoice Platform",
+    "logoutConfirm": "Are you sure you want to logout?"
+  }
+}

@@ -1,0 +1,34 @@
+{
+  "API_BASE_URL": "http://192.168.0.106:8008",
+  "ENDPOINTS": {
+    "auth": {
+      "AUTH_LOGIN": "/api/auth/login/"
+    },
+    "student-profile": {
+      "STUDENT_PROFILE_STUDENT_STATISTICS": "/api/v1/student-profile/student/statistics/",
+      "STUDENT_PROFILE_COURSES": "/api/v1/student-profile/courses/",
+      "STUDENT_PROFILE_ATTENDANCE": "/api/v1/student-profile/attendance/",
+      "STUDENT_PROFILE_EVENTS": "/api/v1/student-profile/events/",
+      "STUDENT_PROFILE_PRODUCT": "/api/v1/student-profile/product/",
+      "STUDENT_PROFILE_ORDER": "/api/v1/student-profile/order/",
+      "STUDENT_PROFILE_IELTS_EXAMS": "/api/v1/student-profile/ielts/exams/",
+      "STUDENT_PROFILE_IELTS_ATTEMPTS": "/api/v1/student-profile/ielts/attempts/",
+      "STUDENT_PROFILE_SAT_EXAMS": "/api/v1/student-profile/sat/exams/",
+      "STUDENT_PROFILE_SAT_ATTEMPTS_MY_ATTEMPTS": "/api/v1/student-profile/sat/attempts/my_attempts/",
+      "STUDENT_PROFILE_PAYMENT": "/api/v1/student-profile/payment/"
+    },
+    "lms": {
+      "LMS_ASSIGNMENTS": "/api/v1/lms/assignments/",
+      "LMS_QUIZZES": "/api/v1/lms/quizzes/"
+    },
+    "student-bonus": {
+      "STUDENT_BONUS": "/api/v1/student-bonus/"
+    },
+    "gamification": {
+      "GAMIFICATION_PROFILE_MY_PROFILE": "/api/gamification/profile/my_profile/"
+    },
+    "ranking": {
+      "RANKING_LEADERBOARD": "/api/v1/ranking/leaderboard/"
+    }
+  }
+}

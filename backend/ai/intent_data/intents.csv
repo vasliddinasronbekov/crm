@@ -1,0 +1,2636 @@
+text,intent
+Men ingliz tili kursiga yozilmoqchiman,student_enroll
+I want to enroll in Python programming,student_enroll
+Matematika darsiga ro'yxatdan o'tish,student_enroll
+Men kursga yozilishim kerak,student_enroll
+Kursga qanday yozilaman?,student_enroll
+Register me for the course,student_enroll
+I need to enroll,student_enroll
+Yozilish jarayoni,student_enroll
+Ro'yxatdan o'tmoqchiman,student_enroll
+yozil,student_enroll
+"Iltimos, yozil",student_enroll
+yozil,student_enroll
+Bizga yozil,student_enroll
+yozil qilib bering,student_enroll
+yozil kerak,student_enroll
+ro'yxat,student_enroll
+"Iltimos, ro'yxat",student_enroll
+Bizga ro'yxat,student_enroll
+ro'yxat,student_enroll
+ro'yxat,student_enroll
+ro'yxat qilib bering,student_enroll
+kursga,student_enroll
+Men kursga,student_enroll
+Menga kursga,student_enroll
+Bizga kursga,student_enroll
+kursga qilish kerak,student_enroll
+kursga qilib bering,student_enroll
+boshlash,student_enroll
+Men boshlash,student_enroll
+Menga boshlash,student_enroll
+"Iltimos, boshlash",student_enroll
+boshlash qilish kerak,student_enroll
+boshlash kerak,student_enroll
+kirish,student_enroll
+Men kirish,student_enroll
+Bizga kirish,student_enroll
+Menga kirish,student_enroll
+kirish qilib bering,student_enroll
+kirish qilish kerak,student_enroll
+enroll,student_enroll
+Bizga enroll,student_enroll
+Menga enroll,student_enroll
+"Iltimos, enroll",student_enroll
+enroll qilish kerak,student_enroll
+enroll kerak,student_enroll
+register,student_enroll
+Menga register,student_enroll
+register,student_enroll
+Men register,student_enroll
+register iltimos,student_enroll
+register,student_enroll
+join,student_enroll
+join,student_enroll
+Menga join,student_enroll
+Bizga join,student_enroll
+join kerak,student_enroll
+join qilish kerak,student_enroll
+sign up,student_enroll
+Men sign up,student_enroll
+Bizga sign up,student_enroll
+Menga sign up,student_enroll
+sign up kerak,student_enroll
+sign up,student_enroll
+Mening profilimni ko'rsating,student_profile
+Show my profile,student_profile
+Account information,student_profile
+Mening ma'lumotlarim,student_profile
+Profil ma'lumotlari,student_profile
+Account settings,student_profile
+My information,student_profile
+Shaxsiy ma'lumotlar,student_profile
+profil,student_profile
+profil,student_profile
+Menga profil,student_profile
+Men profil,student_profile
+profil qilib bering,student_profile
+profil qilish kerak,student_profile
+ma'lumot,student_profile
+Menga ma'lumot,student_profile
+"Iltimos, ma'lumot",student_profile
+Men ma'lumot,student_profile
+ma'lumot qilish kerak,student_profile
+ma'lumot iltimos,student_profile
+shaxsiy,student_profile
+Menga shaxsiy,student_profile
+Bizga shaxsiy,student_profile
+Men shaxsiy,student_profile
+shaxsiy qilib bering,student_profile
+shaxsiy,student_profile
+info,student_profile
+info,student_profile
+Men info,student_profile
+Menga info,student_profile
+info iltimos,student_profile
+info qilish kerak,student_profile
+profile,student_profile
+"Iltimos, profile",student_profile
+profile,student_profile
+Men profile,student_profile
+profile qilib bering,student_profile
+profile,student_profile
+account,student_profile
+Menga account,student_profile
+"Iltimos, account",student_profile
+Bizga account,student_profile
+account qilib bering,student_profile
+account iltimos,student_profile
+details,student_profile
+"Iltimos, details",student_profile
+Menga details,student_profile
+Men details,student_profile
+details qilish kerak,student_profile
+details,student_profile
+I need to Show my profile,student_profile
+I want to Show my profile,student_profile
+Mening dars jadvalim,student_schedule
+What's my class schedule?,student_schedule
+Bugun dars bormi?,student_schedule
+When is my next class?,student_schedule
+Bugun dars bormi?,student_schedule
+Ertaga qaysi darslar bor?,student_schedule
+Keyingi darsim qachon?,student_schedule
+Darslar jadvali,student_schedule
+When is my next class?,student_schedule
+Class schedule please,student_schedule
+jadval,student_schedule
+"Iltimos, jadval",student_schedule
+Menga jadval,student_schedule
+Bizga jadval,student_schedule
+jadval iltimos,student_schedule
+jadval qilib bering,student_schedule
+dars,student_schedule
+Men dars,student_schedule
+Bizga dars,student_schedule
+Menga dars,student_schedule
+dars kerak,student_schedule
+dars iltimos,student_schedule
+soat,student_schedule
+Men soat,student_schedule
+Menga soat,student_schedule
+"Iltimos, soat",student_schedule
+soat kerak,student_schedule
+soat qilib bering,student_schedule
+vaqt,student_schedule
+Men vaqt,student_schedule
+Bizga vaqt,student_schedule
+vaqt,student_schedule
+vaqt qilib bering,student_schedule
+vaqt iltimos,student_schedule
+schedule,student_schedule
+"Iltimos, schedule",student_schedule
+Bizga schedule,student_schedule
+schedule,student_schedule
+schedule qilib bering,student_schedule
+schedule kerak,student_schedule
+timetable,student_schedule
+Bizga timetable,student_schedule
+Menga timetable,student_schedule
+Men timetable,student_schedule
+timetable iltimos,student_schedule
+timetable,student_schedule
+class time,student_schedule
+Bizga class time,student_schedule
+class time,student_schedule
+Menga class time,student_schedule
+class time qilish kerak,student_schedule
+class time,student_schedule
+when,student_schedule
+Men when,student_schedule
+Bizga when,student_schedule
+"Iltimos, when",student_schedule
+when qilib bering,student_schedule
+when qilish kerak,student_schedule
+Qaysi kurslarda o'qiyapman?,student_courses
+Show my courses,student_courses
+What classes am I taking?,student_courses
+Qaysi kurslarda o'qiyapman?,student_courses
+My enrolled courses,student_courses
+Kurslarim ro'yxati,student_courses
+What classes am I taking?,student_courses
+Qaysi darslarni o'qiyapman?,student_courses
+kurslarim,student_courses
+"Iltimos, kurslarim",student_courses
+kurslarim,student_courses
+Men kurslarim,student_courses
+kurslarim,student_courses
+kurslarim qilish kerak,student_courses
+o'qiyotgan,student_courses
+"Iltimos, o'qiyotgan",student_courses
+Men o'qiyotgan,student_courses
+o'qiyotgan,student_courses
+o'qiyotgan qilib bering,student_courses
+o'qiyotgan iltimos,student_courses
+darslar,student_courses
+Menga darslar,student_courses
+Bizga darslar,student_courses
+"Iltimos, darslar",student_courses
+darslar iltimos,student_courses
+darslar qilish kerak,student_courses
+my courses,student_courses
+Menga my courses,student_courses
+Men my courses,student_courses
+Bizga my courses,student_courses
+my courses qilib bering,student_courses
+my courses,student_courses
+enrolled,student_courses
+Men enrolled,student_courses
+"Iltimos, enrolled",student_courses
+Bizga enrolled,student_courses
+enrolled,student_courses
+enrolled qilish kerak,student_courses
+classes,student_courses
+Menga classes,student_courses
+Bizga classes,student_courses
+Men classes,student_courses
+classes iltimos,student_courses
+classes qilish kerak,student_courses
+Can you Show my courses,student_courses
+Please Show my courses,student_courses
+Mening progressim qanday?,student_progress
+How am I doing in the course?,student_progress
+Kurs jarayonim,student_progress
+Mening yutuqlarim,student_progress
+O'quv jarayonim,student_progress
+How am I doing?,student_progress
+My progress report,student_progress
+Progressimni ko'rsating,student_progress
+progress,student_progress
+Men progress,student_progress
+"Iltimos, progress",student_progress
+progress,student_progress
+progress iltimos,student_progress
+progress kerak,student_progress
+yutuqlar,student_progress
+Men yutuqlar,student_progress
+Menga yutuqlar,student_progress
+yutuqlar,student_progress
+yutuqlar iltimos,student_progress
+yutuqlar,student_progress
+natija,student_progress
+natija,student_progress
+Bizga natija,student_progress
+Men natija,student_progress
+natija iltimos,student_progress
+natija kerak,student_progress
+advancement,student_progress
+"Iltimos, advancement",student_progress
+Men advancement,student_progress
+advancement,student_progress
+advancement kerak,student_progress
+advancement qilish kerak,student_progress
+completion,student_progress
+completion,student_progress
+Men completion,student_progress
+Menga completion,student_progress
+completion qilib bering,student_progress
+completion iltimos,student_progress
+muvaffaqiyat,student_progress
+Menga muvaffaqiyat,student_progress
+muvaffaqiyat,student_progress
+"Iltimos, muvaffaqiyat",student_progress
+muvaffaqiyat iltimos,student_progress
+muvaffaqiyat qilish kerak,student_progress
+Sertifikatlarimni ko'rsating,student_certificates
+Download my certificate,student_certificates
+Do I have any certificates?,student_certificates
+sertifikat,student_certificates
+Menga sertifikat,student_certificates
+Bizga sertifikat,student_certificates
+Men sertifikat,student_certificates
+sertifikat iltimos,student_certificates
+sertifikat,student_certificates
+certificate,student_certificates
+Bizga certificate,student_certificates
+"Iltimos, certificate",student_certificates
+Menga certificate,student_certificates
+certificate qilib bering,student_certificates
+certificate qilish kerak,student_certificates
+diploma,student_certificates
+"Iltimos, diploma",student_certificates
+Bizga diploma,student_certificates
+Menga diploma,student_certificates
+diploma qilib bering,student_certificates
+diploma kerak,student_certificates
+attestat,student_certificates
+attestat,student_certificates
+Bizga attestat,student_certificates
+"Iltimos, attestat",student_certificates
+attestat qilish kerak,student_certificates
+attestat,student_certificates
+credential,student_certificates
+"Iltimos, credential",student_certificates
+Menga credential,student_certificates
+Men credential,student_certificates
+credential qilish kerak,student_certificates
+credential iltimos,student_certificates
+Men kursdan chiqmoqchiman,student_withdraw
+I want to drop this course,student_withdraw
+Cancel my enrollment,student_withdraw
+chiqish,student_withdraw
+Menga chiqish,student_withdraw
+Bizga chiqish,student_withdraw
+chiqish,student_withdraw
+chiqish,student_withdraw
+chiqish kerak,student_withdraw
+tark etish,student_withdraw
+tark etish,student_withdraw
+"Iltimos, tark etish",student_withdraw
+Men tark etish,student_withdraw
+tark etish,student_withdraw
+tark etish iltimos,student_withdraw
+bekor,student_withdraw
+Menga bekor,student_withdraw
+Men bekor,student_withdraw
+Bizga bekor,student_withdraw
+bekor kerak,student_withdraw
+bekor qilish kerak,student_withdraw
+withdraw,student_withdraw
+Men withdraw,student_withdraw
+withdraw,student_withdraw
+"Iltimos, withdraw",student_withdraw
+withdraw iltimos,student_withdraw
+withdraw qilib bering,student_withdraw
+drop,student_withdraw
+Bizga drop,student_withdraw
+Menga drop,student_withdraw
+Men drop,student_withdraw
+drop qilish kerak,student_withdraw
+drop kerak,student_withdraw
+leave,student_withdraw
+Menga leave,student_withdraw
+Men leave,student_withdraw
+leave,student_withdraw
+leave,student_withdraw
+leave qilish kerak,student_withdraw
+cancel,student_withdraw
+Menga cancel,student_withdraw
+Bizga cancel,student_withdraw
+Men cancel,student_withdraw
+cancel iltimos,student_withdraw
+cancel,student_withdraw
+Mening guruhim kimlar?,student_groupmates
+Who are my classmates?,student_groupmates
+Show students in my group,student_groupmates
+guruh,student_groupmates
+Men guruh,student_groupmates
+Menga guruh,student_groupmates
+guruh,student_groupmates
+guruh,student_groupmates
+guruh qilib bering,student_groupmates
+sinfdoshlar,student_groupmates
+Men sinfdoshlar,student_groupmates
+"Iltimos, sinfdoshlar",student_groupmates
+sinfdoshlar,student_groupmates
+sinfdoshlar kerak,student_groupmates
+sinfdoshlar iltimos,student_groupmates
+o'quvchilar,student_groupmates
+Menga o'quvchilar,student_groupmates
+Bizga o'quvchilar,student_groupmates
+o'quvchilar,student_groupmates
+o'quvchilar iltimos,student_groupmates
+o'quvchilar qilish kerak,student_groupmates
+classmates,student_groupmates
+Menga classmates,student_groupmates
+"Iltimos, classmates",student_groupmates
+classmates,student_groupmates
+classmates qilib bering,student_groupmates
+classmates,student_groupmates
+groupmates,student_groupmates
+Bizga groupmates,student_groupmates
+"Iltimos, groupmates",student_groupmates
+Men groupmates,student_groupmates
+groupmates kerak,student_groupmates
+groupmates,student_groupmates
+students,student_groupmates
+"Iltimos, students",student_groupmates
+Menga students,student_groupmates
+students,student_groupmates
+students,student_groupmates
+students qilib bering,student_groupmates
+peers,student_groupmates
+Men peers,student_groupmates
+Menga peers,student_groupmates
+Bizga peers,student_groupmates
+peers qilib bering,student_groupmates
+peers qilish kerak,student_groupmates
+Can you Show students in my group,student_groupmates
+I need to Show students in my group,student_groupmates
+Please Show students in my group,student_groupmates
+Mening o'qituvchim kim?,student_teacher
+Who is teaching this course?,student_teacher
+Teacher contact information,student_teacher
+o'qituvchi,student_teacher
+"Iltimos, o'qituvchi",student_teacher
+Menga o'qituvchi,student_teacher
+Men o'qituvchi,student_teacher
+o'qituvchi qilib bering,student_teacher
+o'qituvchi iltimos,student_teacher
+ustoz,student_teacher
+Bizga ustoz,student_teacher
+Menga ustoz,student_teacher
+ustoz,student_teacher
+ustoz qilib bering,student_teacher
+ustoz iltimos,student_teacher
+teacher,student_teacher
+Men teacher,student_teacher
+Menga teacher,student_teacher
+teacher,student_teacher
+teacher iltimos,student_teacher
+teacher qilib bering,student_teacher
+instructor,student_teacher
+Men instructor,student_teacher
+Bizga instructor,student_teacher
+"Iltimos, instructor",student_teacher
+instructor,student_teacher
+instructor qilib bering,student_teacher
+professor,student_teacher
+Men professor,student_teacher
+Bizga professor,student_teacher
+Menga professor,student_teacher
+professor iltimos,student_teacher
+professor qilib bering,student_teacher
+mentor,student_teacher
+"Iltimos, mentor",student_teacher
+Men mentor,student_teacher
+Bizga mentor,student_teacher
+mentor iltimos,student_teacher
+mentor,student_teacher
+Kurs haqida fikr bildirish,student_feedback
+I want to leave a review,student_feedback
+Rate this course,student_feedback
+fikr,student_feedback
+Menga fikr,student_feedback
+"Iltimos, fikr",student_feedback
+fikr,student_feedback
+fikr qilish kerak,student_feedback
+fikr iltimos,student_feedback
+sharh,student_feedback
+Bizga sharh,student_feedback
+sharh,student_feedback
+Menga sharh,student_feedback
+sharh,student_feedback
+sharh qilib bering,student_feedback
+baholash,student_feedback
+"Iltimos, baholash",student_feedback
+Men baholash,student_feedback
+Bizga baholash,student_feedback
+baholash qilish kerak,student_feedback
+baholash kerak,student_feedback
+feedback,student_feedback
+Menga feedback,student_feedback
+feedback,student_feedback
+"Iltimos, feedback",student_feedback
+feedback iltimos,student_feedback
+feedback kerak,student_feedback
+review,student_feedback
+Menga review,student_feedback
+Bizga review,student_feedback
+"Iltimos, review",student_feedback
+review,student_feedback
+review kerak,student_feedback
+rating,student_feedback
+Menga rating,student_feedback
+"Iltimos, rating",student_feedback
+Men rating,student_feedback
+rating,student_feedback
+rating qilib bering,student_feedback
+comment,student_feedback
+Menga comment,student_feedback
+comment,student_feedback
+Bizga comment,student_feedback
+comment iltimos,student_feedback
+comment qilib bering,student_feedback
+Dars materiallari,student_materials
+Download course materials,student_materials
+Where are the resources?,student_materials
+material,student_materials
+"Iltimos, material",student_materials
+material,student_materials
+Men material,student_materials
+material qilish kerak,student_materials
+material,student_materials
+resurs,student_materials
+Menga resurs,student_materials
+resurs,student_materials
+Men resurs,student_materials
+resurs kerak,student_materials
+resurs qilish kerak,student_materials
+kitob,student_materials
+Menga kitob,student_materials
+Men kitob,student_materials
+Bizga kitob,student_materials
+kitob,student_materials
+kitob qilib bering,student_materials
+video,student_materials
+video,student_materials
+Men video,student_materials
+"Iltimos, video",student_materials
+video kerak,student_materials
+video qilish kerak,student_materials
+resources,student_materials
+Menga resources,student_materials
+resources,student_materials
+Bizga resources,student_materials
+resources kerak,student_materials
+resources iltimos,student_materials
+materials,student_materials
+Menga materials,student_materials
+Men materials,student_materials
+materials,student_materials
+materials kerak,student_materials
+materials qilib bering,student_materials
+downloads,student_materials
+Men downloads,student_materials
+Bizga downloads,student_materials
+Menga downloads,student_materials
+downloads iltimos,student_materials
+downloads kerak,student_materials
+files,student_materials
+Menga files,student_materials
+Men files,student_materials
+files,student_materials
+files iltimos,student_materials
+files kerak,student_materials
+Mening vazifalarim,student_homework
+What homework do I have?,student_homework
+Show assignments,student_homework
+vazifa,student_homework
+"Iltimos, vazifa",student_homework
+Menga vazifa,student_homework
+vazifa,student_homework
+vazifa kerak,student_homework
+vazifa qilib bering,student_homework
+uy ishi,student_homework
+"Iltimos, uy ishi",student_homework
+Men uy ishi,student_homework
+Menga uy ishi,student_homework
+uy ishi qilib bering,student_homework
+uy ishi kerak,student_homework
+homework,student_homework
+homework,student_homework
+Menga homework,student_homework
+Men homework,student_homework
+homework qilib bering,student_homework
+homework kerak,student_homework
+assignment,student_homework
+Bizga assignment,student_homework
+Men assignment,student_homework
+assignment,student_homework
+assignment kerak,student_homework
+assignment iltimos,student_homework
+task,student_homework
+Bizga task,student_homework
+"Iltimos, task",student_homework
+task,student_homework
+task qilib bering,student_homework
+task,student_homework
+mashq,student_homework
+Men mashq,student_homework
+mashq,student_homework
+"Iltimos, mashq",student_homework
+mashq kerak,student_homework
+mashq qilib bering,student_homework
+I need to Show assignments,student_homework
+Can you Show assignments,student_homework
+Yordam kerak,student_support
+I need help,student_support
+Having trouble with...,student_support
+yordam,student_support
+Bizga yordam,student_support
+Men yordam,student_support
+Menga yordam,student_support
+yordam,student_support
+yordam iltimos,student_support
+muammo,student_support
+Bizga muammo,student_support
+Men muammo,student_support
+"Iltimos, muammo",student_support
+muammo,student_support
+muammo kerak,student_support
+help,student_support
+Menga help,student_support
+"Iltimos, help",student_support
+Men help,student_support
+help qilib bering,student_support
+help,student_support
+support,student_support
+"Iltimos, support",student_support
+Men support,student_support
+support,student_support
+support qilish kerak,student_support
+support kerak,student_support
+problem,student_support
+Menga problem,student_support
+Men problem,student_support
+problem,student_support
+problem qilib bering,student_support
+problem,student_support
+issue,student_support
+"Iltimos, issue",student_support
+Menga issue,student_support
+issue,student_support
+issue kerak,student_support
+issue iltimos,student_support
+assistance,student_support
+Men assistance,student_support
+Menga assistance,student_support
+"Iltimos, assistance",student_support
+assistance kerak,student_support
+assistance qilib bering,student_support
+Mening reytingim,student_ranking
+Where do I rank?,student_ranking
+Show leaderboard,student_ranking
+reyting,student_ranking
+Men reyting,student_ranking
+Menga reyting,student_ranking
+"Iltimos, reyting",student_ranking
+reyting,student_ranking
+reyting qilish kerak,student_ranking
+o'rin,student_ranking
+Bizga o'rin,student_ranking
+"Iltimos, o'rin",student_ranking
+Menga o'rin,student_ranking
+o'rin,student_ranking
+o'rin qilib bering,student_ranking
+ranking,student_ranking
+Bizga ranking,student_ranking
+"Iltimos, ranking",student_ranking
+Menga ranking,student_ranking
+ranking kerak,student_ranking
+ranking,student_ranking
+leaderboard,student_ranking
+leaderboard,student_ranking
+Menga leaderboard,student_ranking
+"Iltimos, leaderboard",student_ranking
+leaderboard qilish kerak,student_ranking
+leaderboard,student_ranking
+position,student_ranking
+Menga position,student_ranking
+"Iltimos, position",student_ranking
+Men position,student_ranking
+position qilib bering,student_ranking
+position iltimos,student_ranking
+top students,student_ranking
+top students,student_ranking
+Men top students,student_ranking
+"Iltimos, top students",student_ranking
+top students iltimos,student_ranking
+top students kerak,student_ranking
+Please Show leaderboard,student_ranking
+Could you Show leaderboard,student_ranking
+Yangiliklar,student_announcements
+Show announcements,student_announcements
+Any updates?,student_announcements
+e'lon,student_announcements
+e'lon,student_announcements
+Bizga e'lon,student_announcements
+"Iltimos, e'lon",student_announcements
+e'lon iltimos,student_announcements
+e'lon qilib bering,student_announcements
+yangilik,student_announcements
+Men yangilik,student_announcements
+Menga yangilik,student_announcements
+yangilik,student_announcements
+yangilik kerak,student_announcements
+yangilik,student_announcements
+xabar,student_announcements
+Men xabar,student_announcements
+Bizga xabar,student_announcements
+Menga xabar,student_announcements
+xabar kerak,student_announcements
+xabar,student_announcements
+announcement,student_announcements
+Menga announcement,student_announcements
+Bizga announcement,student_announcements
+"Iltimos, announcement",student_announcements
+announcement,student_announcements
+announcement kerak,student_announcements
+news,student_announcements
+Bizga news,student_announcements
+news,student_announcements
+"Iltimos, news",student_announcements
+news qilish kerak,student_announcements
+news,student_announcements
+update,student_announcements
+Bizga update,student_announcements
+Menga update,student_announcements
+update,student_announcements
+update,student_announcements
+update qilib bering,student_announcements
+notice,student_announcements
+Menga notice,student_announcements
+notice,student_announcements
+Men notice,student_announcements
+notice iltimos,student_announcements
+notice,student_announcements
+Can you Show announcements,student_announcements
+Could you Show announcements,student_announcements
+I need to Show announcements,student_announcements
+Qanday kurslar bor?,course_catalog
+Show all courses,course_catalog
+Browse course catalog,course_catalog
+Barcha kurslar,course_catalog
+Qanday kurslar mavjud?,course_catalog
+Show all courses,course_catalog
+Available courses,course_catalog
+Kurs katalogi,course_catalog
+List of courses,course_catalog
+kurslar,course_catalog
+Men kurslar,course_catalog
+Bizga kurslar,course_catalog
+Menga kurslar,course_catalog
+kurslar kerak,course_catalog
+kurslar iltimos,course_catalog
+katalog,course_catalog
+Menga katalog,course_catalog
+Men katalog,course_catalog
+katalog,course_catalog
+katalog iltimos,course_catalog
+katalog kerak,course_catalog
+mavjud,course_catalog
+"Iltimos, mavjud",course_catalog
+Men mavjud,course_catalog
+Bizga mavjud,course_catalog
+mavjud,course_catalog
+mavjud kerak,course_catalog
+catalog,course_catalog
+catalog,course_catalog
+"Iltimos, catalog",course_catalog
+Menga catalog,course_catalog
+catalog qilish kerak,course_catalog
+catalog kerak,course_catalog
+available courses,course_catalog
+Menga available courses,course_catalog
+Bizga available courses,course_catalog
+"Iltimos, available courses",course_catalog
+available courses,course_catalog
+available courses iltimos,course_catalog
+browse,course_catalog
+Men browse,course_catalog
+"Iltimos, browse",course_catalog
+browse,course_catalog
+browse qilib bering,course_catalog
+browse qilish kerak,course_catalog
+list,course_catalog
+Menga list,course_catalog
+Bizga list,course_catalog
+Men list,course_catalog
+list qilib bering,course_catalog
+list,course_catalog
+Could you Show all courses,course_catalog
+Please Show all courses,course_catalog
+I need to Show all courses,course_catalog
+Python kursi haqida ma'lumot,course_details
+Tell me about the Data Science course,course_details
+Course details,course_details
+Python kursi haqida,course_details
+Tell me about this course,course_details
+Kurs ma'lumoti,course_details
+Course information,course_details
+Kurs tavsifi,course_details
+kurs haqida,course_details
+Bizga kurs haqida,course_details
+"Iltimos, kurs haqida",course_details
+Menga kurs haqida,course_details
+kurs haqida iltimos,course_details
+kurs haqida qilish kerak,course_details
+ma'lumot,course_details
+Bizga ma'lumot,course_details
+Menga ma'lumot,course_details
+ma'lumot,course_details
+ma'lumot qilib bering,course_details
+ma'lumot kerak,course_details
+details,course_details
+details,course_details
+Men details,course_details
+Menga details,course_details
+details iltimos,course_details
+details,course_details
+about,course_details
+"Iltimos, about",course_details
+about,course_details
+Menga about,course_details
+about qilib bering,course_details
+about kerak,course_details
+description,course_details
+Menga description,course_details
+"Iltimos, description",course_details
+description,course_details
+description qilib bering,course_details
+description kerak,course_details
+information,course_details
+Men information,course_details
+Bizga information,course_details
+information,course_details
+information iltimos,course_details
+information qilib bering,course_details
+Could you Tell me about the Data Science course,course_details
+I want to Tell me about the Data Science course,course_details
+Can you Tell me about the Data Science course,course_details
+Kurs dasturi,course_syllabus
+Show syllabus,course_syllabus
+What topics are covered?,course_syllabus
+dastur,course_syllabus
+"Iltimos, dastur",course_syllabus
+dastur,course_syllabus
+Bizga dastur,course_syllabus
+dastur qilib bering,course_syllabus
+dastur qilish kerak,course_syllabus
+curriculum,course_syllabus
+Bizga curriculum,course_syllabus
+Men curriculum,course_syllabus
+curriculum,course_syllabus
+curriculum kerak,course_syllabus
+curriculum,course_syllabus
+syllabus,course_syllabus
+syllabus,course_syllabus
+"Iltimos, syllabus",course_syllabus
+Menga syllabus,course_syllabus
+syllabus qilish kerak,course_syllabus
+syllabus qilib bering,course_syllabus
+plan,course_syllabus
+plan,course_syllabus
+Men plan,course_syllabus
+Menga plan,course_syllabus
+plan qilish kerak,course_syllabus
+plan,course_syllabus
+o'quv dasturi,course_syllabus
+"Iltimos, o'quv dasturi",course_syllabus
+Men o'quv dasturi,course_syllabus
+Menga o'quv dasturi,course_syllabus
+o'quv dasturi qilish kerak,course_syllabus
+o'quv dasturi kerak,course_syllabus
+mavzular,course_syllabus
+Men mavzular,course_syllabus
+"Iltimos, mavzular",course_syllabus
+Bizga mavzular,course_syllabus
+mavzular,course_syllabus
+mavzular qilish kerak,course_syllabus
+I want to Show syllabus,course_syllabus
+Please Show syllabus,course_syllabus
+I need to Show syllabus,course_syllabus
+Kurs qancha davom etadi?,course_duration
+How long is the course?,course_duration
+Course duration,course_duration
+davomiylik,course_duration
+Men davomiylik,course_duration
+Menga davomiylik,course_duration
+"Iltimos, davomiylik",course_duration
+davomiylik,course_duration
+davomiylik iltimos,course_duration
+vaqt,course_duration
+Men vaqt,course_duration
+Bizga vaqt,course_duration
+vaqt,course_duration
+vaqt,course_duration
+vaqt qilish kerak,course_duration
+muddat,course_duration
+Bizga muddat,course_duration
+"Iltimos, muddat",course_duration
+Menga muddat,course_duration
+muddat iltimos,course_duration
+muddat kerak,course_duration
+duration,course_duration
+Bizga duration,course_duration
+duration,course_duration
+Men duration,course_duration
+duration iltimos,course_duration
+duration,course_duration
+how long,course_duration
+how long,course_duration
+Menga how long,course_duration
+Bizga how long,course_duration
+how long,course_duration
+how long qilish kerak,course_duration
+length,course_duration
+Bizga length,course_duration
+Men length,course_duration
+"Iltimos, length",course_duration
+length,course_duration
+length kerak,course_duration
+time,course_duration
+Bizga time,course_duration
+Menga time,course_duration
+Men time,course_duration
+time qilish kerak,course_duration
+time qilib bering,course_duration
+Kurs narxi qancha?,course_price
+How much does it cost?,course_price
+Course price,course_price
+Kurs qancha turadi?,course_price
+Narxi,course_price
+How much is the course?,course_price
+Price,course_price
+To'lov qancha?,course_price
+Course fee,course_price
+narx,course_price
+Menga narx,course_price
+narx,course_price
+"Iltimos, narx",course_price
+narx qilib bering,course_price
+narx,course_price
+to'lov,course_price
+"Iltimos, to'lov",course_price
+Men to'lov,course_price
+to'lov,course_price
+to'lov,course_price
+to'lov qilib bering,course_price
+price,course_price
+"Iltimos, price",course_price
+price,course_price
+Men price,course_price
+price kerak,course_price
+price iltimos,course_price
+cost,course_price
+Bizga cost,course_price
+"Iltimos, cost",course_price
+Menga cost,course_price
+cost qilish kerak,course_price
+cost kerak,course_price
+fee,course_price
+fee,course_price
+Men fee,course_price
+Bizga fee,course_price
+fee qilish kerak,course_price
+fee qilib bering,course_price
+qancha,course_price
+Men qancha,course_price
+Bizga qancha,course_price
+qancha,course_price
+qancha qilib bering,course_price
+qancha iltimos,course_price
+how much,course_price
+"Iltimos, how much",course_price
+Men how much,course_price
+Menga how much,course_price
+how much,course_price
+how much qilib bering,course_price
+Kurs qachon boshlanadi?,course_start_date
+When does the course start?,course_start_date
+Start date,course_start_date
+boshlash,course_start_date
+"Iltimos, boshlash",course_start_date
+Bizga boshlash,course_start_date
+Menga boshlash,course_start_date
+boshlash iltimos,course_start_date
+boshlash qilish kerak,course_start_date
+boshlanish,course_start_date
+boshlanish,course_start_date
+Menga boshlanish,course_start_date
+Bizga boshlanish,course_start_date
+boshlanish qilish kerak,course_start_date
+boshlanish,course_start_date
+start date,course_start_date
+"Iltimos, start date",course_start_date
+start date,course_start_date
+Menga start date,course_start_date
+start date qilish kerak,course_start_date
+start date iltimos,course_start_date
+when starts,course_start_date
+Bizga when starts,course_start_date
+Menga when starts,course_start_date
+"Iltimos, when starts",course_start_date
+when starts qilish kerak,course_start_date
+when starts iltimos,course_start_date
+qachon boshlanadi,course_start_date
+qachon boshlanadi,course_start_date
+Men qachon boshlanadi,course_start_date
+Menga qachon boshlanadi,course_start_date
+qachon boshlanadi,course_start_date
+qachon boshlanadi iltimos,course_start_date
+Kursga kirish talablari,course_prerequisites
+What do I need to know before?,course_prerequisites
+Prerequisites,course_prerequisites
+talab,course_prerequisites
+"Iltimos, talab",course_prerequisites
+Men talab,course_prerequisites
+Bizga talab,course_prerequisites
+talab qilib bering,course_prerequisites
+talab kerak,course_prerequisites
+shart,course_prerequisites
+shart,course_prerequisites
+"Iltimos, shart",course_prerequisites
+Menga shart,course_prerequisites
+shart,course_prerequisites
+shart iltimos,course_prerequisites
+oldin,course_prerequisites
+oldin,course_prerequisites
+"Iltimos, oldin",course_prerequisites
+Bizga oldin,course_prerequisites
+oldin iltimos,course_prerequisites
+oldin qilib bering,course_prerequisites
+prerequisites,course_prerequisites
+"Iltimos, prerequisites",course_prerequisites
+prerequisites,course_prerequisites
+Menga prerequisites,course_prerequisites
+prerequisites kerak,course_prerequisites
+prerequisites qilish kerak,course_prerequisites
+requirements,course_prerequisites
+Bizga requirements,course_prerequisites
+requirements,course_prerequisites
+"Iltimos, requirements",course_prerequisites
+requirements qilish kerak,course_prerequisites
+requirements iltimos,course_prerequisites
+prior knowledge,course_prerequisites
+Men prior knowledge,course_prerequisites
+"Iltimos, prior knowledge",course_prerequisites
+Bizga prior knowledge,course_prerequisites
+prior knowledge qilib bering,course_prerequisites
+prior knowledge iltimos,course_prerequisites
+Kursni kim o'qitadi?,course_instructor
+Who is the instructor?,course_instructor
+Teacher information,course_instructor
+o'qituvchi,course_instructor
+Bizga o'qituvchi,course_instructor
+Men o'qituvchi,course_instructor
+"Iltimos, o'qituvchi",course_instructor
+o'qituvchi qilish kerak,course_instructor
+o'qituvchi,course_instructor
+instruktor,course_instructor
+Men instruktor,course_instructor
+instruktor,course_instructor
+"Iltimos, instruktor",course_instructor
+instruktor iltimos,course_instructor
+instruktor,course_instructor
+instructor,course_instructor
+Men instructor,course_instructor
+Bizga instructor,course_instructor
+"Iltimos, instructor",course_instructor
+instructor kerak,course_instructor
+instructor qilib bering,course_instructor
+teacher,course_instructor
+Menga teacher,course_instructor
+teacher,course_instructor
+Bizga teacher,course_instructor
+teacher kerak,course_instructor
+teacher qilish kerak,course_instructor
+who teaches,course_instructor
+Bizga who teaches,course_instructor
+"Iltimos, who teaches",course_instructor
+who teaches,course_instructor
+who teaches qilish kerak,course_instructor
+who teaches,course_instructor
+Qanday testlar bor?,quiz_list
+Show available quizzes,quiz_list
+List quizzes,quiz_list
+Qanday testlar bor?,quiz_list
+Show quizzes,quiz_list
+Available tests,quiz_list
+Testlar ro'yxati,quiz_list
+Quiz list,quiz_list
+test,quiz_list
+"Iltimos, test",quiz_list
+test,quiz_list
+Bizga test,quiz_list
+test qilish kerak,quiz_list
+test,quiz_list
+quiz,quiz_list
+Men quiz,quiz_list
+"Iltimos, quiz",quiz_list
+Bizga quiz,quiz_list
+quiz,quiz_list
+quiz qilish kerak,quiz_list
+imtihon,quiz_list
+"Iltimos, imtihon",quiz_list
+Bizga imtihon,quiz_list
+Men imtihon,quiz_list
+imtihon iltimos,quiz_list
+imtihon,quiz_list
+sinov,quiz_list
+Menga sinov,quiz_list
+Bizga sinov,quiz_list
+"Iltimos, sinov",quiz_list
+sinov,quiz_list
+sinov qilib bering,quiz_list
+quizzes,quiz_list
+Bizga quizzes,quiz_list
+"Iltimos, quizzes",quiz_list
+Menga quizzes,quiz_list
+quizzes qilish kerak,quiz_list
+quizzes iltimos,quiz_list
+tests,quiz_list
+Men tests,quiz_list
+Menga tests,quiz_list
+Bizga tests,quiz_list
+tests kerak,quiz_list
+tests qilish kerak,quiz_list
+Please Show available quizzes,quiz_list
+Could you Show available quizzes,quiz_list
+Can you Show available quizzes,quiz_list
+Testni boshlash,quiz_start
+I want to start the quiz,quiz_start
+Begin assessment,quiz_start
+Testni boshlash,quiz_start
+Start the quiz,quiz_start
+Begin test,quiz_start
+Test yechish,quiz_start
+Take the quiz,quiz_start
+test boshlash,quiz_start
+Menga test boshlash,quiz_start
+"Iltimos, test boshlash",quiz_start
+test boshlash,quiz_start
+test boshlash qilib bering,quiz_start
+test boshlash kerak,quiz_start
+start quiz,quiz_start
+"Iltimos, start quiz",quiz_start
+Men start quiz,quiz_start
+Bizga start quiz,quiz_start
+start quiz qilish kerak,quiz_start
+start quiz qilib bering,quiz_start
+begin test,quiz_start
+Bizga begin test,quiz_start
+Menga begin test,quiz_start
+"Iltimos, begin test",quiz_start
+begin test kerak,quiz_start
+begin test,quiz_start
+take quiz,quiz_start
+"Iltimos, take quiz",quiz_start
+Bizga take quiz,quiz_start
+Menga take quiz,quiz_start
+take quiz,quiz_start
+take quiz qilish kerak,quiz_start
+Mening test natijam,quiz_results
+Show my quiz scores,quiz_results
+What did I get?,quiz_results
+Mening natijalarim,quiz_results
+Test ballarim,quiz_results
+Show my scores,quiz_results
+My results,quiz_results
+Natijalarni ko'rsating,quiz_results
+How did I do?,quiz_results
+natija,quiz_results
+Bizga natija,quiz_results
+Menga natija,quiz_results
+natija,quiz_results
+natija qilib bering,quiz_results
+natija kerak,quiz_results
+ball,quiz_results
+Men ball,quiz_results
+"Iltimos, ball",quiz_results
+Bizga ball,quiz_results
+ball kerak,quiz_results
+ball iltimos,quiz_results
+score,quiz_results
+Menga score,quiz_results
+"Iltimos, score",quiz_results
+Men score,quiz_results
+score iltimos,quiz_results
+score qilib bering,quiz_results
+result,quiz_results
+Men result,quiz_results
+Bizga result,quiz_results
+result,quiz_results
+result qilish kerak,quiz_results
+result,quiz_results
+grade,quiz_results
+Bizga grade,quiz_results
+"Iltimos, grade",quiz_results
+Menga grade,quiz_results
+grade qilib bering,quiz_results
+grade,quiz_results
+marks,quiz_results
+Bizga marks,quiz_results
+marks,quiz_results
+"Iltimos, marks",quiz_results
+marks kerak,quiz_results
+marks,quiz_results
+I want to Show my quiz scores,quiz_results
+Can you Show my quiz scores,quiz_results
+Please Show my quiz scores,quiz_results
+I need to What did I get?,quiz_results
+Please What did I get?,quiz_results
+I want to What did I get?,quiz_results
+Testni qayta topshirish,quiz_retake
+I want to retake the quiz,quiz_retake
+Try the test again,quiz_retake
+qayta topshirish,quiz_retake
+"Iltimos, qayta topshirish",quiz_retake
+Bizga qayta topshirish,quiz_retake
+Men qayta topshirish,quiz_retake
+qayta topshirish,quiz_retake
+qayta topshirish qilish kerak,quiz_retake
+retake,quiz_retake
+Men retake,quiz_retake
+retake,quiz_retake
+Bizga retake,quiz_retake
+retake,quiz_retake
+retake qilish kerak,quiz_retake
+try again,quiz_retake
+Menga try again,quiz_retake
+Bizga try again,quiz_retake
+try again,quiz_retake
+try again,quiz_retake
+try again qilish kerak,quiz_retake
+redo,quiz_retake
+redo,quiz_retake
+Menga redo,quiz_retake
+Men redo,quiz_retake
+redo,quiz_retake
+redo qilish kerak,quiz_retake
+Mening topshiriqlarim,assignment_list
+Show assignments,assignment_list
+What homework do I have?,assignment_list
+Vazifalarim,assignment_list
+Homework list,assignment_list
+My assignments,assignment_list
+Topshiriqlar,assignment_list
+Show assignments,assignment_list
+topshiriq,assignment_list
+Bizga topshiriq,assignment_list
+Men topshiriq,assignment_list
+"Iltimos, topshiriq",assignment_list
+topshiriq kerak,assignment_list
+topshiriq qilish kerak,assignment_list
+vazifa,assignment_list
+"Iltimos, vazifa",assignment_list
+Menga vazifa,assignment_list
+vazifa,assignment_list
+vazifa iltimos,assignment_list
+vazifa kerak,assignment_list
+assignment,assignment_list
+assignment,assignment_list
+Men assignment,assignment_list
+Bizga assignment,assignment_list
+assignment qilib bering,assignment_list
+assignment kerak,assignment_list
+task,assignment_list
+Bizga task,assignment_list
+Men task,assignment_list
+task,assignment_list
+task kerak,assignment_list
+task qilish kerak,assignment_list
+homework,assignment_list
+Bizga homework,assignment_list
+"Iltimos, homework",assignment_list
+Menga homework,assignment_list
+homework kerak,assignment_list
+homework qilib bering,assignment_list
+I need to Show assignments,assignment_list
+Please Show assignments,assignment_list
+Vazifani topshirish,assignment_submit
+Submit assignment,assignment_submit
+Upload homework,assignment_submit
+topshirish,assignment_submit
+Men topshirish,assignment_submit
+Menga topshirish,assignment_submit
+Bizga topshirish,assignment_submit
+topshirish qilib bering,assignment_submit
+topshirish,assignment_submit
+submit,assignment_submit
+Men submit,assignment_submit
+Bizga submit,assignment_submit
+"Iltimos, submit",assignment_submit
+submit kerak,assignment_submit
+submit qilish kerak,assignment_submit
+yuborish,assignment_submit
+"Iltimos, yuborish",assignment_submit
+yuborish,assignment_submit
+Men yuborish,assignment_submit
+yuborish qilish kerak,assignment_submit
+yuborish,assignment_submit
+send,assignment_submit
+Bizga send,assignment_submit
+Menga send,assignment_submit
+"Iltimos, send",assignment_submit
+send qilib bering,assignment_submit
+send kerak,assignment_submit
+upload,assignment_submit
+"Iltimos, upload",assignment_submit
+Menga upload,assignment_submit
+Bizga upload,assignment_submit
+upload qilib bering,assignment_submit
+upload,assignment_submit
+Vazifa muddati,assignment_deadline
+When is it due?,assignment_deadline
+Assignment deadline,assignment_deadline
+muddat,assignment_deadline
+Menga muddat,assignment_deadline
+muddat,assignment_deadline
+Bizga muddat,assignment_deadline
+muddat qilish kerak,assignment_deadline
+muddat,assignment_deadline
+deadline,assignment_deadline
+deadline,assignment_deadline
+Bizga deadline,assignment_deadline
+Men deadline,assignment_deadline
+deadline kerak,assignment_deadline
+deadline qilish kerak,assignment_deadline
+oxirgi kun,assignment_deadline
+Men oxirgi kun,assignment_deadline
+Menga oxirgi kun,assignment_deadline
+Bizga oxirgi kun,assignment_deadline
+oxirgi kun qilish kerak,assignment_deadline
+oxirgi kun iltimos,assignment_deadline
+due date,assignment_deadline
+Bizga due date,assignment_deadline
+due date,assignment_deadline
+"Iltimos, due date",assignment_deadline
+due date,assignment_deadline
+due date qilish kerak,assignment_deadline
+when due,assignment_deadline
+Men when due,assignment_deadline
+when due,assignment_deadline
+Bizga when due,assignment_deadline
+when due,assignment_deadline
+when due kerak,assignment_deadline
+Mening baholarim,grade_check
+Show my grades,grade_check
+What are my marks?,grade_check
+Baholarim,grade_check
+My grades,grade_check
+Show my marks,grade_check
+Baholarni ko'rsating,grade_check
+Grade report,grade_check
+baho,grade_check
+Men baho,grade_check
+"Iltimos, baho",grade_check
+Bizga baho,grade_check
+baho qilish kerak,grade_check
+baho kerak,grade_check
+grade,grade_check
+grade,grade_check
+Men grade,grade_check
+Menga grade,grade_check
+grade kerak,grade_check
+grade iltimos,grade_check
+marks,grade_check
+Men marks,grade_check
+"Iltimos, marks",grade_check
+marks,grade_check
+marks qilish kerak,grade_check
+marks kerak,grade_check
+baholarim,grade_check
+"Iltimos, baholarim",grade_check
+Bizga baholarim,grade_check
+Menga baholarim,grade_check
+baholarim,grade_check
+baholarim qilish kerak,grade_check
+my grades,grade_check
+Bizga my grades,grade_check
+my grades,grade_check
+Men my grades,grade_check
+my grades kerak,grade_check
+my grades qilish kerak,grade_check
+Can you Show my grades,grade_check
+Please Show my grades,grade_check
+O'rtacha bahom,grade_average
+What's my GPA?,grade_average
+Calculate average grade,grade_average
+o'rtacha,grade_average
+Bizga o'rtacha,grade_average
+Menga o'rtacha,grade_average
+Men o'rtacha,grade_average
+o'rtacha kerak,grade_average
+o'rtacha qilib bering,grade_average
+average,grade_average
+"Iltimos, average",grade_average
+average,grade_average
+Menga average,grade_average
+average,grade_average
+average iltimos,grade_average
+GPA,grade_average
+Menga GPA,grade_average
+Men GPA,grade_average
+GPA,grade_average
+GPA kerak,grade_average
+GPA,grade_average
+mean score,grade_average
+"Iltimos, mean score",grade_average
+Menga mean score,grade_average
+Men mean score,grade_average
+mean score qilish kerak,grade_average
+mean score iltimos,grade_average
+Imtihon jadvali,exam_schedule
+When are exams?,exam_schedule
+Exam schedule,exam_schedule
+imtihon,exam_schedule
+imtihon,exam_schedule
+"Iltimos, imtihon",exam_schedule
+Bizga imtihon,exam_schedule
+imtihon,exam_schedule
+imtihon kerak,exam_schedule
+jadvali,exam_schedule
+"Iltimos, jadvali",exam_schedule
+Menga jadvali,exam_schedule
+jadvali,exam_schedule
+jadvali,exam_schedule
+jadvali iltimos,exam_schedule
+exam schedule,exam_schedule
+Bizga exam schedule,exam_schedule
+Menga exam schedule,exam_schedule
+Men exam schedule,exam_schedule
+exam schedule qilish kerak,exam_schedule
+exam schedule,exam_schedule
+test dates,exam_schedule
+"Iltimos, test dates",exam_schedule
+test dates,exam_schedule
+Men test dates,exam_schedule
+test dates qilish kerak,exam_schedule
+test dates qilib bering,exam_schedule
+Mening balansingiz,payment_check
+Do I owe any payment?,payment_check
+Check my balance,payment_check
+Balansingiz,payment_check
+Qarzim qancha?,payment_check
+Check balance,payment_check
+My payment status,payment_check
+To'lov holati,payment_check
+to'lov,payment_check
+"Iltimos, to'lov",payment_check
+to'lov,payment_check
+Men to'lov,payment_check
+to'lov qilib bering,payment_check
+to'lov kerak,payment_check
+balans,payment_check
+"Iltimos, balans",payment_check
+Bizga balans,payment_check
+Menga balans,payment_check
+balans kerak,payment_check
+balans,payment_check
+qarz,payment_check
+Men qarz,payment_check
+Bizga qarz,payment_check
+Menga qarz,payment_check
+qarz kerak,payment_check
+qarz iltimos,payment_check
+payment,payment_check
+payment,payment_check
+Bizga payment,payment_check
+"Iltimos, payment",payment_check
+payment kerak,payment_check
+payment,payment_check
+balance,payment_check
+Menga balance,payment_check
+Bizga balance,payment_check
+"Iltimos, balance",payment_check
+balance qilish kerak,payment_check
+balance qilib bering,payment_check
+debt,payment_check
+debt,payment_check
+Men debt,payment_check
+Menga debt,payment_check
+debt qilish kerak,payment_check
+debt,payment_check
+owe,payment_check
+Bizga owe,payment_check
+owe,payment_check
+"Iltimos, owe",payment_check
+owe kerak,payment_check
+owe,payment_check
+Can you Check my balance,payment_check
+Could you Check my balance,payment_check
+To'lov tarixi,payment_history
+Show payment history,payment_history
+Past transactions,payment_history
+To'lov tarixi,payment_history
+Payment history,payment_history
+Past payments,payment_history
+Avvalgi to'lovlar,payment_history
+Transaction history,payment_history
+tarix,payment_history
+Men tarix,payment_history
+Bizga tarix,payment_history
+Menga tarix,payment_history
+tarix kerak,payment_history
+tarix iltimos,payment_history
+o'tmish,payment_history
+o'tmish,payment_history
+Men o'tmish,payment_history
+Bizga o'tmish,payment_history
+o'tmish qilish kerak,payment_history
+o'tmish kerak,payment_history
+history,payment_history
+Bizga history,payment_history
+Menga history,payment_history
+Men history,payment_history
+history,payment_history
+history qilib bering,payment_history
+past payments,payment_history
+"Iltimos, past payments",payment_history
+Men past payments,payment_history
+past payments,payment_history
+past payments qilib bering,payment_history
+past payments iltimos,payment_history
+transactions,payment_history
+Menga transactions,payment_history
+Bizga transactions,payment_history
+"Iltimos, transactions",payment_history
+transactions kerak,payment_history
+transactions iltimos,payment_history
+I need to Show payment history,payment_history
+I want to Show payment history,payment_history
+To'lov qilmoqchiman,payment_make
+I want to make a payment,payment_make
+Pay my tuition,payment_make
+To'lov qilish,payment_make
+Make a payment,payment_make
+Pay tuition,payment_make
+To'lamoqchiman,payment_make
+Process payment,payment_make
+to'lash,payment_make
+Men to'lash,payment_make
+Bizga to'lash,payment_make
+to'lash,payment_make
+to'lash qilish kerak,payment_make
+to'lash kerak,payment_make
+to'lov qilish,payment_make
+Bizga to'lov qilish,payment_make
+Men to'lov qilish,payment_make
+to'lov qilish,payment_make
+to'lov qilish iltimos,payment_make
+to'lov qilish qilish kerak,payment_make
+pay,payment_make
+Bizga pay,payment_make
+Menga pay,payment_make
+pay,payment_make
+pay qilib bering,payment_make
+pay qilish kerak,payment_make
+make payment,payment_make
+Men make payment,payment_make
+make payment,payment_make
+Bizga make payment,payment_make
+make payment,payment_make
+make payment qilish kerak,payment_make
+transfer,payment_make
+Bizga transfer,payment_make
+Men transfer,payment_make
+Menga transfer,payment_make
+transfer,payment_make
+transfer qilib bering,payment_make
+Qanday to'lash mumkin?,payment_methods
+Payment methods,payment_methods
+How can I pay?,payment_methods
+usul,payment_methods
+Menga usul,payment_methods
+Bizga usul,payment_methods
+usul,payment_methods
+usul,payment_methods
+usul iltimos,payment_methods
+method,payment_methods
+Men method,payment_methods
+Menga method,payment_methods
+method,payment_methods
+method,payment_methods
+method kerak,payment_methods
+qanday,payment_methods
+Bizga qanday,payment_methods
+Men qanday,payment_methods
+Menga qanday,payment_methods
+qanday kerak,payment_methods
+qanday,payment_methods
+how to pay,payment_methods
+"Iltimos, how to pay",payment_methods
+Bizga how to pay,payment_methods
+how to pay,payment_methods
+how to pay,payment_methods
+how to pay qilish kerak,payment_methods
+payment options,payment_methods
+Men payment options,payment_methods
+"Iltimos, payment options",payment_methods
+Menga payment options,payment_methods
+payment options kerak,payment_methods
+payment options qilib bering,payment_methods
+Kvitansiya,payment_invoice
+Send me the invoice,payment_invoice
+Receipt for payment,payment_invoice
+kvitansiya,payment_invoice
+kvitansiya,payment_invoice
+"Iltimos, kvitansiya",payment_invoice
+Bizga kvitansiya,payment_invoice
+kvitansiya qilib bering,payment_invoice
+kvitansiya kerak,payment_invoice
+chek,payment_invoice
+chek,payment_invoice
+Men chek,payment_invoice
+"Iltimos, chek",payment_invoice
+chek kerak,payment_invoice
+chek qilib bering,payment_invoice
+invoice,payment_invoice
+"Iltimos, invoice",payment_invoice
+Bizga invoice,payment_invoice
+Menga invoice,payment_invoice
+invoice qilish kerak,payment_invoice
+invoice qilib bering,payment_invoice
+receipt,payment_invoice
+Bizga receipt,payment_invoice
+receipt,payment_invoice
+Menga receipt,payment_invoice
+receipt qilib bering,payment_invoice
+receipt kerak,payment_invoice
+bill,payment_invoice
+Bizga bill,payment_invoice
+"Iltimos, bill",payment_invoice
+Menga bill,payment_invoice
+bill iltimos,payment_invoice
+bill qilish kerak,payment_invoice
+Bo'lib to'lash,payment_plan
+Payment plan options,payment_plan
+Can I pay in installments?,payment_plan
+reja,payment_plan
+Menga reja,payment_plan
+reja,payment_plan
+"Iltimos, reja",payment_plan
+reja iltimos,payment_plan
+reja qilish kerak,payment_plan
+bo'lib,payment_plan
+Bizga bo'lib,payment_plan
+Menga bo'lib,payment_plan
+Men bo'lib,payment_plan
+bo'lib iltimos,payment_plan
+bo'lib qilib bering,payment_plan
+plan,payment_plan
+plan,payment_plan
+"Iltimos, plan",payment_plan
+Men plan,payment_plan
+plan iltimos,payment_plan
+plan,payment_plan
+installment,payment_plan
+Men installment,payment_plan
+"Iltimos, installment",payment_plan
+Bizga installment,payment_plan
+installment,payment_plan
+installment kerak,payment_plan
+monthly,payment_plan
+Menga monthly,payment_plan
+"Iltimos, monthly",payment_plan
+Men monthly,payment_plan
+monthly iltimos,payment_plan
+monthly qilish kerak,payment_plan
+Chegirma bormi?,payment_discount
+Are there any scholarships?,payment_discount
+Discount codes,payment_discount
+chegirma,payment_discount
+Men chegirma,payment_discount
+Menga chegirma,payment_discount
+chegirma,payment_discount
+chegirma qilib bering,payment_discount
+chegirma iltimos,payment_discount
+stipendiya,payment_discount
+"Iltimos, stipendiya",payment_discount
+Men stipendiya,payment_discount
+Menga stipendiya,payment_discount
+stipendiya,payment_discount
+stipendiya kerak,payment_discount
+discount,payment_discount
+"Iltimos, discount",payment_discount
+Men discount,payment_discount
+discount,payment_discount
+discount qilib bering,payment_discount
+discount,payment_discount
+scholarship,payment_discount
+"Iltimos, scholarship",payment_discount
+Men scholarship,payment_discount
+Menga scholarship,payment_discount
+scholarship qilish kerak,payment_discount
+scholarship kerak,payment_discount
+promo,payment_discount
+Men promo,payment_discount
+promo,payment_discount
+"Iltimos, promo",payment_discount
+promo kerak,payment_discount
+promo qilib bering,payment_discount
+Pulni qaytarish,payment_refund
+I want a refund,payment_refund
+Return my payment,payment_refund
+qaytarish,payment_refund
+Menga qaytarish,payment_refund
+qaytarish,payment_refund
+Men qaytarish,payment_refund
+qaytarish qilish kerak,payment_refund
+qaytarish qilib bering,payment_refund
+refund,payment_refund
+Bizga refund,payment_refund
+"Iltimos, refund",payment_refund
+Men refund,payment_refund
+refund kerak,payment_refund
+refund iltimos,payment_refund
+money back,payment_refund
+Bizga money back,payment_refund
+"Iltimos, money back",payment_refund
+Menga money back,payment_refund
+money back qilib bering,payment_refund
+money back iltimos,payment_refund
+return,payment_refund
+return,payment_refund
+Men return,payment_refund
+Menga return,payment_refund
+return iltimos,payment_refund
+return qilish kerak,payment_refund
+Mening davomatim,attendance_check
+Check my attendance,attendance_check
+How many classes did I attend?,attendance_check
+Davomatim,attendance_check
+My attendance,attendance_check
+Attendance record,attendance_check
+Davomat holati,attendance_check
+Show attendance,attendance_check
+davomat,attendance_check
+Menga davomat,attendance_check
+Bizga davomat,attendance_check
+"Iltimos, davomat",attendance_check
+davomat,attendance_check
+davomat qilib bering,attendance_check
+qatnashish,attendance_check
+"Iltimos, qatnashish",attendance_check
+qatnashish,attendance_check
+Menga qatnashish,attendance_check
+qatnashish iltimos,attendance_check
+qatnashish qilib bering,attendance_check
+attendance,attendance_check
+attendance,attendance_check
+Bizga attendance,attendance_check
+Menga attendance,attendance_check
+attendance,attendance_check
+attendance iltimos,attendance_check
+presence,attendance_check
+Men presence,attendance_check
+Bizga presence,attendance_check
+"Iltimos, presence",attendance_check
+presence qilish kerak,attendance_check
+presence qilib bering,attendance_check
+keldim,attendance_check
+Menga keldim,attendance_check
+keldim,attendance_check
+"Iltimos, keldim",attendance_check
+keldim qilib bering,attendance_check
+keldim qilish kerak,attendance_check
+I want to Check my attendance,attendance_check
+Can you Check my attendance,attendance_check
+I need to Check my attendance,attendance_check
+Men keldim,attendance_mark
+Mark me present,attendance_mark
+Check me in,attendance_mark
+Men keldim,attendance_mark
+Mark me present,attendance_mark
+Check in,attendance_mark
+Kelganman,attendance_mark
+I'm here,attendance_mark
+kelganman,attendance_mark
+Menga kelganman,attendance_mark
+Bizga kelganman,attendance_mark
+"Iltimos, kelganman",attendance_mark
+kelganman iltimos,attendance_mark
+kelganman kerak,attendance_mark
+check in,attendance_mark
+Men check in,attendance_mark
+Menga check in,attendance_mark
+Bizga check in,attendance_mark
+check in qilish kerak,attendance_mark
+check in qilib bering,attendance_mark
+present,attendance_mark
+"Iltimos, present",attendance_mark
+present,attendance_mark
+Menga present,attendance_mark
+present qilib bering,attendance_mark
+present,attendance_mark
+here,attendance_mark
+Menga here,attendance_mark
+here,attendance_mark
+Men here,attendance_mark
+here kerak,attendance_mark
+here iltimos,attendance_mark
+borman,attendance_mark
+borman,attendance_mark
+Bizga borman,attendance_mark
+Men borman,attendance_mark
+borman qilib bering,attendance_mark
+borman qilish kerak,attendance_mark
+Can you Check me in,attendance_mark
+I want to Check me in,attendance_mark
+I need to Check me in,attendance_mark
+"Kela olmadim, sababi...",attendance_excuse
+Submit excuse for absence,attendance_excuse
+I was sick,attendance_excuse
+sabab,attendance_excuse
+sabab,attendance_excuse
+Bizga sabab,attendance_excuse
+Menga sabab,attendance_excuse
+sabab qilish kerak,attendance_excuse
+sabab iltimos,attendance_excuse
+excuse,attendance_excuse
+Men excuse,attendance_excuse
+"Iltimos, excuse",attendance_excuse
+excuse,attendance_excuse
+excuse kerak,attendance_excuse
+excuse qilib bering,attendance_excuse
+reason,attendance_excuse
+"Iltimos, reason",attendance_excuse
+Men reason,attendance_excuse
+Bizga reason,attendance_excuse
+reason qilish kerak,attendance_excuse
+reason qilib bering,attendance_excuse
+kelolmadim,attendance_excuse
+"Iltimos, kelolmadim",attendance_excuse
+Bizga kelolmadim,attendance_excuse
+kelolmadim,attendance_excuse
+kelolmadim qilish kerak,attendance_excuse
+kelolmadim qilib bering,attendance_excuse
+couldn't attend,attendance_excuse
+"Iltimos, couldn't attend",attendance_excuse
+Men couldn't attend,attendance_excuse
+couldn't attend,attendance_excuse
+couldn't attend qilish kerak,attendance_excuse
+couldn't attend iltimos,attendance_excuse
+Davomat foizim,attendance_percentage
+What's my attendance rate?,attendance_percentage
+Attendance percentage,attendance_percentage
+Davomat foizim,attendance_percentage
+Attendance rate,attendance_percentage
+My attendance percentage,attendance_percentage
+Davomat statistikasi,attendance_percentage
+foiz,attendance_percentage
+Men foiz,attendance_percentage
+foiz,attendance_percentage
+"Iltimos, foiz",attendance_percentage
+foiz qilib bering,attendance_percentage
+foiz qilish kerak,attendance_percentage
+percentage,attendance_percentage
+Bizga percentage,attendance_percentage
+Men percentage,attendance_percentage
+Menga percentage,attendance_percentage
+percentage iltimos,attendance_percentage
+percentage kerak,attendance_percentage
+necha foiz,attendance_percentage
+Menga necha foiz,attendance_percentage
+necha foiz,attendance_percentage
+Men necha foiz,attendance_percentage
+necha foiz kerak,attendance_percentage
+necha foiz iltimos,attendance_percentage
+attendance rate,attendance_percentage
+Bizga attendance rate,attendance_percentage
+"Iltimos, attendance rate",attendance_percentage
+Men attendance rate,attendance_percentage
+attendance rate kerak,attendance_percentage
+attendance rate,attendance_percentage
+Minimal davomat qancha?,attendance_minimum
+What's the attendance requirement?,attendance_minimum
+How much attendance is needed?,attendance_minimum
+minimal,attendance_minimum
+Menga minimal,attendance_minimum
+minimal,attendance_minimum
+Bizga minimal,attendance_minimum
+minimal qilish kerak,attendance_minimum
+minimal qilib bering,attendance_minimum
+talab,attendance_minimum
+Bizga talab,attendance_minimum
+Menga talab,attendance_minimum
+talab,attendance_minimum
+talab kerak,attendance_minimum
+talab qilib bering,attendance_minimum
+kerak,attendance_minimum
+"Iltimos, kerak",attendance_minimum
+Bizga kerak,attendance_minimum
+Menga kerak,attendance_minimum
+kerak qilish kerak,attendance_minimum
+kerak iltimos,attendance_minimum
+requirement,attendance_minimum
+requirement,attendance_minimum
+Menga requirement,attendance_minimum
+"Iltimos, requirement",attendance_minimum
+requirement qilib bering,attendance_minimum
+requirement kerak,attendance_minimum
+minimum needed,attendance_minimum
+Menga minimum needed,attendance_minimum
+minimum needed,attendance_minimum
+Bizga minimum needed,attendance_minimum
+minimum needed iltimos,attendance_minimum
+minimum needed kerak,attendance_minimum
+Yangi lidlar,lead_list
+Show leads,lead_list
+List prospects,lead_list
+Lidlar ro'yxati,lead_list
+Show leads,lead_list
+New prospects,lead_list
+Yangi mijozlar,lead_list
+Lead list,lead_list
+lidlar,lead_list
+lidlar,lead_list
+Men lidlar,lead_list
+"Iltimos, lidlar",lead_list
+lidlar qilib bering,lead_list
+lidlar iltimos,lead_list
+mijozlar,lead_list
+mijozlar,lead_list
+"Iltimos, mijozlar",lead_list
+Men mijozlar,lead_list
+mijozlar qilish kerak,lead_list
+mijozlar iltimos,lead_list
+leads,lead_list
+Menga leads,lead_list
+Men leads,lead_list
+Bizga leads,lead_list
+leads qilib bering,lead_list
+leads iltimos,lead_list
+prospects,lead_list
+"Iltimos, prospects",lead_list
+Men prospects,lead_list
+prospects,lead_list
+prospects qilib bering,lead_list
+prospects,lead_list
+clients,lead_list
+Menga clients,lead_list
+Men clients,lead_list
+Bizga clients,lead_list
+clients qilish kerak,lead_list
+clients kerak,lead_list
+Can you Show leads,lead_list
+Could you Show leads,lead_list
+I need to Show leads,lead_list
+Yangi lid qo'shish,lead_add
+Add a new lead,lead_add
+Register prospect,lead_add
+lid qo'shish,lead_add
+Menga lid qo'shish,lead_add
+"Iltimos, lid qo'shish",lead_add
+Bizga lid qo'shish,lead_add
+lid qo'shish iltimos,lead_add
+lid qo'shish kerak,lead_add
+yangi mijoz,lead_add
+Bizga yangi mijoz,lead_add
+yangi mijoz,lead_add
+Men yangi mijoz,lead_add
+yangi mijoz,lead_add
+yangi mijoz qilib bering,lead_add
+add lead,lead_add
+add lead,lead_add
+Menga add lead,lead_add
+Bizga add lead,lead_add
+add lead qilib bering,lead_add
+add lead iltimos,lead_add
+new prospect,lead_add
+Menga new prospect,lead_add
+Bizga new prospect,lead_add
+new prospect,lead_add
+new prospect qilib bering,lead_add
+new prospect qilish kerak,lead_add
+Lid statistikasi,lead_stats
+Show lead stats,lead_stats
+How many leads?,lead_stats
+Lid statistikasi,lead_stats
+Lead statistics,lead_stats
+CRM stats,lead_stats
+Mijozlar hisoboti,lead_stats
+Conversion rate,lead_stats
+statistika,lead_stats
+statistika,lead_stats
+Menga statistika,lead_stats
+"Iltimos, statistika",lead_stats
+statistika iltimos,lead_stats
+statistika qilish kerak,lead_stats
+hisobot,lead_stats
+hisobot,lead_stats
+Men hisobot,lead_stats
+"Iltimos, hisobot",lead_stats
+hisobot kerak,lead_stats
+hisobot qilib bering,lead_stats
+stats,lead_stats
+Bizga stats,lead_stats
+stats,lead_stats
+"Iltimos, stats",lead_stats
+stats qilib bering,lead_stats
+stats,lead_stats
+statistics,lead_stats
+statistics,lead_stats
+Menga statistics,lead_stats
+Men statistics,lead_stats
+statistics qilish kerak,lead_stats
+statistics,lead_stats
+report,lead_stats
+"Iltimos, report",lead_stats
+Men report,lead_stats
+report,lead_stats
+report,lead_stats
+report iltimos,lead_stats
+Can you Show lead stats,lead_stats
+Please Show lead stats,lead_stats
+Could you Show lead stats,lead_stats
+Lidni o'quvchiga aylantirish,lead_convert
+Convert lead to student,lead_convert
+Enroll this prospect,lead_convert
+aylantirish,lead_convert
+Bizga aylantirish,lead_convert
+aylantirish,lead_convert
+"Iltimos, aylantirish",lead_convert
+aylantirish qilib bering,lead_convert
+aylantirish,lead_convert
+convert,lead_convert
+convert,lead_convert
+"Iltimos, convert",lead_convert
+Bizga convert,lead_convert
+convert,lead_convert
+convert kerak,lead_convert
+o'quvchiga,lead_convert
+o'quvchiga,lead_convert
+Bizga o'quvchiga,lead_convert
+"Iltimos, o'quvchiga",lead_convert
+o'quvchiga qilish kerak,lead_convert
+o'quvchiga qilib bering,lead_convert
+enroll lead,lead_convert
+Bizga enroll lead,lead_convert
+Menga enroll lead,lead_convert
+"Iltimos, enroll lead",lead_convert
+enroll lead qilish kerak,lead_convert
+enroll lead,lead_convert
+Lidlar qayerdan keladi?,lead_source
+Lead sources,lead_source
+Where do leads come from?,lead_source
+manba,lead_source
+"Iltimos, manba",lead_source
+Menga manba,lead_source
+Men manba,lead_source
+manba iltimos,lead_source
+manba,lead_source
+source,lead_source
+"Iltimos, source",lead_source
+Men source,lead_source
+Menga source,lead_source
+source iltimos,lead_source
+source kerak,lead_source
+qayerdan,lead_source
+Men qayerdan,lead_source
+qayerdan,lead_source
+Bizga qayerdan,lead_source
+qayerdan qilib bering,lead_source
+qayerdan qilish kerak,lead_source
+where from,lead_source
+"Iltimos, where from",lead_source
+Men where from,lead_source
+where from,lead_source
+where from qilib bering,lead_source
+where from,lead_source
+channel,lead_source
+Bizga channel,lead_source
+"Iltimos, channel",lead_source
+Menga channel,lead_source
+channel qilish kerak,lead_source
+channel qilib bering,lead_source
+Lid bilan qayta bog'lanish,lead_followup
+Schedule follow-up,lead_followup
+Contact lead again,lead_followup
+kuzatish,lead_followup
+Menga kuzatish,lead_followup
+Men kuzatish,lead_followup
+"Iltimos, kuzatish",lead_followup
+kuzatish qilib bering,lead_followup
+kuzatish qilish kerak,lead_followup
+follow up,lead_followup
+Bizga follow up,lead_followup
+Men follow up,lead_followup
+"Iltimos, follow up",lead_followup
+follow up iltimos,lead_followup
+follow up,lead_followup
+qayta aloqa,lead_followup
+Menga qayta aloqa,lead_followup
+"Iltimos, qayta aloqa",lead_followup
+Men qayta aloqa,lead_followup
+qayta aloqa qilish kerak,lead_followup
+qayta aloqa iltimos,lead_followup
+contact again,lead_followup
+Menga contact again,lead_followup
+Men contact again,lead_followup
+contact again,lead_followup
+contact again kerak,lead_followup
+contact again,lead_followup
+Necha o'quvchi bor?,student_count
+Total students,student_count
+Student count,student_count
+Necha o'quvchi bor?,student_count
+Student count,student_count
+Total students,student_count
+O'quvchilar soni,student_count
+How many students?,student_count
+necha o'quvchi,student_count
+necha o'quvchi,student_count
+"Iltimos, necha o'quvchi",student_count
+Men necha o'quvchi,student_count
+necha o'quvchi qilish kerak,student_count
+necha o'quvchi,student_count
+talaba soni,student_count
+Men talaba soni,student_count
+Menga talaba soni,student_count
+"Iltimos, talaba soni",student_count
+talaba soni qilib bering,student_count
+talaba soni,student_count
+how many students,student_count
+how many students,student_count
+Menga how many students,student_count
+Men how many students,student_count
+how many students qilish kerak,student_count
+how many students,student_count
+student count,student_count
+Men student count,student_count
+"Iltimos, student count",student_count
+Menga student count,student_count
+student count qilish kerak,student_count
+student count,student_count
+O'qituvchiga xabar yuborish,send_message
+Send message to teacher,send_message
+Contact instructor,send_message
+xabar,send_message
+"Iltimos, xabar",send_message
+Men xabar,send_message
+Menga xabar,send_message
+xabar iltimos,send_message
+xabar kerak,send_message
+yuborish,send_message
+Men yuborish,send_message
+yuborish,send_message
+Menga yuborish,send_message
+yuborish qilib bering,send_message
+yuborish iltimos,send_message
+message,send_message
+Menga message,send_message
+Bizga message,send_message
+"Iltimos, message",send_message
+message qilib bering,send_message
+message qilish kerak,send_message
+send,send_message
+Men send,send_message
+"Iltimos, send",send_message
+Menga send,send_message
+send qilish kerak,send_message
+send kerak,send_message
+contact,send_message
+Menga contact,send_message
+"Iltimos, contact",send_message
+contact,send_message
+contact qilib bering,send_message
+contact kerak,send_message
+SMS yuborish,send_sms
+Send text message,send_sms
+Notify by SMS,send_sms
+sms,send_sms
+Bizga sms,send_sms
+sms,send_sms
+Men sms,send_sms
+sms iltimos,send_sms
+sms qilib bering,send_sms
+yuborish,send_sms
+Menga yuborish,send_sms
+"Iltimos, yuborish",send_sms
+yuborish,send_sms
+yuborish,send_sms
+yuborish kerak,send_sms
+send sms,send_sms
+"Iltimos, send sms",send_sms
+send sms,send_sms
+Bizga send sms,send_sms
+send sms,send_sms
+send sms iltimos,send_sms
+text message,send_sms
+text message,send_sms
+Bizga text message,send_sms
+Menga text message,send_sms
+text message,send_sms
+text message qilib bering,send_sms
+Bildirishnoma sozlamalari,notification_settings
+Notification settings,notification_settings
+Manage alerts,notification_settings
+bildirishnoma,notification_settings
+Menga bildirishnoma,notification_settings
+Men bildirishnoma,notification_settings
+Bizga bildirishnoma,notification_settings
+bildirishnoma iltimos,notification_settings
+bildirishnoma qilish kerak,notification_settings
+sozlash,notification_settings
+Menga sozlash,notification_settings
+sozlash,notification_settings
+Bizga sozlash,notification_settings
+sozlash,notification_settings
+sozlash qilib bering,notification_settings
+notifications,notification_settings
+Men notifications,notification_settings
+Menga notifications,notification_settings
+"Iltimos, notifications",notification_settings
+notifications qilib bering,notification_settings
+notifications kerak,notification_settings
+settings,notification_settings
+settings,notification_settings
+Menga settings,notification_settings
+Bizga settings,notification_settings
+settings qilib bering,notification_settings
+settings kerak,notification_settings
+alerts,notification_settings
+Men alerts,notification_settings
+Menga alerts,notification_settings
+"Iltimos, alerts",notification_settings
+alerts qilib bering,notification_settings
+alerts,notification_settings
+Xabarlarim,inbox
+Check inbox,inbox
+Show messages,inbox
+xabarlar,inbox
+xabarlar,inbox
+Menga xabarlar,inbox
+Men xabarlar,inbox
+xabarlar qilish kerak,inbox
+xabarlar iltimos,inbox
+inbox,inbox
+Menga inbox,inbox
+Men inbox,inbox
+inbox,inbox
+inbox iltimos,inbox
+inbox qilib bering,inbox
+messages,inbox
+Men messages,inbox
+messages,inbox
+"Iltimos, messages",inbox
+messages,inbox
+messages kerak,inbox
+mail,inbox
+Menga mail,inbox
+mail,inbox
+"Iltimos, mail",inbox
+mail qilish kerak,inbox
+mail kerak,inbox
+Please Check inbox,inbox
+I want to Check inbox,inbox
+I want to Show messages,inbox
+Could you Show messages,inbox
+Please Show messages,inbox
+E'lon qilish,announcement_create
+Make announcement,announcement_create
+Send notice to all,announcement_create
+e'lon,announcement_create
+e'lon,announcement_create
+Men e'lon,announcement_create
+Bizga e'lon,announcement_create
+e'lon kerak,announcement_create
+e'lon qilib bering,announcement_create
+announcement,announcement_create
+Menga announcement,announcement_create
+Men announcement,announcement_create
+"Iltimos, announcement",announcement_create
+announcement kerak,announcement_create
+announcement qilish kerak,announcement_create
+eʼlon,announcement_create
+Men eʼlon,announcement_create
+"Iltimos, eʼlon",announcement_create
+eʼlon,announcement_create
+eʼlon kerak,announcement_create
+eʼlon iltimos,announcement_create
+notice,announcement_create
+notice,announcement_create
+Bizga notice,announcement_create
+"Iltimos, notice",announcement_create
+notice qilib bering,announcement_create
+notice,announcement_create
+broadcast,announcement_create
+broadcast,announcement_create
+Menga broadcast,announcement_create
+"Iltimos, broadcast",announcement_create
+broadcast qilib bering,announcement_create
+broadcast iltimos,announcement_create
+Hisobot yaratish,report_generate
+Generate report,report_generate
+Show statistics,report_generate
+hisobot,report_generate
+hisobot,report_generate
+Men hisobot,report_generate
+Menga hisobot,report_generate
+hisobot,report_generate
+hisobot qilib bering,report_generate
+report,report_generate
+Men report,report_generate
+report,report_generate
+"Iltimos, report",report_generate
+report qilib bering,report_generate
+report,report_generate
+statistika,report_generate
+"Iltimos, statistika",report_generate
+Menga statistika,report_generate
+Men statistika,report_generate
+statistika qilish kerak,report_generate
+statistika,report_generate
+analytics,report_generate
+Bizga analytics,report_generate
+analytics,report_generate
+Menga analytics,report_generate
+analytics qilish kerak,report_generate
+analytics kerak,report_generate
+I need to Show statistics,report_generate
+I want to Show statistics,report_generate
+Bugungi to'lovlar,today_payments
+Today's revenue,today_payments
+Daily payments,today_payments
+Bugungi to'lovlar,today_payments
+Today's revenue,today_payments
+Payments today,today_payments
+Kunlik to'lov,today_payments
+Daily payments,today_payments
+bugungi to'lov,today_payments
+bugungi to'lov,today_payments
+"Iltimos, bugungi to'lov",today_payments
+Menga bugungi to'lov,today_payments
+bugungi to'lov iltimos,today_payments
+bugungi to'lov qilish kerak,today_payments
+today payments,today_payments
+Men today payments,today_payments
+Bizga today payments,today_payments
+"Iltimos, today payments",today_payments
+today payments qilib bering,today_payments
+today payments iltimos,today_payments
+kunlik,today_payments
+Men kunlik,today_payments
+"Iltimos, kunlik",today_payments
+Bizga kunlik,today_payments
+kunlik kerak,today_payments
+kunlik qilish kerak,today_payments
+daily revenue,today_payments
+"Iltimos, daily revenue",today_payments
+Men daily revenue,today_payments
+Menga daily revenue,today_payments
+daily revenue iltimos,today_payments
+daily revenue kerak,today_payments
+Guruh boshqarish,group_manage
+Manage groups,group_manage
+Create new group,group_manage
+guruh,group_manage
+Bizga guruh,group_manage
+guruh,group_manage
+"Iltimos, guruh",group_manage
+guruh iltimos,group_manage
+guruh kerak,group_manage
+group,group_manage
+Menga group,group_manage
+Bizga group,group_manage
+Men group,group_manage
+group,group_manage
+group iltimos,group_manage
+boshqarish,group_manage
+Menga boshqarish,group_manage
+boshqarish,group_manage
+Men boshqarish,group_manage
+boshqarish iltimos,group_manage
+boshqarish,group_manage
+manage,group_manage
+Menga manage,group_manage
+"Iltimos, manage",group_manage
+Men manage,group_manage
+manage,group_manage
+manage qilish kerak,group_manage
+O'qituvchini kursga tayinlash,teacher_assign
+Assign teacher to course,teacher_assign
+Set instructor,teacher_assign
+o'qituvchi tayinlash,teacher_assign
+Menga o'qituvchi tayinlash,teacher_assign
+Men o'qituvchi tayinlash,teacher_assign
+Bizga o'qituvchi tayinlash,teacher_assign
+o'qituvchi tayinlash iltimos,teacher_assign
+o'qituvchi tayinlash,teacher_assign
+assign teacher,teacher_assign
+assign teacher,teacher_assign
+Men assign teacher,teacher_assign
+Bizga assign teacher,teacher_assign
+assign teacher qilib bering,teacher_assign
+assign teacher qilish kerak,teacher_assign
+instructor assignment,teacher_assign
+Menga instructor assignment,teacher_assign
+Bizga instructor assignment,teacher_assign
+instructor assignment,teacher_assign
+instructor assignment qilish kerak,teacher_assign
+instructor assignment kerak,teacher_assign
+Ma'lumotlarni zaxiralash,backup_data
+Backup data,backup_data
+Save system data,backup_data
+zaxira,backup_data
+zaxira,backup_data
+Men zaxira,backup_data
+"Iltimos, zaxira",backup_data
+zaxira qilish kerak,backup_data
+zaxira iltimos,backup_data
+backup,backup_data
+"Iltimos, backup",backup_data
+Menga backup,backup_data
+Men backup,backup_data
+backup qilish kerak,backup_data
+backup,backup_data
+nusxa,backup_data
+"Iltimos, nusxa",backup_data
+Bizga nusxa,backup_data
+Men nusxa,backup_data
+nusxa qilib bering,backup_data
+nusxa kerak,backup_data
+save data,backup_data
+Bizga save data,backup_data
+Men save data,backup_data
+"Iltimos, save data",backup_data
+save data qilish kerak,backup_data
+save data,backup_data
+Salom,greeting
+Hello,greeting
+Assalomu alaykum,greeting
+Good morning,greeting
+Salom,greeting
+Hi there,greeting
+Assalomu alaykum,greeting
+Hello,greeting
+Hey,greeting
+Good morning,greeting
+Hayrli kun,greeting
+salom,greeting
+Bizga salom,greeting
+Menga salom,greeting
+Men salom,greeting
+salom qilib bering,greeting
+salom kerak,greeting
+assalomu,greeting
+Menga assalomu,greeting
+Men assalomu,greeting
+assalomu,greeting
+assalomu,greeting
+assalomu kerak,greeting
+hello,greeting
+Men hello,greeting
+"Iltimos, hello",greeting
+Menga hello,greeting
+hello kerak,greeting
+hello iltimos,greeting
+hi,greeting
+Men hi,greeting
+Menga hi,greeting
+Bizga hi,greeting
+hi,greeting
+hi qilib bering,greeting
+hey,greeting
+Menga hey,greeting
+hey,greeting
+Men hey,greeting
+hey,greeting
+hey kerak,greeting
+good morning,greeting
+"Iltimos, good morning",greeting
+Bizga good morning,greeting
+good morning,greeting
+good morning qilib bering,greeting
+good morning,greeting
+good day,greeting
+Menga good day,greeting
+Bizga good day,greeting
+"Iltimos, good day",greeting
+good day iltimos,greeting
+good day qilib bering,greeting
+Xayr,goodbye
+Goodbye,goodbye
+Ko'rishguncha,goodbye
+Xayr,goodbye
+Goodbye,goodbye
+Bye,goodbye
+See you,goodbye
+Ko'rishamiz,goodbye
+До свидания,goodbye
+xayr,goodbye
+xayr,goodbye
+Bizga xayr,goodbye
+Menga xayr,goodbye
+xayr,goodbye
+xayr qilib bering,goodbye
+ko'rishamiz,goodbye
+"Iltimos, ko'rishamiz",goodbye
+Menga ko'rishamiz,goodbye
+ko'rishamiz,goodbye
+ko'rishamiz iltimos,goodbye
+ko'rishamiz kerak,goodbye
+goodbye,goodbye
+goodbye,goodbye
+Menga goodbye,goodbye
+Bizga goodbye,goodbye
+goodbye qilish kerak,goodbye
+goodbye iltimos,goodbye
+bye,goodbye
+bye,goodbye
+Men bye,goodbye
+Menga bye,goodbye
+bye iltimos,goodbye
+bye kerak,goodbye
+see you,goodbye
+"Iltimos, see you",goodbye
+see you,goodbye
+Menga see you,goodbye
+see you iltimos,goodbye
+see you kerak,goodbye
+до свидания,goodbye
+Bizga до свидания,goodbye
+до свидания,goodbye
+Menga до свидания,goodbye
+до свидания iltimos,goodbye
+до свидания qilish kerak,goodbye
+Rahmat,thanks
+Thank you,thanks
+Thanks a lot,thanks
+Rahmat,thanks
+Thanks,thanks
+Thank you,thanks
+Tashakkur,thanks
+Спасибо,thanks
+Thanks a lot,thanks
+rahmat,thanks
+rahmat,thanks
+"Iltimos, rahmat",thanks
+Bizga rahmat,thanks
+rahmat qilib bering,thanks
+rahmat iltimos,thanks
+tashakkur,thanks
+"Iltimos, tashakkur",thanks
+Men tashakkur,thanks
+tashakkur,thanks
+tashakkur,thanks
+tashakkur qilib bering,thanks
+thank,thanks
+Men thank,thanks
+Menga thank,thanks
+"Iltimos, thank",thanks
+thank qilib bering,thanks
+thank,thanks
+thanks,thanks
+Bizga thanks,thanks
+Menga thanks,thanks
+Men thanks,thanks
+thanks qilib bering,thanks
+thanks kerak,thanks
+спасибо,thanks
+Menga спасибо,thanks
+Men спасибо,thanks
+спасибо,thanks
+спасибо,thanks
+спасибо kerak,thanks
+Qalaysan?,how_are_you
+How are you?,how_are_you
+What's up?,how_are_you
+qalaysan,how_are_you
+qalaysan,how_are_you
+"Iltimos, qalaysan",how_are_you
+Menga qalaysan,how_are_you
+qalaysan qilish kerak,how_are_you
+qalaysan,how_are_you
+ahvoling,how_are_you
+Menga ahvoling,how_are_you
+"Iltimos, ahvoling",how_are_you
+ahvoling,how_are_you
+ahvoling qilish kerak,how_are_you
+ahvoling,how_are_you
+how are you,how_are_you
+"Iltimos, how are you",how_are_you
+Menga how are you,how_are_you
+Bizga how are you,how_are_you
+how are you qilib bering,how_are_you
+how are you iltimos,how_are_you
+what's up,how_are_you
+Bizga what's up,how_are_you
+what's up,how_are_you
+"Iltimos, what's up",how_are_you
+what's up iltimos,how_are_you
+what's up kerak,how_are_you
+как дела,how_are_you
+Menga как дела,how_are_you
+Men как дела,how_are_you
+"Iltimos, как дела",how_are_you
+как дела qilish kerak,how_are_you
+как дела iltimos,how_are_you
+Yordam,help
+Help me,help
+How do I...,help
+Yordam,help
+Help me,help
+I need help,help
+Yordam bering,help
+Assist me,help
+Support,help
+yordam,help
+Menga yordam,help
+Men yordam,help
+"Iltimos, yordam",help
+yordam kerak,help
+yordam iltimos,help
+help,help
+help,help
+Bizga help,help
+Men help,help
+help kerak,help
+help iltimos,help
+assist,help
+Bizga assist,help
+Men assist,help
+Menga assist,help
+assist qilib bering,help
+assist qilish kerak,help
+qanday,help
+Menga qanday,help
+"Iltimos, qanday",help
+qanday,help
+qanday kerak,help
+qanday iltimos,help
+how to,help
+how to,help
+Menga how to,help
+"Iltimos, how to",help
+how to,help
+how to iltimos,help
+Nima qila olasiz?,capabilities
+What can you help with?,capabilities
+Show me what you can do,capabilities
+nima qila olasiz,capabilities
+Menga nima qila olasiz,capabilities
+nima qila olasiz,capabilities
+Bizga nima qila olasiz,capabilities
+nima qila olasiz qilish kerak,capabilities
+nima qila olasiz kerak,capabilities
+what can you do,capabilities
+Menga what can you do,capabilities
+what can you do,capabilities
+Men what can you do,capabilities
+what can you do qilish kerak,capabilities
+what can you do iltimos,capabilities
+capabilities,capabilities
+Menga capabilities,capabilities
+Bizga capabilities,capabilities
+Men capabilities,capabilities
+capabilities iltimos,capabilities
+capabilities kerak,capabilities
+features,capabilities
+Men features,capabilities
+features,capabilities
+Bizga features,capabilities
+features kerak,capabilities
+features qilib bering,capabilities
+возможности,capabilities
+возможности,capabilities
+Menga возможности,capabilities
+"Iltimos, возможности",capabilities
+возможности qilish kerak,capabilities
+возможности qilib bering,capabilities
+I want to Show me what you can do,capabilities
+I need to Show me what you can do,capabilities
+Could you Show me what you can do,capabilities

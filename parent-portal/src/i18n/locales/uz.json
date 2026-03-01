@@ -1,0 +1,27 @@
+{
+  "common": {
+    "loading": "Yuklanmoqda...",
+    "error": "Xato",
+    "success": "Muvaffaqiyat",
+    "cancel": "Bekor qilish",
+    "save": "Saqlash",
+    "delete": "O'chirish",
+    "confirm": "Tasdiqlash",
+    "back": "Ortga",
+    "logout": "Chiqish",
+    "login": "Kirish"
+  },
+  "auth": {
+    "welcomeBack": "Xush kelibsiz!",
+    "trackProgress": "Farzandingizning rivojlanishini kuzating",
+    "email": "Elektron pochta",
+    "password": "Parol",
+    "forgotPassword": "Parolni unutdingizmi?",
+    "noAccount": "Hisobingiz yo'qmi?",
+    "contactAdmin": "Maktab administratori bilan bog'laning",
+    "loginWith": "{{type}} orqali kirish",
+    "loginFailed": "Kirish amalga oshmadi",
+    "invalidCredentials": "Noto'g'ri ma'lumotlar",
+    "enterBoth": "Iltimos, elektron pochta va parolni kiriting"
+  }
+}

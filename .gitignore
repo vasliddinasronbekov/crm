@@ -1,0 +1,82 @@
+# --- General & OS ---
+.DS_Store
+.AppleDouble
+.LSOverride
+Thumbs.db
+*.log
+*.tmp
+*.swp
+.vscode/
+.idea/
+
+# --- Dependencies ---
+node_modules/
+jspm_packages/
+.npm/
+.yarn/
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+.venv/
+env/
+venv/
+ENV/
+
+# --- TypeScript ---
+*.tsbuildinfo
+dist/
+out/
+
+# --- Django (Backend) ---
+__pycache__/
+*.py[cod]
+*$py.class
+db.sqlite3
+db.sqlite3-journal
+media/
+static/
+staticfiles/
+.python-version
+celerybeat-schedule
+.cache/
+
+# --- Next.js (Frontend Web) ---
+.next/
+out/
+.vercel
+next-env.d.ts
+
+# --- React Native (Mobile) ---
+# Android
+android/app/build/
+android/.gradle/
+android/local.properties
+android/generated/
+*.keystore
+!debug.keystore
+
+# iOS
+ios/build/
+ios/DerivedData/
+ios/Pods/
+ios/.xccheckout
+ios/*.xcworkspace
+!ios/Pods/Manifest.lock
+*.pbxuser
+*.mode1v3
+*.mode2v3
+*.perspectivev3
+
+# Expo (if used)
+.expo/
+web-build/
+
+# --- Environment Variables ---
+# NEVER commit these files
+.env
+.env.local
+.env.development.local
+.env.test.local
+.env.production.local
+*.env
+

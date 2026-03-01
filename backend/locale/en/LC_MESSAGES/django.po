@@ -1,0 +1,414 @@
+# English translations for EduVoice LMS
+# Copyright (C) 2025
+# This file is distributed under the same license as the EduVoice package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: EduVoice 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 00:00+0500\n"
+"PO-Revision-Date: 2025-10-21 00:00+0500\n"
+"Last-Translator: EduVoice Team\n"
+"Language-Team: English\n"
+"Language: en\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+# Languages
+msgid "Uzbek"
+msgstr "Uzbek"
+
+msgid "Russian"
+msgstr "Russian"
+
+msgid "English"
+msgstr "English"
+
+# General Actions
+msgid "Yes"
+msgstr "Yes"
+
+msgid "No"
+msgstr "No"
+
+msgid "OK"
+msgstr "OK"
+
+msgid "Cancel"
+msgstr "Cancel"
+
+msgid "Save"
+msgstr "Save"
+
+msgid "Delete"
+msgstr "Delete"
+
+msgid "Edit"
+msgstr "Edit"
+
+msgid "Create"
+msgstr "Create"
+
+msgid "Update"
+msgstr "Update"
+
+msgid "Submit"
+msgstr "Submit"
+
+msgid "Back"
+msgstr "Back"
+
+msgid "Next"
+msgstr "Next"
+
+msgid "Previous"
+msgstr "Previous"
+
+msgid "Close"
+msgstr "Close"
+
+msgid "Search"
+msgstr "Search"
+
+msgid "Filter"
+msgstr "Filter"
+
+msgid "Loading..."
+msgstr "Loading..."
+
+msgid "No data available"
+msgstr "No data available"
+
+# Success Messages
+msgid "Successfully saved"
+msgstr "Successfully saved"
+
+msgid "Successfully created"
+msgstr "Successfully created"
+
+msgid "Successfully updated"
+msgstr "Successfully updated"
+
+msgid "Successfully deleted"
+msgstr "Successfully deleted"
+
+msgid "Successfully sent"
+msgstr "Successfully sent"
+
+msgid "Successfully completed"
+msgstr "Successfully completed"
+
+msgid "Operation successful"
+msgstr "Operation successful"
+
+# Error Messages
+msgid "An error occurred"
+msgstr "An error occurred"
+
+msgid "Not found"
+msgstr "Not found"
+
+msgid "Permission denied"
+msgstr "Permission denied"
+
+msgid "Invalid data"
+msgstr "Invalid data"
+
+msgid "This field is required"
+msgstr "This field is required"
+
+msgid "Already exists"
+msgstr "Already exists"
+
+msgid "Authentication required"
+msgstr "Authentication required"
+
+# Validation Messages
+msgid "Invalid email address"
+msgstr "Invalid email address"
+
+msgid "Invalid phone number"
+msgstr "Invalid phone number"
+
+msgid "Password is too weak"
+msgstr "Password is too weak"
+
+msgid "Length is invalid"
+msgstr "Length is invalid"
+
+msgid "Invalid format"
+msgstr "Invalid format"
+
+msgid "Validation failed"
+msgstr "Validation failed"
+
+# Auth
+msgid "Login"
+msgstr "Login"
+
+msgid "Logout"
+msgstr "Logout"
+
+msgid "Register"
+msgstr "Register"
+
+msgid "Email"
+msgstr "Email"
+
+msgid "Password"
+msgstr "Password"
+
+msgid "Username"
+msgstr "Username"
+
+msgid "First Name"
+msgstr "First Name"
+
+msgid "Last Name"
+msgstr "Last Name"
+
+msgid "Phone Number"
+msgstr "Phone Number"
+
+msgid "Profile"
+msgstr "Profile"
+
+msgid "Settings"
+msgstr "Settings"
+
+# Student
+msgid "Students"
+msgstr "Students"
+
+msgid "Student"
+msgstr "Student"
+
+msgid "Enrollment"
+msgstr "Enrollment"
+
+msgid "Schedule"
+msgstr "Schedule"
+
+msgid "Courses"
+msgstr "Courses"
+
+msgid "Progress"
+msgstr "Progress"
+
+msgid "Grades"
+msgstr "Grades"
+
+msgid "Attendance"
+msgstr "Attendance"
+
+msgid "Assignments"
+msgstr "Assignments"
+
+msgid "Exams"
+msgstr "Exams"
+
+# Course
+msgid "Course"
+msgstr "Course"
+
+msgid "Lesson"
+msgstr "Lesson"
+
+msgid "Lessons"
+msgstr "Lessons"
+
+msgid "Module"
+msgstr "Module"
+
+msgid "Modules"
+msgstr "Modules"
+
+msgid "Instructor"
+msgstr "Instructor"
+
+msgid "Syllabus"
+msgstr "Syllabus"
+
+msgid "Duration"
+msgstr "Duration"
+
+msgid "Price"
+msgstr "Price"
+
+msgid "Start Date"
+msgstr "Start Date"
+
+msgid "End Date"
+msgstr "End Date"
+
+# Payment
+msgid "Payment"
+msgstr "Payment"
+
+msgid "Payments"
+msgstr "Payments"
+
+msgid "Balance"
+msgstr "Balance"
+
+msgid "Amount"
+msgstr "Amount"
+
+msgid "Paid"
+msgstr "Paid"
+
+msgid "Unpaid"
+msgstr "Unpaid"
+
+msgid "Invoice"
+msgstr "Invoice"
+
+msgid "Receipt"
+msgstr "Receipt"
+
+msgid "Discount"
+msgstr "Discount"
+
+msgid "Total"
+msgstr "Total"
+
+# Time
+msgid "Today"
+msgstr "Today"
+
+msgid "Yesterday"
+msgstr "Yesterday"
+
+msgid "Tomorrow"
+msgstr "Tomorrow"
+
+msgid "Week"
+msgstr "Week"
+
+msgid "Month"
+msgstr "Month"
+
+msgid "Year"
+msgstr "Year"
+
+msgid "Date"
+msgstr "Date"
+
+msgid "Time"
+msgstr "Time"
+
+msgid "From"
+msgstr "From"
+
+msgid "To"
+msgstr "To"
+
+# Status
+msgid "Active"
+msgstr "Active"
+
+msgid "Inactive"
+msgstr "Inactive"
+
+msgid "Pending"
+msgstr "Pending"
+
+msgid "Completed"
+msgstr "Completed"
+
+msgid "Cancelled"
+msgstr "Cancelled"
+
+msgid "Approved"
+msgstr "Approved"
+
+msgid "Rejected"
+msgstr "Rejected"
+
+# Dashboard
+msgid "Dashboard"
+msgstr "Dashboard"
+
+msgid "Overview"
+msgstr "Overview"
+
+msgid "Statistics"
+msgstr "Statistics"
+
+msgid "Reports"
+msgstr "Reports"
+
+msgid "Analytics"
+msgstr "Analytics"
+
+# Communication
+msgid "Messages"
+msgstr "Messages"
+
+msgid "Notifications"
+msgstr "Notifications"
+
+msgid "Announcements"
+msgstr "Announcements"
+
+msgid "SMS"
+msgstr "SMS"
+
+msgid "Send"
+msgstr "Send"
+
+# CRM
+msgid "Leads"
+msgstr "Leads"
+
+msgid "Lead"
+msgstr "Lead"
+
+msgid "Conversions"
+msgstr "Conversions"
+
+msgid "Follow-up"
+msgstr "Follow-up"
+
+msgid "Source"
+msgstr "Source"
+
+# Admin
+msgid "Administration"
+msgstr "Administration"
+
+msgid "Users"
+msgstr "Users"
+
+msgid "Roles"
+msgstr "Roles"
+
+msgid "Permissions"
+msgstr "Permissions"
+
+msgid "Backup"
+msgstr "Backup"
+
+msgid "Groups"
+msgstr "Groups"
+
+msgid "Group"
+msgstr "Group"
+
+# Help
+msgid "Help"
+msgstr "Help"
+
+msgid "Support"
+msgstr "Support"
+
+msgid "FAQ"
+msgstr "FAQ"
+
+msgid "Contact"
+msgstr "Contact"
+
+msgid "About"
+msgstr "About"

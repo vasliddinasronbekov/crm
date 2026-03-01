@@ -1,0 +1,12 @@
+{
+  "name": "@edu-platform/config",
+  "version": "0.0.0",
+  "main": "index.ts",
+  "types": "index.ts",
+  "scripts": {
+    "lint": "eslint ."
+  },
+  "devDependencies": {
+    "typescript": "*"
+  }
+}

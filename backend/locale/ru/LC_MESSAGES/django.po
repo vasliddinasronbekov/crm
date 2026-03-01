@@ -1,0 +1,414 @@
+# Russian translations for EduVoice LMS
+# Copyright (C) 2025
+# This file is distributed under the same license as the EduVoice package.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: EduVoice 1.0\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2025-10-21 00:00+0500\n"
+"PO-Revision-Date: 2025-10-21 00:00+0500\n"
+"Last-Translator: EduVoice Team\n"
+"Language-Team: Russian\n"
+"Language: ru\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=3; plural=(n%10==1 && n%100!=11 ? 0 : n%10>=2 && n%10<=4 && (n%100<10 || n%100>=20) ? 1 : 2);\n"
+
+# Languages
+msgid "Uzbek"
+msgstr "Узбекский"
+
+msgid "Russian"
+msgstr "Русский"
+
+msgid "English"
+msgstr "Английский"
+
+# General Actions
+msgid "Yes"
+msgstr "Да"
+
+msgid "No"
+msgstr "Нет"
+
+msgid "OK"
+msgstr "ОК"
+
+msgid "Cancel"
+msgstr "Отмена"
+
+msgid "Save"
+msgstr "Сохранить"
+
+msgid "Delete"
+msgstr "Удалить"
+
+msgid "Edit"
+msgstr "Редактировать"
+
+msgid "Create"
+msgstr "Создать"
+
+msgid "Update"
+msgstr "Обновить"
+
+msgid "Submit"
+msgstr "Отправить"
+
+msgid "Back"
+msgstr "Назад"
+
+msgid "Next"
+msgstr "Далее"
+
+msgid "Previous"
+msgstr "Предыдущий"
+
+msgid "Close"
+msgstr "Закрыть"
+
+msgid "Search"
+msgstr "Поиск"
+
+msgid "Filter"
+msgstr "Фильтр"
+
+msgid "Loading..."
+msgstr "Загрузка..."
+
+msgid "No data available"
+msgstr "Нет данных"
+
+# Success Messages
+msgid "Successfully saved"
+msgstr "Успешно сохранено"
+
+msgid "Successfully created"
+msgstr "Успешно создано"
+
+msgid "Successfully updated"
+msgstr "Успешно обновлено"
+
+msgid "Successfully deleted"
+msgstr "Успешно удалено"
+
+msgid "Successfully sent"
+msgstr "Успешно отправлено"
+
+msgid "Successfully completed"
+msgstr "Успешно завершено"
+
+msgid "Operation successful"
+msgstr "Операция выполнена успешно"
+
+# Error Messages
+msgid "An error occurred"
+msgstr "Произошла ошибка"
+
+msgid "Not found"
+msgstr "Не найдено"
+
+msgid "Permission denied"
+msgstr "Доступ запрещен"
+
+msgid "Invalid data"
+msgstr "Неверные данные"
+
+msgid "This field is required"
+msgstr "Это поле обязательно"
+
+msgid "Already exists"
+msgstr "Уже существует"
+
+msgid "Authentication required"
+msgstr "Требуется аутентификация"
+
+# Validation Messages
+msgid "Invalid email address"
+msgstr "Неверный адрес электронной почты"
+
+msgid "Invalid phone number"
+msgstr "Неверный номер телефона"
+
+msgid "Password is too weak"
+msgstr "Пароль слишком слабый"
+
+msgid "Length is invalid"
+msgstr "Неверная длина"
+
+msgid "Invalid format"
+msgstr "Неверный формат"
+
+msgid "Validation failed"
+msgstr "Ошибка валидации"
+
+# Auth
+msgid "Login"
+msgstr "Войти"
+
+msgid "Logout"
+msgstr "Выйти"
+
+msgid "Register"
+msgstr "Регистрация"
+
+msgid "Email"
+msgstr "Email"
+
+msgid "Password"
+msgstr "Пароль"
+
+msgid "Username"
+msgstr "Имя пользователя"
+
+msgid "First Name"
+msgstr "Имя"
+
+msgid "Last Name"
+msgstr "Фамилия"
+
+msgid "Phone Number"
+msgstr "Номер телефона"
+
+msgid "Profile"
+msgstr "Профиль"
+
+msgid "Settings"
+msgstr "Настройки"
+
+# Student
+msgid "Students"
+msgstr "Студенты"
+
+msgid "Student"
+msgstr "Студент"
+
+msgid "Enrollment"
+msgstr "Зачисление"
+
+msgid "Schedule"
+msgstr "Расписание"
+
+msgid "Courses"
+msgstr "Курсы"
+
+msgid "Progress"
+msgstr "Прогресс"
+
+msgid "Grades"
+msgstr "Оценки"
+
+msgid "Attendance"
+msgstr "Посещаемость"
+
+msgid "Assignments"
+msgstr "Задания"
+
+msgid "Exams"
+msgstr "Экзамены"
+
+# Course
+msgid "Course"
+msgstr "Курс"
+
+msgid "Lesson"
+msgstr "Урок"
+
+msgid "Lessons"
+msgstr "Уроки"
+
+msgid "Module"
+msgstr "Модуль"
+
+msgid "Modules"
+msgstr "Модули"
+
+msgid "Instructor"
+msgstr "Преподаватель"
+
+msgid "Syllabus"
+msgstr "Программа"
+
+msgid "Duration"
+msgstr "Длительность"
+
+msgid "Price"
+msgstr "Цена"
+
+msgid "Start Date"
+msgstr "Дата начала"
+
+msgid "End Date"
+msgstr "Дата окончания"
+
+# Payment
+msgid "Payment"
+msgstr "Платеж"
+
+msgid "Payments"
+msgstr "Платежи"
+
+msgid "Balance"
+msgstr "Баланс"
+
+msgid "Amount"
+msgstr "Сумма"
+
+msgid "Paid"
+msgstr "Оплачено"
+
+msgid "Unpaid"
+msgstr "Не оплачено"
+
+msgid "Invoice"
+msgstr "Счет"
+
+msgid "Receipt"
+msgstr "Квитанция"
+
+msgid "Discount"
+msgstr "Скидка"
+
+msgid "Total"
+msgstr "Итого"
+
+# Time
+msgid "Today"
+msgstr "Сегодня"
+
+msgid "Yesterday"
+msgstr "Вчера"
+
+msgid "Tomorrow"
+msgstr "Завтра"
+
+msgid "Week"
+msgstr "Неделя"
+
+msgid "Month"
+msgstr "Месяц"
+
+msgid "Year"
+msgstr "Год"
+
+msgid "Date"
+msgstr "Дата"
+
+msgid "Time"
+msgstr "Время"
+
+msgid "From"
+msgstr "С"
+
+msgid "To"
+msgstr "До"
+
+# Status
+msgid "Active"
+msgstr "Активный"
+
+msgid "Inactive"
+msgstr "Неактивный"
+
+msgid "Pending"
+msgstr "В ожидании"
+
+msgid "Completed"
+msgstr "Завершено"
+
+msgid "Cancelled"
+msgstr "Отменено"
+
+msgid "Approved"
+msgstr "Утверждено"
+
+msgid "Rejected"
+msgstr "Отклонено"
+
+# Dashboard
+msgid "Dashboard"
+msgstr "Панель управления"
+
+msgid "Overview"
+msgstr "Обзор"
+
+msgid "Statistics"
+msgstr "Статистика"
+
+msgid "Reports"
+msgstr "Отчеты"
+
+msgid "Analytics"
+msgstr "Аналитика"
+
+# Communication
+msgid "Messages"
+msgstr "Сообщения"
+
+msgid "Notifications"
+msgstr "Уведомления"
+
+msgid "Announcements"
+msgstr "Объявления"
+
+msgid "SMS"
+msgstr "SMS"
+
+msgid "Send"
+msgstr "Отправить"
+
+# CRM
+msgid "Leads"
+msgstr "Лиды"
+
+msgid "Lead"
+msgstr "Лид"
+
+msgid "Conversions"
+msgstr "Конверсии"
+
+msgid "Follow-up"
+msgstr "Отслеживание"
+
+msgid "Source"
+msgstr "Источник"
+
+# Admin
+msgid "Administration"
+msgstr "Администрирование"
+
+msgid "Users"
+msgstr "Пользователи"
+
+msgid "Roles"
+msgstr "Роли"
+
+msgid "Permissions"
+msgstr "Разрешения"
+
+msgid "Backup"
+msgstr "Резервная копия"
+
+msgid "Groups"
+msgstr "Группы"
+
+msgid "Group"
+msgstr "Группа"
+
+# Help
+msgid "Help"
+msgstr "Помощь"
+
+msgid "Support"
+msgstr "Поддержка"
+
+msgid "FAQ"
+msgstr "FAQ"
+
+msgid "Contact"
+msgstr "Контакт"
+
+msgid "About"
+msgstr "О нас"
