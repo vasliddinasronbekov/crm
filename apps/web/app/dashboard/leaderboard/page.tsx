@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
 import {
@@ -52,10 +52,11 @@ export default function LeaderboardPage() {
   const selectedMetric =
     metricOptions.find((option) => option.value === metric) || metricOptions[0];
 
-  if (!authLoading && !user) {
-    router.push("/login");
-    return null;
-  }
+  useEffect(() => {
+    if (!authLoading && !user) {
+      router.replace("/login");
+    }
+  }, [authLoading, router, user]);
 
   const getRankIcon = (rank: number) => {
     if (rank === 1) return <Crown className="h-6 w-6 text-warning" />;
@@ -71,26 +72,32 @@ export default function LeaderboardPage() {
     return "bg-surface border-border";
   };
 
-  const getMetricValue = (entry: LeaderboardEntry) => {
-    switch (metric) {
-      case "xp":
-        return entry.xp_points || 0;
-      case "coins":
-        return entry.coins || 0;
-      case "badges":
-        return entry.badges_count || 0;
-      case "completed_courses":
-        return entry.completed_courses || 0;
-      case "score":
-      default:
-        return entry.score || 0;
-    }
-  };
+  const getMetricValue = useCallback(
+    (entry: LeaderboardEntry) => {
+      switch (metric) {
+        case "xp":
+          return entry.xp_points || 0;
+        case "coins":
+          return entry.coins || 0;
+        case "badges":
+          return entry.badges_count || 0;
+        case "completed_courses":
+          return entry.completed_courses || 0;
+        case "score":
+        default:
+          return entry.score || 0;
+      }
+    },
+    [metric],
+  );
 
-  const formatMetricValue = (entry: LeaderboardEntry) => {
-    const value = getMetricValue(entry);
-    return metric === "score" ? value.toFixed(1) : value.toLocaleString();
-  };
+  const formatMetricValue = useCallback(
+    (entry: LeaderboardEntry) => {
+      const value = getMetricValue(entry);
+      return metric === "score" ? value.toFixed(1) : value.toLocaleString();
+    },
+    [getMetricValue, metric],
+  );
 
   const stats = useMemo(() => {
     const metricTotal = leaderboard.reduce(
@@ -108,7 +115,11 @@ export default function LeaderboardPage() {
         0,
       ),
     };
-  }, [leaderboard, metric]);
+  }, [getMetricValue, leaderboard]);
+
+  if (!authLoading && !user) {
+    return null;
+  }
 
   if (authLoading || loading) {
     return (
