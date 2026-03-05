@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import {
-import LoadingScreen from '@/components/LoadingScreen'
   Award,
   Plus,
   Edit,
@@ -19,6 +18,7 @@ import LoadingScreen from '@/components/LoadingScreen'
   UserCheck,
   BarChart3
 } from 'lucide-react'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface Student {
   id: number

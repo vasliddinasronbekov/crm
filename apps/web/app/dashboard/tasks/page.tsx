@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import {
-import LoadingScreen from '@/components/LoadingScreen'
   Plus,
   MoreVertical,
   Trash2,
@@ -15,6 +14,7 @@ import LoadingScreen from '@/components/LoadingScreen'
   User,
   Clipboard
 } from 'lucide-react'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface Task {
   id: number

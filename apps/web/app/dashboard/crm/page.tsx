@@ -6,7 +6,6 @@ import { Search, Plus, Edit, Trash2 } from 'lucide-react'
 import toast from '@/lib/toast'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import {
-import LoadingScreen from '@/components/LoadingScreen'
   useLeads,
   useDeals,
   useCreateLead,
@@ -16,6 +15,7 @@ import LoadingScreen from '@/components/LoadingScreen'
   LeadFilters,
   Deal,
 } from '@/lib/hooks/useCRM'
+import LoadingScreen from '@/components/LoadingScreen'
 
 export default function CRMPage() {
   const { formatCurrency } = useSettings()

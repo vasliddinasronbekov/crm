@@ -11,7 +11,6 @@ import {
 import { ProtectedRoute, RequirePermission } from '@/components/ProtectedRoute'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import {
-import LoadingScreen from '@/components/LoadingScreen'
   useStudents,
   useCreateStudent,
   useUpdateStudent,
@@ -19,6 +18,7 @@ import LoadingScreen from '@/components/LoadingScreen'
   type Student,
   type StudentFormData
 } from '@/lib/hooks/useStudents'
+import LoadingScreen from '@/components/LoadingScreen'
 
 type ViewMode = 'grid' | 'table'
 

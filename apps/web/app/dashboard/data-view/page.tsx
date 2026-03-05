@@ -24,12 +24,12 @@ import { toast } from 'react-hot-toast';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useSettings } from '@/contexts/SettingsContext';
 import {
-import LoadingScreen from '@/components/LoadingScreen'
   exportDateDataToExcel,
   exportCategoryToCSV,
   downloadJSON,
   generateExportSummary,
 } from '@/lib/exportUtils';
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface DateData {
   students: any[];
@@ -232,7 +232,14 @@ function DataViewContent() {
     return <LoadingScreen message="Loading data..." />
   }
 
-className="flex items-center gap-2 px-4 py-2 hover:bg-surface rounded-xl transition-colors"
+  return (
+    <div className="p-8">
+      {/* Header */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <button
+            onClick={() => router.back()}
+            className="flex items-center gap-2 px-4 py-2 hover:bg-surface rounded-xl transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
             <span>Back</span>

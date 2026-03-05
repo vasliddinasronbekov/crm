@@ -6,7 +6,6 @@ import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import {
-import LoadingScreen from '@/components/LoadingScreen'
   usePaymentsList,
   usePaymentStudents,
   usePaymentGroups,
@@ -22,6 +21,7 @@ import LoadingScreen from '@/components/LoadingScreen'
   usePaymentTrends,
   type Payment,
 } from '@/lib/hooks/usePayments'
+import LoadingScreen from '@/components/LoadingScreen'
 
 export default function PaymentsPage() {
   const { currency, formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency } = useSettings()

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import {
-import LoadingScreen from '@/components/LoadingScreen'
   Building2,
   Plus,
   Edit,
@@ -18,6 +17,7 @@ import LoadingScreen from '@/components/LoadingScreen'
   X,
   Search
 } from 'lucide-react'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface Branch {
   id: number

@@ -4,7 +4,6 @@ import { useState, useEffect } from 'react'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import {
-import LoadingScreen from '@/components/LoadingScreen'
   DoorOpen,
   Plus,
   Edit,
@@ -17,6 +16,7 @@ import LoadingScreen from '@/components/LoadingScreen'
   TrendingUp,
   AlertCircle
 } from 'lucide-react'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface Branch {
   id: number

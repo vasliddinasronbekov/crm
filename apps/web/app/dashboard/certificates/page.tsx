@@ -27,8 +27,8 @@ import {
   X,
 } from "lucide-react";
 import CertificateEditorWrapper from "@/components/CertificateEditor";
-import { CertificateTemplate } from "@/lib/types";
 import LoadingScreen from '@/components/LoadingScreen'
+import { CertificateTemplate } from "@/lib/types";
 
 interface Certificate {
   id: number;
@@ -498,10 +498,46 @@ export default function CertificatesPage() {
     return <LoadingScreen message="Loading certificates..." />
   }
 
-className={`border-b-2 px-6 py-3 font-medium transition-colors ${
-              activeTab === "certificates"
-                ? "border-primary text-primary"
-                : "border-transparent text-text-secondary hover:text-text-primary"
+  if (showTemplateEditor) {
+    return (
+      <CertificateEditorWrapper
+        template={editingTemplate}
+        onSave={handleSaveTemplate}
+        onClose={() => {
+          setShowTemplateEditor(false)
+          setEditingTemplate(null)
+        }}
+      />
+    )
+  }
+
+  return (
+    <div className="min-h-screen bg-background p-8">
+      <div className="mx-auto max-w-7xl">
+        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+          <div>
+            <h1 className="mb-2 flex items-center gap-3 text-3xl font-bold">
+              <Award className="h-8 w-8 text-primary" />
+              Certificates Management
+            </h1>
+            <p className="max-w-3xl text-text-secondary">
+              Manage certificate templates, verify issue readiness, and generate
+              downloadable certificates with verification metadata.
+            </p>
+          </div>
+          <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-text-secondary">
+            Public verification route:{' '}
+            <span className="font-mono text-text-primary">/verify/[certificate-id]</span>
+          </div>
+        </div>
+
+        <div className="mb-6 flex gap-2 border-b border-border">
+          <button
+            onClick={() => setActiveTab('certificates')}
+            className={`border-b-2 px-6 py-3 font-medium transition-colors ${
+              activeTab === 'certificates'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
             }`}
           >
             <Award className="mr-2 inline h-4 w-4" />

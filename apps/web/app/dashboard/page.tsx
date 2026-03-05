@@ -7,7 +7,6 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useRealtimeAccountingDashboard } from '@/lib/hooks/useAccounting'
 import {
-import LoadingScreen from '@/components/LoadingScreen'
   Users, GraduationCap, BookOpen, DollarSign,
   ShoppingCart, Calendar, MessageCircle, Mail,
   Megaphone, Receipt, Trophy, Award, CheckSquare,
@@ -15,6 +14,7 @@ import LoadingScreen from '@/components/LoadingScreen'
   Clock, Target, Zap, BarChart3, Wallet, Layers, AlertCircle, PiggyBank,
   LineChart, MailCheck
 } from 'lucide-react'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface DashboardStats {
   total_students: number
@@ -395,13 +395,7 @@ export default function DashboardPage() {
   }
 
   if (isLoading) {
-    return <LoadingScreen message="Loading..." />
-  }
-
-</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message={translateText('Loading dashboard...')} />
   }
 
   return (
