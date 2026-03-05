@@ -12,6 +12,7 @@ import {
   User,
   CheckCircle,
   XCircle,
+  AlertCircle,
   Plus,
   Save,
   Settings,
@@ -84,6 +85,7 @@ interface AttendanceRecord {
   date?: string
   is_present?: boolean
   status?: string
+  attendance_status?: string
   created_at?: string
 }
 
@@ -113,6 +115,7 @@ interface PaymentForm {
 }
 
 type Tab = 'students' | 'schedule' | 'payments' | 'attendance'
+type AttendanceStatus = 'present' | 'absent' | 'absence'
 
 const parseListPayload = <T,>(payload: any): T[] => {
   if (Array.isArray(payload)) return payload
@@ -156,6 +159,74 @@ const normalizeTimeInput = (value: any): string => {
 const normalizeAttendanceDate = (value: string | undefined): string => {
   if (!value) return ''
   return value.includes('T') ? value.split('T')[0] : value
+}
+
+const normalizeAttendanceStatus = (record: AttendanceRecord | null | undefined): AttendanceStatus => {
+  if (!record) return 'absent'
+
+  const rawStatus = normalizeString(record.attendance_status || record.status).toLowerCase()
+  if (rawStatus === 'present') return 'present'
+  if (rawStatus === 'absence' || rawStatus === 'absence_excused' || rawStatus === 'excused') return 'absence'
+  if (rawStatus === 'absent' || rawStatus === 'absent_unexcused') return 'absent'
+
+  return record.is_present ? 'present' : 'absent'
+}
+
+const ATTENDANCE_STATUS_META: Record<
+  AttendanceStatus,
+  {
+    label: string
+    markedLabel: string
+    buttonClassName: string
+    badgeClassName: string
+  }
+> = {
+  present: {
+    label: 'Present',
+    markedLabel: 'Present (already marked)',
+    buttonClassName: 'text-success hover:bg-success/20',
+    badgeClassName: 'bg-success/10 text-success',
+  },
+  absent: {
+    label: 'Absent (Unexcused)',
+    markedLabel: 'Absent (unexcused, already marked)',
+    buttonClassName: 'text-error hover:bg-error/20',
+    badgeClassName: 'bg-error/10 text-error',
+  },
+  absence: {
+    label: 'Absence (Excused)',
+    markedLabel: 'Absence (excused, already marked)',
+    buttonClassName: 'text-warning hover:bg-warning/20',
+    badgeClassName: 'bg-warning/10 text-warning',
+  },
+}
+
+function AttendanceActionButton({
+  status,
+  disabled,
+  onClick,
+}: {
+  status: AttendanceStatus
+  disabled: boolean
+  onClick: () => void
+}) {
+  const meta = ATTENDANCE_STATUS_META[status]
+  const Icon = status === 'present' ? CheckCircle : status === 'absence' ? AlertCircle : XCircle
+
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`group relative p-2 rounded-lg transition-colors disabled:opacity-50 ${meta.buttonClassName}`}
+      title={meta.label}
+      aria-label={meta.label}
+    >
+      <Icon className="h-5 w-5" />
+      <span className="pointer-events-none absolute left-1/2 top-full z-10 mt-2 -translate-x-1/2 whitespace-nowrap rounded-md bg-slate-900 px-2 py-1 text-xs text-white opacity-0 shadow-lg transition-opacity group-hover:opacity-100">
+        {meta.label}
+      </span>
+    </button>
+  )
 }
 
 const getFullName = (person: { first_name?: string; last_name?: string; username?: string } | null | undefined): string => {
@@ -628,16 +699,22 @@ export default function GroupDetailPage() {
     }
   }
 
-  const markAttendance = async (studentId: number, isPresent: boolean) => {
+  const markAttendance = async (studentId: number, status: AttendanceStatus) => {
     setMarkingAttendance(studentId)
     try {
       await apiService.markAttendance({
         student: studentId,
         group: groupIdNumber,
         date: selectedDate,
-        is_present: isPresent,
+        attendance_status:
+          status === 'present'
+            ? 'present'
+            : status === 'absence'
+            ? 'absence_excused'
+            : 'absent_unexcused',
+        is_present: status === 'present',
       })
-      toast.success(`Attendance marked as ${isPresent ? 'present' : 'absent'}.`)
+      toast.success(`Attendance marked as ${ATTENDANCE_STATUS_META[status].label.toLowerCase()}.`)
       await loadAttendance()
     } catch (error: any) {
       console.error('Failed to mark attendance:', error)
@@ -1440,7 +1517,7 @@ export default function GroupDetailPage() {
                     <tbody>
                       {studentsInGroup.map((student, index) => {
                         const existingRecord = attendanceByStudentOnDate.get(student.id)
-                        const isPresent = Boolean(existingRecord?.is_present)
+                        const existingStatus = normalizeAttendanceStatus(existingRecord)
 
                         return (
                           <tr key={`${student.id}-${index}`} className="border-b border-border/50 hover:bg-background/50">
@@ -1463,30 +1540,27 @@ export default function GroupDetailPage() {
                               <div className="flex items-center justify-center gap-2">
                                 {existingRecord ? (
                                   <span
-                                    className={`px-3 py-1 rounded-lg text-sm font-medium ${
-                                      isPresent ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
-                                    }`}
+                                    className={`px-3 py-1 rounded-lg text-sm font-medium ${ATTENDANCE_STATUS_META[existingStatus].badgeClassName}`}
                                   >
-                                    {isPresent ? 'Present (already marked)' : 'Absent (already marked)'}
+                                    {ATTENDANCE_STATUS_META[existingStatus].markedLabel}
                                   </span>
                                 ) : (
                                   <div className="inline-flex items-center gap-1 p-1 bg-surface border border-border rounded-xl">
-                                    <button
-                                      onClick={() => void markAttendance(student.id, true)}
+                                    <AttendanceActionButton
+                                      status="present"
                                       disabled={markingAttendance === student.id}
-                                      className="p-2 text-success hover:bg-success/20 rounded-lg transition-colors disabled:opacity-50"
-                                      title="Present"
-                                    >
-                                      <CheckCircle className="h-5 w-5" />
-                                    </button>
-                                    <button
-                                      onClick={() => void markAttendance(student.id, false)}
+                                      onClick={() => void markAttendance(student.id, 'present')}
+                                    />
+                                    <AttendanceActionButton
+                                      status="absence"
                                       disabled={markingAttendance === student.id}
-                                      className="p-2 text-error hover:bg-error/20 rounded-lg transition-colors disabled:opacity-50"
-                                      title="Absent"
-                                    >
-                                      <XCircle className="h-5 w-5" />
-                                    </button>
+                                      onClick={() => void markAttendance(student.id, 'absence')}
+                                    />
+                                    <AttendanceActionButton
+                                      status="absent"
+                                      disabled={markingAttendance === student.id}
+                                      onClick={() => void markAttendance(student.id, 'absent')}
+                                    />
                                   </div>
                                 )}
                               </div>
@@ -1523,7 +1597,7 @@ export default function GroupDetailPage() {
                           const studentId = extractId(record.student)
                           const student = studentId ? studentById.get(studentId) : null
                           const recordDate = record.date || record.created_at || ''
-                          const present = Boolean(record.is_present)
+                          const status = normalizeAttendanceStatus(record)
                           const rowKey =
                             record.id || `${studentId || 'unknown'}-${normalizeAttendanceDate(recordDate)}-${index}`
 
@@ -1535,19 +1609,22 @@ export default function GroupDetailPage() {
                               <td className="py-3 px-4">{student ? getFullName(student) : 'Unknown student'}</td>
                               <td className="py-3 px-4 text-center">
                                 <span
-                                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-medium ${
-                                    present ? 'bg-success/10 text-success' : 'bg-error/10 text-error'
-                                  }`}
+                                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-medium ${ATTENDANCE_STATUS_META[status].badgeClassName}`}
                                 >
-                                  {present ? (
+                                  {status === 'present' ? (
                                     <>
                                       <CheckCircle className="h-4 w-4" />
                                       Present
                                     </>
+                                  ) : status === 'absence' ? (
+                                    <>
+                                      <AlertCircle className="h-4 w-4" />
+                                      Absence (Excused)
+                                    </>
                                   ) : (
                                     <>
                                       <XCircle className="h-4 w-4" />
-                                      Absent
+                                      Absent (Unexcused)
                                     </>
                                   )}
                                 </span>

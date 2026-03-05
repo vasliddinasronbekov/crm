@@ -82,8 +82,7 @@ export function Sidebar() {
       {/* Logo */}
       <div className="flex h-16 items-center px-6 border-b border-border">
         <h1 className="text-2xl font-bold text-primary flex items-center gap-2">
-          <span className="text-2xl">✨</span>
-          EDU Admin
+          EDUOS
         </h1>
       </div>
 
