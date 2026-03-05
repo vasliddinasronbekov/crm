@@ -1,450 +1,1148 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
+import {
+  Activity,
+  AlertTriangle,
+  ArrowRight,
+  BarChart3,
+  CheckCircle2,
+  Clock3,
+  CreditCard,
+  DollarSign,
+  FileText,
+  Loader2,
+  RefreshCw,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Users,
+  Wallet,
+  XCircle,
+} from 'lucide-react'
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import {
-  DollarSign, TrendingUp, TrendingDown, Users, Calendar,
-  FileText, Wallet, CreditCard, AlertCircle, ArrowRight,
-  Download, RefreshCw, Eye, Clock, CheckCircle, XCircle,
-  BarChart3, PieChart, Activity, Target, Zap
-} from 'lucide-react'
-import {
+  useCreateExpense,
+  useCreatePayment,
   useFinancialSummaries,
   usePayments,
-  usePaymentStats,
-  useAccountingStats,
   useRefreshFinance,
-  useCreatePayment,
-  useCreateExpense,
-  Payment,
+  useStudentBalances,
+  useStudentFines,
+  useTeacherEarnings,
 } from '@/lib/hooks/useFinance'
+import { usePaymentStudents, usePaymentTypes } from '@/lib/hooks/usePayments'
+import { useExpenseTypes } from '@/lib/hooks/useExpenses'
+
+type FinanceTab = 'overview' | 'receivables' | 'operations'
+type PaymentStatus = 'paid' | 'pending' | 'failed'
+
+type PaymentStatusMetric = {
+  status: PaymentStatus
+  label: string
+  count: number
+  amount: number
+  tone: string
+  icon: typeof CheckCircle2
+}
+
+type TrendPoint = {
+  key: string
+  label: string
+  revenue: number
+  expenses: number
+  profit: number
+}
+
+type DebtorRow = {
+  id: number
+  name: string
+  groupName: string
+  balance: number
+  paymentProgress: number
+}
+
+type PayrollRow = {
+  id: number
+  name: string
+  amount: number
+  groupName: string
+}
+
+type StudentOption = {
+  id: number
+  first_name?: string
+  last_name?: string
+  username?: string
+}
+
+type SimpleOption = {
+  id: number
+  name?: string
+}
+
+const PAYMENT_STATUS_META: Record<
+  PaymentStatus,
+  { label: string; tone: string; icon: typeof CheckCircle2 }
+> = {
+  paid: {
+    label: 'Paid',
+    tone: 'text-success bg-success/10 border-success/20',
+    icon: CheckCircle2,
+  },
+  pending: {
+    label: 'Pending',
+    tone: 'text-warning bg-warning/10 border-warning/20',
+    icon: Clock3,
+  },
+  failed: {
+    label: 'Failed',
+    tone: 'text-error bg-error/10 border-error/20',
+    icon: XCircle,
+  },
+}
+
+function toNumber(value: number | string | null | undefined): number {
+  if (typeof value === 'number' && Number.isFinite(value)) {
+    return value
+  }
+  if (typeof value === 'string') {
+    const parsed = Number(value)
+    if (Number.isFinite(parsed)) {
+      return parsed
+    }
+  }
+  return 0
+}
+
+function toPercent(value: number | string | null | undefined): number {
+  const normalized = toNumber(value)
+  if (!Number.isFinite(normalized)) {
+    return 0
+  }
+  return Math.min(100, Math.max(0, normalized))
+}
+
+function clampWidth(value: number, max: number): number {
+  if (max <= 0) {
+    return 0
+  }
+  return Math.min(100, Math.max(0, (value / max) * 100))
+}
+
+function formatPercent(value: number): string {
+  return `${value.toFixed(1)}%`
+}
+
+function getDisplayName(entity: any, fallback = 'Unknown'): string {
+  if (!entity) {
+    return fallback
+  }
+
+  const fullName = `${entity.first_name || ''} ${entity.last_name || ''}`.trim()
+  if (fullName) {
+    return fullName
+  }
+
+  if (entity.username) {
+    return entity.username
+  }
+
+  return fallback
+}
+
+function formatShortDate(value: string): string {
+  return new Date(value).toLocaleDateString(undefined, {
+    month: 'short',
+    day: '2-digit',
+  })
+}
+
+const todayDate = new Date().toISOString().split('T')[0]
 
 export default function FinanceDashboard() {
   const router = useRouter()
   const { currency, formatCurrencyFromMinor, fromSelectedCurrency } = useSettings()
+
+  const [activeTab, setActiveTab] = useState<FinanceTab>('overview')
   const [refreshing, setRefreshing] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
 
-  // React Query hooks - automatic caching, loading, and error states
-  const { data: financialSummariesData, isLoading: summariesLoading } = useFinancialSummaries()
-  const { data: paymentsData, isLoading: paymentsLoading } = usePayments()
+  const [paymentForm, setPaymentForm] = useState({
+    by_user: '',
+    payment_type: '',
+    amount: '',
+    course_price: '',
+    status: 'paid' as PaymentStatus,
+    detail: '',
+    date: todayDate,
+  })
 
+  const [expenseForm, setExpenseForm] = useState({
+    expense_type: '',
+    amount: '',
+    description: '',
+    date: todayDate,
+  })
+
+  const { data: financialSummariesData, isLoading: summariesLoading } = useFinancialSummaries()
+  const { data: paymentsData, isLoading: paymentsLoading } = usePayments({ limit: 200 })
+  const { data: balancesData, isLoading: balancesLoading } = useStudentBalances({ limit: 200 })
+  const { data: teacherEarningsData, isLoading: teacherEarningsLoading } = useTeacherEarnings({
+    limit: 200,
+  })
+  const { data: studentFinesData, isLoading: finesLoading } = useStudentFines({ limit: 200 })
+
+  const { data: studentsData = [] } = usePaymentStudents()
+  const { data: paymentTypesData = [] } = usePaymentTypes()
+  const { data: expenseTypesData = [] } = useExpenseTypes()
+
+  const refreshFinance = useRefreshFinance()
   const createPayment = useCreatePayment()
   const createExpense = useCreateExpense()
 
-  const [paymentForm, setPaymentForm] = useState({ student: '', amount: '', payment_type: '' })
-  const [expenseForm, setExpenseForm] = useState({ expense_type: '', amount: '', description: '' })
+  const financialSummaries = useMemo(
+    () => financialSummariesData?.results || [],
+    [financialSummariesData?.results]
+  )
+  const payments = useMemo(() => paymentsData?.results || [], [paymentsData?.results])
+  const balances = useMemo(() => balancesData?.results || [], [balancesData?.results])
+  const teacherEarnings = useMemo(
+    () => teacherEarningsData?.results || [],
+    [teacherEarningsData?.results]
+  )
+  const studentFines = useMemo(() => studentFinesData?.results || [], [studentFinesData?.results])
 
-  const handlePaymentFormChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    setPaymentForm({ ...paymentForm, [e.target.name]: e.target.value })
-  }
+  const students = (Array.isArray(studentsData) ? studentsData : []) as StudentOption[]
+  const paymentTypes = (Array.isArray(paymentTypesData) ? paymentTypesData : []) as SimpleOption[]
+  const expenseTypes = (Array.isArray(expenseTypesData) ? expenseTypesData : []) as SimpleOption[]
 
-  const handleExpenseFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
-    setExpenseForm({ ...expenseForm, [e.target.name]: e.target.value })
-  }
+  const loading =
+    summariesLoading ||
+    paymentsLoading ||
+    balancesLoading ||
+    teacherEarningsLoading ||
+    finesLoading
 
-  const handlePaymentSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const amountInSelectedCurrency = parseFloat(paymentForm.amount)
-    createPayment.mutate({
-      ...paymentForm,
-      amount: fromSelectedCurrency(Number.isFinite(amountInSelectedCurrency) ? amountInSelectedCurrency : 0) * 100,
-      student: parseInt(paymentForm.student),
-    })
-    setShowPaymentModal(false)
-  }
+  const dashboard = useMemo(() => {
+    const latestSummary = financialSummaries[0]
 
-  const handleExpenseSubmit = (e: React.FormEvent) => {
-    e.preventDefault()
-    const amountInSelectedCurrency = parseFloat(expenseForm.amount)
-    createExpense.mutate({
-      ...expenseForm,
-      amount: fromSelectedCurrency(Number.isFinite(amountInSelectedCurrency) ? amountInSelectedCurrency : 0) * 100,
-    })
-    setShowExpenseModal(false)
-  }
+    const statusCounts = payments.reduce<Record<PaymentStatus, { count: number; amount: number }>>(
+      (acc, payment) => {
+        const status = (payment.status || 'pending') as PaymentStatus
+        if (!acc[status]) {
+          acc[status] = { count: 0, amount: 0 }
+        }
+        acc[status].count += 1
+        acc[status].amount += toNumber(payment.amount)
+        return acc
+      },
+      {
+        paid: { count: 0, amount: 0 },
+        pending: { count: 0, amount: 0 },
+        failed: { count: 0, amount: 0 },
+      }
+    )
 
-  // Stats hooks that automatically calculate from the data
-  const paymentStats = usePaymentStats()
-  const accountingStats = useAccountingStats()
+    const paymentStatusMetrics: PaymentStatusMetric[] = (['paid', 'pending', 'failed'] as PaymentStatus[]).map(
+      (status) => ({
+        status,
+        label: PAYMENT_STATUS_META[status].label,
+        count: statusCounts[status].count,
+        amount: statusCounts[status].amount,
+        tone: PAYMENT_STATUS_META[status].tone,
+        icon: PAYMENT_STATUS_META[status].icon,
+      })
+    )
 
-  const refreshFinance = useRefreshFinance()
+    const debtBalances = balances.filter((balance) => toNumber(balance.balance) > 0)
+    const overpaidBalances = balances.filter((balance) => toNumber(balance.balance) < 0)
+    const fullyPaidCount = balances.filter((balance) => balance.is_fully_paid).length
 
-  const loading = summariesLoading || paymentsLoading
+    const receivables = debtBalances.reduce((sum, balance) => sum + toNumber(balance.balance), 0)
+    const overpaidAmount = Math.abs(
+      overpaidBalances.reduce((sum, balance) => sum + toNumber(balance.balance), 0)
+    )
 
-  const handleRefresh = async () => {
+    const avgPaymentProgress =
+      balances.length > 0
+        ? balances.reduce((sum, balance) => sum + toPercent(balance.payment_percentage), 0) /
+          balances.length
+        : 0
+
+    const totalTeacherEarnings = teacherEarnings.reduce(
+      (sum, earning) => sum + toNumber(earning.amount),
+      0
+    )
+    const paidTeacherEarnings = teacherEarnings
+      .filter((earning) => earning.is_paid_to_teacher)
+      .reduce((sum, earning) => sum + toNumber(earning.amount), 0)
+    const pendingTeacherEarnings = totalTeacherEarnings - paidTeacherEarnings
+
+    const totalFines = studentFines.reduce((sum, fine) => sum + toNumber(fine.amount), 0)
+    const paidFines = studentFines
+      .filter((fine) => fine.is_paid)
+      .reduce((sum, fine) => sum + toNumber(fine.amount), 0)
+
+    const grossRevenue =
+      latestSummary?.gross_revenue != null
+        ? toNumber(latestSummary.gross_revenue)
+        : statusCounts.paid.amount + paidFines
+
+    const operatingExpenses =
+      latestSummary?.total_expenses != null
+        ? toNumber(latestSummary.total_expenses)
+        : totalTeacherEarnings
+
+    const netProfit =
+      latestSummary?.net_profit != null
+        ? toNumber(latestSummary.net_profit)
+        : grossRevenue - operatingExpenses
+
+    const paymentSuccessRate =
+      payments.length > 0 ? (statusCounts.paid.count / payments.length) * 100 : 0
+    const collectionRate =
+      grossRevenue + receivables > 0 ? (grossRevenue / (grossRevenue + receivables)) * 100 : 0
+    const profitMargin = grossRevenue > 0 ? (netProfit / grossRevenue) * 100 : 0
+    const payrollCoverage =
+      totalTeacherEarnings > 0 ? (paidTeacherEarnings / totalTeacherEarnings) * 100 : 0
+    const fineRecoveryRate = totalFines > 0 ? (paidFines / totalFines) * 100 : 0
+
+    const trendPoints: TrendPoint[] = [...financialSummaries]
+      .slice(0, 6)
+      .reverse()
+      .map((summary) => {
+        const date = new Date(summary.date)
+        return {
+          key: `${summary.id}-${summary.date}`,
+          label: date.toLocaleDateString(undefined, { month: 'short' }),
+          revenue: toNumber(summary.gross_revenue),
+          expenses: toNumber(summary.total_expenses),
+          profit: toNumber(summary.net_profit),
+        }
+      })
+
+    const trendMax = Math.max(
+      1,
+      ...trendPoints.map((point) => Math.max(point.revenue, point.expenses, Math.abs(point.profit), 1))
+    )
+
+    const paymentAmountMax = Math.max(1, ...paymentStatusMetrics.map((status) => status.amount))
+
+    const topDebtors: DebtorRow[] = debtBalances
+      .map((balance) => ({
+        id: balance.id,
+        name: getDisplayName(
+          balance.student,
+          balance.student_name || balance.student_username || `Student #${balance.id}`
+        ),
+        groupName:
+          balance.group_name ||
+          balance.group?.name ||
+          (balance.group ? `Group #${balance.group.id || ''}` : 'No group'),
+        balance: toNumber(balance.balance),
+        paymentProgress: toPercent(balance.payment_percentage),
+      }))
+      .sort((a, b) => b.balance - a.balance)
+      .slice(0, 7)
+
+    const topPendingPayroll: PayrollRow[] = teacherEarnings
+      .filter((earning) => !earning.is_paid_to_teacher)
+      .map((earning) => ({
+        id: earning.id,
+        name: getDisplayName(
+          earning.teacher,
+          earning.teacher_name || earning.teacher_username || `Teacher #${earning.id}`
+        ),
+        amount: toNumber(earning.amount),
+        groupName:
+          earning.group_name ||
+          earning.group?.name ||
+          (earning.group ? `Group #${earning.group.id || ''}` : 'No group'),
+      }))
+      .sort((a, b) => b.amount - a.amount)
+      .slice(0, 7)
+
+    const receivableRisk = {
+      critical: debtBalances.filter((balance) => toPercent(balance.payment_percentage) < 40).length,
+      watch: debtBalances.filter((balance) => {
+        const progress = toPercent(balance.payment_percentage)
+        return progress >= 40 && progress < 80
+      }).length,
+      nearClear: debtBalances.filter((balance) => toPercent(balance.payment_percentage) >= 80).length,
+    }
+
+    const recentPayments = [...payments]
+      .sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime())
+      .slice(0, 8)
+
+    return {
+      latestSummary,
+      grossRevenue,
+      operatingExpenses,
+      netProfit,
+      receivables,
+      overpaidAmount,
+      totalTeacherEarnings,
+      pendingTeacherEarnings,
+      paidTeacherEarnings,
+      totalFines,
+      paidFines,
+      paymentSuccessRate,
+      collectionRate,
+      profitMargin,
+      payrollCoverage,
+      fineRecoveryRate,
+      avgPaymentProgress,
+      fullyPaidCount,
+      debtStudentCount: debtBalances.length,
+      overpaidCount: overpaidBalances.length,
+      paymentStatusMetrics,
+      paymentAmountMax,
+      trendPoints,
+      trendMax,
+      topDebtors,
+      topPendingPayroll,
+      receivableRisk,
+      recentPayments,
+      totalPaymentsCount: payments.length,
+    }
+  }, [balances, financialSummaries, payments, studentFines, teacherEarnings])
+
+  const handleRefresh = () => {
     setRefreshing(true)
     refreshFinance()
     setTimeout(() => {
       setRefreshing(false)
-      toast.success('Financial data refreshed')
-    }, 500)
+      toast.success('Finance dashboard refreshed')
+    }, 450)
   }
 
-  const financialSummaries = financialSummariesData?.results || []
-  const latestSummary = financialSummaries[0]
-  const payments = paymentsData?.results || []
-  const profitMargin = latestSummary && latestSummary.gross_revenue > 0
-    ? ((latestSummary.net_profit / latestSummary.gross_revenue) * 100).toFixed(1)
-    : '0.0'
+  const handlePaymentSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+
+    if (!paymentForm.by_user) {
+      toast.error('Please select a student')
+      return
+    }
+
+    if (!paymentForm.amount || Number(paymentForm.amount) <= 0) {
+      toast.error('Please enter a valid payment amount')
+      return
+    }
+
+    const amount = Number(paymentForm.amount)
+    const coursePrice = paymentForm.course_price ? Number(paymentForm.course_price) : amount
+
+    createPayment.mutate(
+      {
+        by_user: Number(paymentForm.by_user),
+        payment_type: paymentForm.payment_type ? Number(paymentForm.payment_type) : undefined,
+        status: paymentForm.status,
+        detail: paymentForm.detail || undefined,
+        date: paymentForm.date,
+        amount: Math.round(fromSelectedCurrency(amount) * 100),
+        course_price: Math.round(fromSelectedCurrency(coursePrice) * 100),
+      },
+      {
+        onSuccess: () => {
+          setShowPaymentModal(false)
+          setPaymentForm({
+            by_user: '',
+            payment_type: '',
+            amount: '',
+            course_price: '',
+            status: 'paid',
+            detail: '',
+            date: todayDate,
+          })
+        },
+      }
+    )
+  }
+
+  const handleExpenseSubmit = (event: React.FormEvent) => {
+    event.preventDefault()
+
+    if (!expenseForm.expense_type) {
+      toast.error('Please select an expense type')
+      return
+    }
+
+    if (!expenseForm.amount || Number(expenseForm.amount) <= 0) {
+      toast.error('Please enter a valid expense amount')
+      return
+    }
+
+    createExpense.mutate(
+      {
+        expense_type: Number(expenseForm.expense_type),
+        amount: Math.round(fromSelectedCurrency(Number(expenseForm.amount)) * 100),
+        description: expenseForm.description || '',
+        date: expenseForm.date,
+      },
+      {
+        onSuccess: () => {
+          setShowExpenseModal(false)
+          setExpenseForm({
+            expense_type: '',
+            amount: '',
+            description: '',
+            date: todayDate,
+          })
+        },
+      }
+    )
+  }
 
   if (loading) {
     return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading financial dashboard...</p>
+      <div className="min-h-screen flex items-center justify-center bg-background">
+        <div className="text-center space-y-4">
+          <Loader2 className="h-10 w-10 animate-spin text-primary mx-auto" />
+          <p className="text-text-secondary">Loading finance intelligence...</p>
         </div>
       </div>
     )
   }
 
   return (
-    <div className="p-8 min-h-screen bg-background">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
-                <Wallet className="h-10 w-10 text-primary" />
-                Financial Dashboard
-              </h1>
-              <p className="text-text-secondary">Complete financial overview and real-time insights</p>
-            </div>
-            <div className="flex gap-3">
-              <button
-                onClick={handleRefresh}
-                disabled={refreshing}
-                className="btn-secondary flex items-center gap-2"
-              >
-                <RefreshCw className={`h-5 w-5 ${refreshing ? 'animate-spin' : ''}`} />
-                Refresh
-              </button>
-            </div>
-          </div>
-        </div>
-
-        {/* Key Financial KPIs */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {/* Total Revenue */}
-          <div className="bg-gradient-to-br from-success/10 to-success/5 rounded-2xl border border-success/20 p-6 hover:shadow-lg transition-all">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
-                <TrendingUp className="h-6 w-6 text-success" />
-              </div>
-              <span className="text-xs text-success font-medium">+12.5%</span>
-            </div>
-            <p className="text-3xl font-bold mb-1 text-success">
-              {formatCurrencyFromMinor(paymentStats.totalRevenue + accountingStats.totalFines)}
+    <div className="min-h-screen bg-background p-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <Wallet className="h-8 w-8 text-primary" />
+              Finance Control Center
+            </h1>
+            <p className="text-text-secondary mt-1">
+              Real revenue, receivables, payroll, and risk signals for production operations.
             </p>
-            <p className="text-sm text-text-secondary">Total Revenue</p>
+            {dashboard.latestSummary?.date && (
+              <p className="text-xs text-text-secondary mt-2">
+                Latest accounting summary: {formatShortDate(dashboard.latestSummary.date)}
+              </p>
+            )}
           </div>
 
-          {/* Total Expenses */}
-          <div className="bg-gradient-to-br from-error/10 to-error/5 rounded-2xl border border-error/20 p-6 hover:shadow-lg transition-all">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-error/10 flex items-center justify-center">
-                <TrendingDown className="h-6 w-6 text-error" />
-              </div>
-              <span className="text-xs text-error font-medium">-3.2%</span>
-            </div>
-            <p className="text-3xl font-bold mb-1 text-error">
-              {formatCurrencyFromMinor(accountingStats.totalTeacherEarnings)}
-            </p>
-            <p className="text-sm text-text-secondary">Total Expenses</p>
-          </div>
-
-          {/* Net Profit */}
-          <div className="bg-gradient-to-br from-primary/10 to-primary/5 rounded-2xl border border-primary/20 p-6 hover:shadow-lg transition-all">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-primary" />
-              </div>
-              <span className="text-xs text-primary font-medium">{profitMargin}%</span>
-            </div>
-            <p className="text-3xl font-bold mb-1 text-primary">
-              {formatCurrencyFromMinor((paymentStats.totalRevenue + accountingStats.totalFines) - accountingStats.totalTeacherEarnings)}
-            </p>
-            <p className="text-sm text-text-secondary">Net Profit</p>
-          </div>
-
-          {/* Outstanding */}
-          <div className="bg-gradient-to-br from-warning/10 to-warning/5 rounded-2xl border border-warning/20 p-6 hover:shadow-lg transition-all">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center">
-                <Clock className="h-6 w-6 text-warning" />
-              </div>
-              <span className="text-xs text-warning font-medium">{paymentStats.pending}</span>
-            </div>
-            <p className="text-3xl font-bold mb-1 text-warning">
-              {formatCurrencyFromMinor(paymentStats.pendingAmount + accountingStats.pendingEarnings)}
-            </p>
-            <p className="text-sm text-text-secondary">Outstanding</p>
-          </div>
-        </div>
-
-        {/* Quick Stats Grid */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
-          {/* Payment Status */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">Payment Status</h3>
-              <CreditCard className="h-5 w-5 text-text-secondary" />
-            </div>
-            <div className="space-y-3">
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
-                <div className="flex items-center gap-3">
-                  <CheckCircle className="h-5 w-5 text-success" />
-                  <span className="text-sm font-medium">Paid</span>
-                </div>
-                <span className="text-sm font-bold">{paymentStats.paid}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-warning" />
-                  <span className="text-sm font-medium">Pending</span>
-                </div>
-                <span className="text-sm font-bold">{paymentStats.pending}</span>
-              </div>
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
-                <div className="flex items-center gap-3">
-                  <XCircle className="h-5 w-5 text-error" />
-                  <span className="text-sm font-medium">Failed</span>
-                </div>
-                <span className="text-sm font-bold">{paymentStats.failed}</span>
-              </div>
-            </div>
-            <button
-              onClick={() => router.push('/dashboard/payments')}
-              className="mt-4 w-full btn-secondary flex items-center justify-center gap-2"
-            >
-              View All Payments
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Teacher Earnings */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">Teacher Earnings</h3>
-              <Users className="h-5 w-5 text-text-secondary" />
-            </div>
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-text-secondary">Total Earned</span>
-                  <span className="font-bold text-primary">{formatCurrencyFromMinor(accountingStats.totalTeacherEarnings)}</span>
-                </div>
-                <div className="w-full bg-background rounded-full h-2">
-                  <div className="bg-gradient-to-r from-primary to-primary/80 h-2 rounded-full" style={{ width: '100%' }} />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-text-secondary">Paid</span>
-                  <span className="font-bold text-success">{formatCurrencyFromMinor(accountingStats.paidEarnings)}</span>
-                </div>
-                <div className="w-full bg-background rounded-full h-2">
-                  <div className="bg-gradient-to-r from-success to-success/80 h-2 rounded-full"
-                    style={{ width: accountingStats.totalTeacherEarnings > 0 ? `${(accountingStats.paidEarnings / accountingStats.totalTeacherEarnings) * 100}%` : '0%' }} />
-                </div>
-              </div>
-              <div>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-text-secondary">Pending</span>
-                  <span className="font-bold text-warning">{formatCurrencyFromMinor(accountingStats.pendingEarnings)}</span>
-                </div>
-                <div className="w-full bg-background rounded-full h-2">
-                  <div className="bg-gradient-to-r from-warning to-warning/80 h-2 rounded-full"
-                    style={{ width: accountingStats.totalTeacherEarnings > 0 ? `${(accountingStats.pendingEarnings / accountingStats.totalTeacherEarnings) * 100}%` : '0%' }} />
-                </div>
-              </div>
-            </div>
-            <button
-              onClick={() => router.push('/dashboard/accounting')}
-              className="mt-4 w-full btn-secondary flex items-center justify-center gap-2"
-            >
-              View Accounting
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          </div>
-
-          {/* Financial Health */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">Financial Health</h3>
-              <Activity className="h-5 w-5 text-text-secondary" />
-            </div>
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
-                <div>
-                  <p className="text-sm text-text-secondary mb-1">Profit Margin</p>
-                  <p className="text-2xl font-bold text-success">{profitMargin}%</p>
-                </div>
-                <TrendingUp className="h-8 w-8 text-success" />
-              </div>
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
-                <div>
-                  <p className="text-sm text-text-secondary mb-1">Payment Success</p>
-                  <p className="text-2xl font-bold text-primary">
-                    {paymentStats.total > 0 ? Math.round((paymentStats.paid / paymentStats.total) * 100) : 0}%
-                  </p>
-                </div>
-                <CheckCircle className="h-8 w-8 text-primary" />
-              </div>
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
-                <div>
-                  <p className="text-sm text-text-secondary mb-1">Collection Rate</p>
-                  <p className="text-2xl font-bold text-info">87.5%</p>
-                </div>
-                <Target className="h-8 w-8 text-info" />
-              </div>
-            </div>
-          </div>
-        </div>
-
-        {/* Quick Actions */}
-        <div className="card mb-8">
-          <h3 className="text-lg font-bold mb-4">Quick Actions</h3>
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
-            <button
-              onClick={() => router.push('/dashboard/reports')}
-              className="flex flex-col items-center gap-3 p-4 bg-background rounded-xl hover:bg-border transition-colors"
-            >
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                <FileText className="h-6 w-6 text-primary" />
-              </div>
-              <span className="text-sm font-medium">Generate Report</span>
-            </button>
-
+          <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setShowPaymentModal(true)}
-              className="flex flex-col items-center gap-3 p-4 bg-background rounded-xl hover:bg-border transition-colors"
+              className="px-4 py-2 bg-success text-success-foreground rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
             >
-              <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
-                <DollarSign className="h-6 w-6 text-success" />
-              </div>
-              <span className="text-sm font-medium">Add Payment</span>
+              <DollarSign className="h-4 w-4" />
+              Add Payment
             </button>
-
             <button
               onClick={() => setShowExpenseModal(true)}
-              className="flex flex-col items-center gap-3 p-4 bg-background rounded-xl hover:bg-border transition-colors"
+              className="px-4 py-2 bg-error text-error-foreground rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
             >
-              <div className="h-12 w-12 rounded-xl bg-error/10 flex items-center justify-center">
-                <TrendingDown className="h-6 w-6 text-error" />
-              </div>
-              <span className="text-sm font-medium">Add Expense</span>
+              <TrendingDown className="h-4 w-4" />
+              Add Expense
             </button>
-
             <button
-              onClick={() => router.push('/dashboard/analytics')}
-              className="flex flex-col items-center gap-3 p-4 bg-background rounded-xl hover:bg-border transition-colors"
+              onClick={handleRefresh}
+              disabled={refreshing}
+              className="px-4 py-2 bg-surface border border-border rounded-xl hover:bg-border/50 transition-colors flex items-center gap-2"
             >
-              <div className="h-12 w-12 rounded-xl bg-info/10 flex items-center justify-center">
-                <BarChart3 className="h-6 w-6 text-info" />
-              </div>
-              <span className="text-sm font-medium">View Analytics</span>
+              <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+              Refresh
             </button>
           </div>
         </div>
 
-        {/* Recent Activity */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-          {/* Recent Payments */}
-          <div className="card">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-bold">Recent Payments</h3>
-              <button
-                onClick={() => router.push('/dashboard/payments')}
-                className="text-sm text-primary hover:underline flex items-center gap-1"
-              >
-                View All
-                <ArrowRight className="h-4 w-4" />
-              </button>
-            </div>
-            <div className="space-y-3">
-              {payments.slice(0, 5).map((payment: Payment, index: number) => (
-                <div key={index} className="flex items-center justify-between p-3 bg-background rounded-xl">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-lg ${
-                      payment.status === 'paid' ? 'bg-success/10' :
-                      payment.status === 'pending' ? 'bg-warning/10' : 'bg-error/10'
-                    } flex items-center justify-center`}>
-                      {payment.status === 'paid' ? <CheckCircle className="h-5 w-5 text-success" /> :
-                       payment.status === 'pending' ? <Clock className="h-5 w-5 text-warning" /> :
-                       <XCircle className="h-5 w-5 text-error" />}
-                    </div>
-                    <div>
-                      <p className="font-medium text-sm">
-                        {payment.by_user?.first_name} {payment.by_user?.last_name || payment.by_user?.username}
-                      </p>
-                      <p className="text-xs text-text-secondary">
-                        {new Date(payment.date).toLocaleDateString()}
-                      </p>
-                    </div>
-                  </div>
-                  <span className="font-bold text-sm">{formatCurrencyFromMinor(payment.amount)}</span>
-                </div>
-              ))}
-            </div>
-          </div>
+        <div className="flex gap-2 border-b border-border">
+          <button
+            onClick={() => setActiveTab('overview')}
+            className={`px-5 py-3 border-b-2 transition-colors ${
+              activeTab === 'overview'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <BarChart3 className="h-4 w-4 inline mr-2" />
+            Overview
+          </button>
+          <button
+            onClick={() => setActiveTab('receivables')}
+            className={`px-5 py-3 border-b-2 transition-colors ${
+              activeTab === 'receivables'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <Target className="h-4 w-4 inline mr-2" />
+            Receivables
+          </button>
+          <button
+            onClick={() => setActiveTab('operations')}
+            className={`px-5 py-3 border-b-2 transition-colors ${
+              activeTab === 'operations'
+                ? 'border-primary text-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary'
+            }`}
+          >
+            <Activity className="h-4 w-4 inline mr-2" />
+            Operations
+          </button>
+        </div>
 
-          {/* Financial Summary Chart */}
-          <div className="card">
-            <h3 className="text-lg font-bold mb-4">Monthly Trend</h3>
-            <div className="space-y-4">
-              <div>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-text-secondary">Revenue</span>
-                  <span className="font-bold text-success">{formatCurrencyFromMinor(paymentStats.totalRevenue)}</span>
+        {activeTab === 'overview' && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <TrendingUp className="h-5 w-5 text-success" />
+                  <span className="text-xs text-text-secondary">Revenue</span>
                 </div>
-                <div className="w-full bg-background rounded-full h-3">
-                  <div className="bg-gradient-to-r from-success to-success/80 h-3 rounded-full" style={{ width: '85%' }} />
-                </div>
+                <p className="text-xl font-bold">{formatCurrencyFromMinor(dashboard.grossRevenue)}</p>
+                <p className="text-xs text-text-secondary mt-1">Gross collected</p>
               </div>
-              <div>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-text-secondary">Expenses</span>
-                  <span className="font-bold text-error">{formatCurrencyFromMinor(accountingStats.totalTeacherEarnings)}</span>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <TrendingDown className="h-5 w-5 text-error" />
+                  <span className="text-xs text-text-secondary">Expense</span>
                 </div>
-                <div className="w-full bg-background rounded-full h-3">
-                  <div className="bg-gradient-to-r from-error to-error/80 h-3 rounded-full" style={{ width: '45%' }} />
-                </div>
+                <p className="text-xl font-bold">
+                  {formatCurrencyFromMinor(dashboard.operatingExpenses)}
+                </p>
+                <p className="text-xs text-text-secondary mt-1">Operating cost</p>
               </div>
-              <div>
-                <div className="flex items-center justify-between text-sm mb-2">
-                  <span className="text-text-secondary">Profit</span>
-                  <span className="font-bold text-primary">
-                    {formatCurrencyFromMinor((paymentStats.totalRevenue + accountingStats.totalFines) - accountingStats.totalTeacherEarnings)}
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                  <span
+                    className={`text-xs px-2 py-1 rounded-full ${
+                      dashboard.netProfit >= 0
+                        ? 'bg-success/10 text-success'
+                        : 'bg-error/10 text-error'
+                    }`}
+                  >
+                    {formatPercent(dashboard.profitMargin)}
                   </span>
                 </div>
-                <div className="w-full bg-background rounded-full h-3">
-                  <div className="bg-gradient-to-r from-primary to-primary/80 h-3 rounded-full" style={{ width: '65%' }} />
+                <p className="text-xl font-bold">{formatCurrencyFromMinor(dashboard.netProfit)}</p>
+                <p className="text-xs text-text-secondary mt-1">Net profit</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <CreditCard className="h-5 w-5 text-warning" />
+                  <span className="text-xs text-text-secondary">Receivable</span>
+                </div>
+                <p className="text-xl font-bold">{formatCurrencyFromMinor(dashboard.receivables)}</p>
+                <p className="text-xs text-text-secondary mt-1">Open student balances</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <Users className="h-5 w-5 text-info" />
+                  <span className="text-xs text-text-secondary">Payroll</span>
+                </div>
+                <p className="text-xl font-bold">
+                  {formatCurrencyFromMinor(dashboard.pendingTeacherEarnings)}
+                </p>
+                <p className="text-xs text-text-secondary mt-1">Pending teacher payout</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <Target className="h-5 w-5 text-primary" />
+                  <span className="text-xs text-text-secondary">Efficiency</span>
+                </div>
+                <p className="text-xl font-bold">{formatPercent(dashboard.collectionRate)}</p>
+                <p className="text-xs text-text-secondary mt-1">Collection rate</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+              <div className="lg:col-span-4 bg-surface border border-border rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold">6-Period Revenue Trend</h2>
+                  <p className="text-sm text-text-secondary">Revenue vs expense vs net</p>
+                </div>
+
+                {dashboard.trendPoints.length > 0 ? (
+                  <div className="grid grid-cols-6 gap-3 h-64 items-end">
+                    {dashboard.trendPoints.map((point) => {
+                      const revenueHeight = clampWidth(point.revenue, dashboard.trendMax)
+                      const expenseHeight = clampWidth(point.expenses, dashboard.trendMax)
+                      const profitHeight = clampWidth(Math.abs(point.profit), dashboard.trendMax)
+
+                      return (
+                        <div key={point.key} className="flex flex-col items-center gap-2">
+                          <div className="w-full h-44 flex items-end justify-center gap-1">
+                            <div
+                              className="w-3 rounded-t bg-success"
+                              style={{ height: `${revenueHeight}%` }}
+                              title={`Revenue: ${formatCurrencyFromMinor(point.revenue)}`}
+                            />
+                            <div
+                              className="w-3 rounded-t bg-warning"
+                              style={{ height: `${expenseHeight}%` }}
+                              title={`Expense: ${formatCurrencyFromMinor(point.expenses)}`}
+                            />
+                            <div
+                              className={`w-3 rounded-t ${point.profit >= 0 ? 'bg-primary' : 'bg-error'}`}
+                              style={{ height: `${profitHeight}%` }}
+                              title={`Net: ${formatCurrencyFromMinor(point.profit)}`}
+                            />
+                          </div>
+                          <p className="text-xs text-text-secondary">{point.label}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center text-text-secondary">
+                    No financial summary history yet.
+                  </div>
+                )}
+              </div>
+
+              <div className="lg:col-span-3 bg-surface border border-border rounded-2xl p-6 space-y-4">
+                <div className="flex items-center justify-between">
+                  <h2 className="text-lg font-bold">Transaction Quality</h2>
+                  <Activity className="h-5 w-5 text-text-secondary" />
+                </div>
+
+                {dashboard.paymentStatusMetrics.map((metric) => {
+                  const Icon = metric.icon
+                  const width = clampWidth(metric.amount, dashboard.paymentAmountMax)
+
+                  return (
+                    <div key={metric.status} className="space-y-2">
+                      <div className="flex items-center justify-between text-sm">
+                        <div className="flex items-center gap-2">
+                          <span className={`h-8 w-8 rounded-lg border flex items-center justify-center ${metric.tone}`}>
+                            <Icon className="h-4 w-4" />
+                          </span>
+                          <span className="font-medium">{metric.label}</span>
+                        </div>
+                        <span className="font-semibold">
+                          {metric.count} / {formatCurrencyFromMinor(metric.amount)}
+                        </span>
+                      </div>
+                      <div className="h-2 bg-background rounded-full overflow-hidden">
+                        <div
+                          className={`h-full rounded-full ${
+                            metric.status === 'paid'
+                              ? 'bg-success'
+                              : metric.status === 'pending'
+                                ? 'bg-warning'
+                                : 'bg-error'
+                          }`}
+                          style={{ width: `${width}%` }}
+                        />
+                      </div>
+                    </div>
+                  )
+                })}
+
+                <div className="grid grid-cols-2 gap-3 pt-2">
+                  <div className="p-3 rounded-xl bg-background border border-border">
+                    <p className="text-xs text-text-secondary">Payment success</p>
+                    <p className="text-xl font-bold">{formatPercent(dashboard.paymentSuccessRate)}</p>
+                  </div>
+                  <div className="p-3 rounded-xl bg-background border border-border">
+                    <p className="text-xs text-text-secondary">Payroll covered</p>
+                    <p className="text-xl font-bold">{formatPercent(dashboard.payrollCoverage)}</p>
+                  </div>
                 </div>
               </div>
             </div>
-          </div>
-        </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              <button
+                onClick={() => router.push('/dashboard/payments')}
+                className="p-4 bg-surface border border-border rounded-2xl hover:bg-border/50 transition-colors text-left"
+              >
+                <CreditCard className="h-5 w-5 text-primary mb-3" />
+                <p className="font-semibold">Payments Ledger</p>
+                <p className="text-sm text-text-secondary">Filter and manage all transactions.</p>
+                <span className="text-primary text-sm mt-2 inline-flex items-center gap-1">
+                  Open
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </button>
+
+              <button
+                onClick={() => router.push('/dashboard/accounting')}
+                className="p-4 bg-surface border border-border rounded-2xl hover:bg-border/50 transition-colors text-left"
+              >
+                <Wallet className="h-5 w-5 text-primary mb-3" />
+                <p className="font-semibold">Accounting Ledger</p>
+                <p className="text-sm text-text-secondary">Detailed balances and entries.</p>
+                <span className="text-primary text-sm mt-2 inline-flex items-center gap-1">
+                  Open
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </button>
+
+              <button
+                onClick={() => router.push('/dashboard/reports')}
+                className="p-4 bg-surface border border-border rounded-2xl hover:bg-border/50 transition-colors text-left"
+              >
+                <FileText className="h-5 w-5 text-primary mb-3" />
+                <p className="font-semibold">Reports</p>
+                <p className="text-sm text-text-secondary">Generate downloadable finance reports.</p>
+                <span className="text-primary text-sm mt-2 inline-flex items-center gap-1">
+                  Open
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </button>
+
+              <button
+                onClick={() => router.push('/dashboard/analytics')}
+                className="p-4 bg-surface border border-border rounded-2xl hover:bg-border/50 transition-colors text-left"
+              >
+                <BarChart3 className="h-5 w-5 text-primary mb-3" />
+                <p className="font-semibold">Analytics</p>
+                <p className="text-sm text-text-secondary">Cross-functional performance intelligence.</p>
+                <span className="text-primary text-sm mt-2 inline-flex items-center gap-1">
+                  Open
+                  <ArrowRight className="h-4 w-4" />
+                </span>
+              </button>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'receivables' && (
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <p className="text-sm text-text-secondary">Students with debt</p>
+                <p className="text-3xl font-bold mt-2">{dashboard.debtStudentCount}</p>
+              </div>
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <p className="text-sm text-text-secondary">Fully paid accounts</p>
+                <p className="text-3xl font-bold mt-2">{dashboard.fullyPaidCount}</p>
+              </div>
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <p className="text-sm text-text-secondary">Average payment progress</p>
+                <p className="text-3xl font-bold mt-2">{formatPercent(dashboard.avgPaymentProgress)}</p>
+              </div>
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <p className="text-sm text-text-secondary">Overpaid accounts</p>
+                <p className="text-3xl font-bold mt-2">
+                  {dashboard.overpaidCount} ({formatCurrencyFromMinor(dashboard.overpaidAmount)})
+                </p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-1 bg-surface border border-border rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-4">Debt Risk Segments</h2>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl border border-error/20 bg-error/10 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <AlertTriangle className="h-4 w-4 text-error" />
+                      <span className="text-sm font-medium">Critical (&lt;40%)</span>
+                    </div>
+                    <span className="font-semibold">{dashboard.receivableRisk.critical}</span>
+                  </div>
+                  <div className="p-3 rounded-xl border border-warning/20 bg-warning/10 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Clock3 className="h-4 w-4 text-warning" />
+                      <span className="text-sm font-medium">Watch (40-79%)</span>
+                    </div>
+                    <span className="font-semibold">{dashboard.receivableRisk.watch}</span>
+                  </div>
+                  <div className="p-3 rounded-xl border border-success/20 bg-success/10 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle2 className="h-4 w-4 text-success" />
+                      <span className="text-sm font-medium">Near clear (80%+)</span>
+                    </div>
+                    <span className="font-semibold">{dashboard.receivableRisk.nearClear}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div className="lg:col-span-2 bg-surface border border-border rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold">Top Receivables</h2>
+                  <button
+                    onClick={() => router.push('/dashboard/payments')}
+                    className="text-sm text-primary hover:underline inline-flex items-center gap-1"
+                  >
+                    Manage payments
+                    <ArrowRight className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="space-y-3">
+                  {dashboard.topDebtors.length > 0 ? (
+                    dashboard.topDebtors.map((row) => (
+                      <div key={row.id} className="p-3 rounded-xl bg-background border border-border">
+                        <div className="flex items-center justify-between gap-3">
+                          <div>
+                            <p className="font-medium">{row.name}</p>
+                            <p className="text-xs text-text-secondary">{row.groupName}</p>
+                          </div>
+                          <p className="font-semibold text-warning">
+                            {formatCurrencyFromMinor(row.balance)}
+                          </p>
+                        </div>
+                        <div className="mt-2">
+                          <div className="flex items-center justify-between text-xs text-text-secondary mb-1">
+                            <span>Payment progress</span>
+                            <span>{formatPercent(row.paymentProgress)}</span>
+                          </div>
+                          <div className="h-2 bg-surface rounded-full overflow-hidden">
+                            <div
+                              className={`h-full rounded-full ${
+                                row.paymentProgress >= 80
+                                  ? 'bg-success'
+                                  : row.paymentProgress >= 40
+                                    ? 'bg-warning'
+                                    : 'bg-error'
+                              }`}
+                              style={{ width: `${row.paymentProgress}%` }}
+                            />
+                          </div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-10 text-center text-text-secondary">
+                      No outstanding receivables right now.
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
+
+        {activeTab === 'operations' && (
+          <>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <p className="text-sm text-text-secondary">Total teacher earnings</p>
+                <p className="text-2xl font-bold mt-2">
+                  {formatCurrencyFromMinor(dashboard.totalTeacherEarnings)}
+                </p>
+                <p className="text-xs text-text-secondary mt-1">Paid: {formatCurrencyFromMinor(dashboard.paidTeacherEarnings)}</p>
+              </div>
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <p className="text-sm text-text-secondary">Fine recovery rate</p>
+                <p className="text-2xl font-bold mt-2">{formatPercent(dashboard.fineRecoveryRate)}</p>
+                <p className="text-xs text-text-secondary mt-1">
+                  Paid: {formatCurrencyFromMinor(dashboard.paidFines)} / {formatCurrencyFromMinor(dashboard.totalFines)}
+                </p>
+              </div>
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <p className="text-sm text-text-secondary">Tracked payments</p>
+                <p className="text-2xl font-bold mt-2">{dashboard.totalPaymentsCount}</p>
+                <p className="text-xs text-text-secondary mt-1">Current finance query scope</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <div className="bg-surface border border-border rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold">Pending Teacher Payroll</h2>
+                  <Users className="h-5 w-5 text-text-secondary" />
+                </div>
+
+                <div className="space-y-3">
+                  {dashboard.topPendingPayroll.length > 0 ? (
+                    dashboard.topPendingPayroll.map((row) => (
+                      <div key={row.id} className="p-3 rounded-xl bg-background border border-border flex items-center justify-between">
+                        <div>
+                          <p className="font-medium">{row.name}</p>
+                          <p className="text-xs text-text-secondary">{row.groupName}</p>
+                        </div>
+                        <p className="font-semibold text-warning">{formatCurrencyFromMinor(row.amount)}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="py-10 text-center text-text-secondary">
+                      No pending payroll payouts.
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => router.push('/dashboard/accounting')}
+                  className="mt-4 btn-secondary w-full flex items-center justify-center gap-2"
+                >
+                  Open accounting payroll
+                  <ArrowRight className="h-4 w-4" />
+                </button>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold">Recent Transactions</h2>
+                  <CreditCard className="h-5 w-5 text-text-secondary" />
+                </div>
+
+                <div className="space-y-3">
+                  {dashboard.recentPayments.length > 0 ? (
+                    dashboard.recentPayments.map((payment) => {
+                      const status = (payment.status || 'pending') as PaymentStatus
+                      const meta = PAYMENT_STATUS_META[status]
+                      const Icon = meta.icon
+
+                      return (
+                        <div key={payment.id} className="p-3 rounded-xl bg-background border border-border flex items-center justify-between gap-3">
+                          <div className="flex items-center gap-3 min-w-0">
+                            <span className={`h-8 w-8 rounded-lg border flex items-center justify-center ${meta.tone}`}>
+                              <Icon className="h-4 w-4" />
+                            </span>
+                            <div className="min-w-0">
+                              <p className="font-medium truncate">
+                                {getDisplayName(payment.by_user, `Payment #${payment.id}`)}
+                              </p>
+                              <p className="text-xs text-text-secondary">
+                                {formatShortDate(payment.date)}
+                              </p>
+                            </div>
+                          </div>
+                          <p className="font-semibold whitespace-nowrap">
+                            {formatCurrencyFromMinor(toNumber(payment.amount))}
+                          </p>
+                        </div>
+                      )
+                    })
+                  ) : (
+                    <div className="py-10 text-center text-text-secondary">No payment activity yet.</div>
+                  )}
+                </div>
+              </div>
+            </div>
+          </>
+        )}
       </div>
 
       {showPaymentModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-lg border border-border">
-            <h2 className="text-2xl font-bold mb-6">Add Payment</h2>
-            <form onSubmit={handlePaymentSubmit}>
-              <div className="space-y-4">
-                <input name="student" placeholder="Student ID" onChange={handlePaymentFormChange} className="w-full px-4 py-3 bg-background border border-border rounded-xl" />
-                <input name="amount" type="number" placeholder={`Amount (${currency})`} onChange={handlePaymentFormChange} className="w-full px-4 py-3 bg-background border border-border rounded-xl" />
-                <input name="payment_type" placeholder="Payment Type ID" onChange={handlePaymentFormChange} className="w-full px-4 py-3 bg-background border border-border rounded-xl" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-surface border border-border rounded-2xl p-6 shadow-2xl">
+            <h2 className="text-2xl font-bold mb-5">Record Payment</h2>
+            <form onSubmit={handlePaymentSubmit} className="space-y-4">
+              <div>
+                <label className="text-sm text-text-secondary block mb-1">Student</label>
+                <select
+                  value={paymentForm.by_user}
+                  onChange={(event) => setPaymentForm((prev) => ({ ...prev, by_user: event.target.value }))}
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  required
+                >
+                  <option value="">Select student</option>
+                  {students.map((student) => (
+                    <option key={student.id} value={student.id}>
+                      {getDisplayName(student, `Student #${student.id}`)}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="flex justify-end gap-4 mt-6">
-                <button type="button" onClick={() => setShowPaymentModal(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" className="btn-primary">Add Payment</button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-text-secondary block mb-1">Amount ({currency})</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={paymentForm.amount}
+                    onChange={(event) =>
+                      setPaymentForm((prev) => ({ ...prev, amount: event.target.value }))
+                    }
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-text-secondary block mb-1">Course price ({currency})</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={paymentForm.course_price}
+                    onChange={(event) =>
+                      setPaymentForm((prev) => ({ ...prev, course_price: event.target.value }))
+                    }
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                    placeholder="Defaults to amount"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div>
+                  <label className="text-sm text-text-secondary block mb-1">Payment type</label>
+                  <select
+                    value={paymentForm.payment_type}
+                    onChange={(event) =>
+                      setPaymentForm((prev) => ({ ...prev, payment_type: event.target.value }))
+                    }
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  >
+                    <option value="">Select type</option>
+                    {paymentTypes.map((type) => (
+                      <option key={type.id} value={type.id}>
+                        {type.name || `Type #${type.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-text-secondary block mb-1">Status</label>
+                  <select
+                    value={paymentForm.status}
+                    onChange={(event) =>
+                      setPaymentForm((prev) => ({ ...prev, status: event.target.value as PaymentStatus }))
+                    }
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  >
+                    <option value="paid">Paid</option>
+                    <option value="pending">Pending</option>
+                    <option value="failed">Failed</option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="text-sm text-text-secondary block mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={paymentForm.date}
+                    onChange={(event) => setPaymentForm((prev) => ({ ...prev, date: event.target.value }))}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm text-text-secondary block mb-1">Notes</label>
+                <textarea
+                  value={paymentForm.detail}
+                  onChange={(event) => setPaymentForm((prev) => ({ ...prev, detail: event.target.value }))}
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  rows={3}
+                  placeholder="Optional payment details"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowPaymentModal(false)}
+                  className="btn-secondary"
+                  disabled={createPayment.isPending}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={createPayment.isPending}>
+                  {createPayment.isPending ? 'Saving...' : 'Save Payment'}
+                </button>
               </div>
             </form>
           </div>
@@ -452,18 +1150,80 @@ export default function FinanceDashboard() {
       )}
 
       {showExpenseModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-          <div className="bg-surface rounded-2xl shadow-2xl p-6 w-full max-w-lg border border-border">
-            <h2 className="text-2xl font-bold mb-6">Add Expense</h2>
-            <form onSubmit={handleExpenseSubmit}>
-              <div className="space-y-4">
-                <input name="expense_type" placeholder="Expense Type ID" onChange={handleExpenseFormChange} className="w-full px-4 py-3 bg-background border border-border rounded-xl" />
-                <input name="amount" type="number" placeholder={`Amount (${currency})`} onChange={handleExpenseFormChange} className="w-full px-4 py-3 bg-background border border-border rounded-xl" />
-                <textarea name="description" placeholder="Description" onChange={handleExpenseFormChange} className="w-full px-4 py-3 bg-background border border-border rounded-xl" />
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="w-full max-w-xl bg-surface border border-border rounded-2xl p-6 shadow-2xl">
+            <h2 className="text-2xl font-bold mb-5">Record Expense</h2>
+            <form onSubmit={handleExpenseSubmit} className="space-y-4">
+              <div>
+                <label className="text-sm text-text-secondary block mb-1">Expense type</label>
+                <select
+                  value={expenseForm.expense_type}
+                  onChange={(event) =>
+                    setExpenseForm((prev) => ({ ...prev, expense_type: event.target.value }))
+                  }
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  required
+                >
+                  <option value="">Select type</option>
+                  {expenseTypes.map((type) => (
+                    <option key={type.id} value={type.id}>
+                      {type.name || `Type #${type.id}`}
+                    </option>
+                  ))}
+                </select>
               </div>
-              <div className="flex justify-end gap-4 mt-6">
-                <button type="button" onClick={() => setShowExpenseModal(false)} className="btn-secondary">Cancel</button>
-                <button type="submit" className="btn-primary">Add Expense</button>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="text-sm text-text-secondary block mb-1">Amount ({currency})</label>
+                  <input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={expenseForm.amount}
+                    onChange={(event) =>
+                      setExpenseForm((prev) => ({ ...prev, amount: event.target.value }))
+                    }
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="text-sm text-text-secondary block mb-1">Date</label>
+                  <input
+                    type="date"
+                    value={expenseForm.date}
+                    onChange={(event) => setExpenseForm((prev) => ({ ...prev, date: event.target.value }))}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="text-sm text-text-secondary block mb-1">Description</label>
+                <textarea
+                  value={expenseForm.description}
+                  onChange={(event) =>
+                    setExpenseForm((prev) => ({ ...prev, description: event.target.value }))
+                  }
+                  className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  rows={3}
+                  placeholder="Optional expense details"
+                />
+              </div>
+
+              <div className="flex justify-end gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => setShowExpenseModal(false)}
+                  className="btn-secondary"
+                  disabled={createExpense.isPending}
+                >
+                  Cancel
+                </button>
+                <button type="submit" className="btn-primary" disabled={createExpense.isPending}>
+                  {createExpense.isPending ? 'Saving...' : 'Save Expense'}
+                </button>
               </div>
             </form>
           </div>

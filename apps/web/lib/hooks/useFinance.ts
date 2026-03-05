@@ -49,7 +49,12 @@ export interface Payment {
 export interface StudentBalance {
   id: number
   student: any
+  student_name?: string
+  student_username?: string
   group: any
+  group_name?: string
+  course_name?: string
+  branch_name?: string
   total_fee: number
   total_fee_sum?: number | string
   paid_amount: number
@@ -66,8 +71,11 @@ export interface StudentBalance {
 export interface TeacherEarning {
   id: number
   teacher: any
+  teacher_name?: string
+  teacher_username?: string
   payment: any
   group: any
+  group_name?: string
   payment_amount: number
   payment_amount_sum?: number | string
   percentage_applied: number
@@ -138,11 +146,11 @@ export function useFinancialSummaries() {
 /**
  * Hook to fetch payments
  */
-export function usePayments() {
+export function usePayments(filters: { page?: number; limit?: number; [key: string]: any } = {}) {
   return useQuery<PaginatedResponse<Payment>>({
-    queryKey: financeKeys.payments(),
+    queryKey: [...financeKeys.payments(), filters],
     queryFn: async () => {
-      const data = await apiService.getPayments();
+      const data = await apiService.getPayments(filters);
       return data;
     },
     staleTime: 1 * 60 * 1000, // 1 minute
