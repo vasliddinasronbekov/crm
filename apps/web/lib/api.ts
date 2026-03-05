@@ -1310,14 +1310,23 @@ class ApiService {
   }
 
   async createShopProduct(data: any) {
-    const response = await this.api.post("/v1/student-profile/product/", data);
+    const config =
+      data instanceof FormData
+        ? { headers: { "Content-Type": "multipart/form-data" } }
+        : undefined;
+    const response = await this.api.post("/v1/student-profile/product/", data, config);
     return response.data;
   }
 
   async updateShopProduct(id: number, data: any) {
+    const config =
+      data instanceof FormData
+        ? { headers: { "Content-Type": "multipart/form-data" } }
+        : undefined;
     const response = await this.api.patch(
       `/v1/student-profile/product/${id}/`,
       data,
+      config,
     );
     return response.data;
   }

@@ -19,6 +19,7 @@ from django.db.models import Avg, Sum, Count, Q
 from django.http import HttpResponse
 from django.template.loader import render_to_string
 from rest_framework import viewsets, permissions, generics, status
+from rest_framework.parsers import FormParser, JSONParser, MultiPartParser
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
@@ -550,6 +551,7 @@ class ShopProductViewSet(viewsets.ModelViewSet):
     queryset = ShopProduct.objects.all()
     serializer_class = ShopProductSerializer
     permission_classes = [permissions.IsAuthenticated]
+    parser_classes = [MultiPartParser, FormParser, JSONParser]
 
 class ShopOrderViewSet(viewsets.ModelViewSet):
     queryset = ShopOrder.objects.all()

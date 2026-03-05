@@ -65,7 +65,9 @@ export default function ShopPage() {
     description: '',
     price: 0,
     quantity: 0,
-    is_active: true
+    is_active: true,
+    imageFile: null as File | null,
+    imagePreview: '' as string
   })
   const [awardCoinsForm, setAwardCoinsForm] = useState({
     student_id: '',
@@ -98,6 +100,14 @@ export default function ShopPage() {
       }
     }
   }, [user, authLoading, router])
+
+  useEffect(() => {
+    return () => {
+      if (productForm.imagePreview && productForm.imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(productForm.imagePreview)
+      }
+    }
+  }, [productForm.imagePreview])
 
   const loadData = async () => {
     try {
@@ -166,7 +176,8 @@ export default function ShopPage() {
   const handleCreateProduct = async (e: React.FormEvent) => {
     e.preventDefault()
     try {
-      await apiService.createShopProduct(productForm)
+      const payload = buildProductPayload(productForm)
+      await apiService.createShopProduct(payload)
       toast.success('Product created successfully')
       setShowProductModal(false)
       resetProductForm()
@@ -182,7 +193,8 @@ export default function ShopPage() {
     if (!editingProduct) return
 
     try {
-      await apiService.updateShopProduct(editingProduct.id, productForm)
+      const payload = buildProductPayload(productForm)
+      await apiService.updateShopProduct(editingProduct.id, payload)
       toast.success('Product updated successfully')
       setShowProductModal(false)
       setEditingProduct(null)
@@ -230,7 +242,9 @@ export default function ShopPage() {
       description: '',
       price: 0,
       quantity: 0,
-      is_active: true
+      is_active: true,
+      imageFile: null,
+      imagePreview: ''
     })
   }
 
@@ -249,7 +263,9 @@ export default function ShopPage() {
       description: product.description,
       price: product.price,
       quantity: product.quantity,
-      is_active: product.is_active
+      is_active: product.is_active,
+      imageFile: null,
+      imagePreview: product.image || ''
     })
     setShowProductModal(true)
   }
@@ -258,6 +274,36 @@ export default function ShopPage() {
     setEditingProduct(null)
     resetProductForm()
     setShowProductModal(true)
+  }
+
+  const handleProductImageChange = (file: File | null) => {
+    if (!file) {
+      setProductForm(prev => ({ ...prev, imageFile: null, imagePreview: '' }))
+      return
+    }
+    const previewUrl = URL.createObjectURL(file)
+    setProductForm(prev => ({ ...prev, imageFile: file, imagePreview: previewUrl }))
+  }
+
+  const buildProductPayload = (form: typeof productForm) => {
+    if (form.imageFile) {
+      const payload = new FormData()
+      payload.append('name', form.name)
+      payload.append('description', form.description)
+      payload.append('price', String(form.price))
+      payload.append('quantity', String(form.quantity))
+      payload.append('is_active', String(form.is_active))
+      payload.append('photo', form.imageFile)
+      return payload
+    }
+
+    return {
+      name: form.name,
+      description: form.description,
+      price: form.price,
+      quantity: form.quantity,
+      is_active: form.is_active
+    }
   }
 
   // Filter products
@@ -630,6 +676,34 @@ export default function ShopPage() {
             </div>
 
             <form onSubmit={editingProduct ? handleUpdateProduct : handleCreateProduct} className="p-6 space-y-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">Product Image</label>
+                <div className="flex flex-col md:flex-row gap-4 md:items-center">
+                  <div className="h-32 w-32 rounded-xl border border-border bg-background flex items-center justify-center overflow-hidden">
+                    {productForm.imagePreview ? (
+                      <img
+                        src={productForm.imagePreview}
+                        alt="Product preview"
+                        className="h-full w-full object-cover"
+                      />
+                    ) : (
+                      <Package className="h-10 w-10 text-text-secondary/50" />
+                    )}
+                  </div>
+                  <div className="flex-1 space-y-2">
+                    <input
+                      type="file"
+                      accept="image/*"
+                      onChange={(e) => handleProductImageChange(e.target.files?.[0] || null)}
+                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
+                    />
+                    <p className="text-xs text-text-secondary">
+                      Recommended: square image, at least 512x512.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
               <div>
                 <label className="block text-sm font-medium mb-2">Product Name</label>
                 <input
