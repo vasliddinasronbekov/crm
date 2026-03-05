@@ -11,6 +11,7 @@ import GlobalSearch from '@/components/GlobalSearch'
 import DateCalendar from '@/components/DateCalendar'
 import AIModeButton from '@/components/AIModeButton'
 import InboxNotificationButton from '@/components/InboxNotificationButton'
+import LoadingScreen from '@/components/LoadingScreen'
 
 export default function DashboardLayout({
   children,
@@ -50,14 +51,7 @@ export default function DashboardLayout({
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-background">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">{translateText('Loading...')}</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message={translateText('Loading...')} />
   }
 
   if (!isAuthenticated) {
