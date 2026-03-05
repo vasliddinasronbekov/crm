@@ -57,7 +57,7 @@ export default function DashboardPage() {
     const token = localStorage.getItem('access_token')
     if (!token) return
 
-    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.crmai.uz/api/'
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.crmai.uz/api'
     const baseHttp = apiUrl.replace(/\/api\/?$/, '')
     const wsBase = baseHttp.replace(/^http/, 'ws')
     const socketUrl = `${wsBase}/ws/accounting/logs/?token=${encodeURIComponent(token)}`
