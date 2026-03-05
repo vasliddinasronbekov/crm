@@ -21,6 +21,7 @@ export interface TeacherFormData {
   last_name: string
   email: string
   phone?: string
+  is_staff?: boolean
 }
 
 // Query keys factory for consistent cache management

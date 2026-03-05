@@ -106,6 +106,45 @@ class UserSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'is_teacher', 'is_staff', 'is_superuser']
 
 
+class TeacherWriteSerializer(serializers.ModelSerializer):
+    password = serializers.CharField(write_only=True, required=False, min_length=8)
+
+    class Meta:
+        model = User
+        fields = [
+            'id', 'username', 'password', 'first_name', 'last_name',
+            'phone', 'email', 'photo', 'is_staff', 'is_active'
+        ]
+        read_only_fields = ['id']
+
+    def validate(self, attrs):
+        if self.instance is None and not attrs.get('password'):
+            raise serializers.ValidationError({'password': 'This field is required.'})
+        return attrs
+
+    def create(self, validated_data):
+        password = validated_data.pop('password')
+        validated_data.setdefault('is_active', True)
+        user = User(**validated_data)
+        user.is_teacher = True
+        user.set_password(password)
+        user.save()
+        return user
+
+    def update(self, instance, validated_data):
+        password = validated_data.pop('password', None)
+
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        instance.is_teacher = True
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+        return instance
+
+
 class UserProfileSerializer(serializers.ModelSerializer):
     """
     Serializer for user profile viewing and editing

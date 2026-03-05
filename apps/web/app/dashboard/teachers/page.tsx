@@ -46,6 +46,7 @@ export default function TeachersPage() {
     last_name: '',
     email: '',
     phone: '',
+    is_staff: false,
   })
 
   const teachers = teachersData?.results || []
@@ -123,6 +124,7 @@ export default function TeachersPage() {
           last_name: '',
           email: '',
           phone: '',
+          is_staff: false,
         })
       },
     })
@@ -570,6 +572,18 @@ export default function TeachersPage() {
                     placeholder="+998901234567"
                   />
                 </div>
+                <label className="flex items-center gap-3 p-3 bg-background border border-border rounded-xl cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newTeacher.is_staff}
+                    onChange={(e) => setNewTeacher({ ...newTeacher, is_staff: e.target.checked })}
+                    className="h-4 w-4"
+                  />
+                  <div>
+                    <p className="text-sm font-semibold">Grant staff/admin access</p>
+                    <p className="text-xs text-text-secondary">Enable this only if this teacher should manage admin pages.</p>
+                  </div>
+                </label>
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={handleAddTeacher}
@@ -587,6 +601,7 @@ export default function TeachersPage() {
                         last_name: '',
                         email: '',
                         phone: '',
+                        is_staff: false,
                       })
                     }}
                     className="flex-1 px-6 py-3 bg-background border border-border rounded-xl hover:bg-border transition-all font-semibold"

@@ -129,3 +129,40 @@ class TestUserAPI:
         """Test listing teachers"""
         response = authenticated_client.get('/api/task/teachers/')
         assert response.status_code in [status.HTTP_200_OK, status.HTTP_403_FORBIDDEN]
+
+    def test_create_teacher_sets_teacher_role_and_password(self, admin_client):
+        """Teacher create endpoint must create login-ready teacher accounts."""
+        payload = {
+            'username': 'newteacher',
+            'password': 'StrongPass123!',
+            'first_name': 'New',
+            'last_name': 'Teacher',
+            'email': 'newteacher@example.com',
+            'phone': '+998901112233',
+        }
+
+        response = admin_client.post('/api/users/teachers/', payload, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+
+        created = User.objects.get(username='newteacher')
+        assert created.is_teacher is True
+        assert created.is_superuser is False
+        assert created.check_password('StrongPass123!')
+
+    def test_create_teacher_supports_staff_flag(self, admin_client):
+        """Admins can optionally create teacher accounts with staff status."""
+        payload = {
+            'username': 'teacherstaff',
+            'password': 'StrongPass123!',
+            'first_name': 'Teacher',
+            'last_name': 'Staff',
+            'email': 'teacherstaff@example.com',
+            'is_staff': True,
+        }
+
+        response = admin_client.post('/api/users/teachers/', payload, format='json')
+        assert response.status_code == status.HTTP_201_CREATED
+
+        created = User.objects.get(username='teacherstaff')
+        assert created.is_teacher is True
+        assert created.is_staff is True

@@ -13,7 +13,12 @@ from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from django.contrib.auth import update_session_auth_hash
 from .models import User
-from .serializers import UserSerializer, UserProfileSerializer, ChangePasswordSerializer
+from .serializers import (
+    UserSerializer,
+    UserProfileSerializer,
+    ChangePasswordSerializer,
+    TeacherWriteSerializer,
+)
 from edu_project.middleware.login_attempt import (
     record_login_attempt,
     is_locked_out,
@@ -463,6 +468,11 @@ class TeacherViewSet(viewsets.ModelViewSet):
     queryset = User.objects.filter(is_teacher=True)
     serializer_class = UserSerializer
     permission_classes = [permissions.IsAuthenticated]
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return TeacherWriteSerializer
+        return UserSerializer
 
     def get_permissions(self):
         """Only admins can create, update, or delete teachers"""
