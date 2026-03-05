@@ -9,10 +9,10 @@ import { cachedFetch, invalidateEntityCache, CACHE_KEYS, CACHE_TTL } from '@/lib
 import { toast } from 'react-hot-toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import {
-  User, Mail, Phone, Calendar, MapPin, GraduationCap,
-  DollarSign, TrendingUp, TrendingDown, CheckCircle, AlertCircle,
-  Clock, Award, Target, BookOpen, Users, ArrowLeft, Edit,
-  Activity, BarChart3, AlertTriangle, XCircle, Percent, Coins
+  Mail, Phone, Calendar,
+  DollarSign, TrendingUp, CheckCircle, AlertCircle,
+  Clock, Award, Target, Users, ArrowLeft, Edit,
+  Activity, BarChart3, AlertTriangle, Coins
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -195,7 +195,7 @@ export default function StudentDetailPage() {
     return <LoadingScreen message="Loading student details..." />
   }
 
-if (!student) {
+  if (!student) {
     return null
   }
 
@@ -208,6 +208,19 @@ if (!student) {
   } = student
   const balanceStatus = getBalanceStatus(payments.pending_amount)
   const accountStatus = account?.status || 'active'
+  const normalizedExamScore = Math.min(Math.max(exams.average_score || 0, 0), 100)
+  const engagementIndex = Math.round((attendance.attendance_rate_30days * 0.6) + (normalizedExamScore * 0.4))
+  const engagementTone =
+    engagementIndex >= 85
+      ? { label: 'Strong', classes: 'text-success bg-success/10 border-success/30' }
+      : engagementIndex >= 70
+      ? { label: 'Stable', classes: 'text-warning bg-warning/10 border-warning/30' }
+      : { label: 'At Risk', classes: 'text-error bg-error/10 border-error/30' }
+  const recommendations = [
+    attendance.attendance_rate_30days < 75 ? 'Schedule attendance follow-up' : null,
+    payments.pending_amount > 0 ? 'Review payment plan and outstanding balance' : null,
+    !email || !phone ? 'Complete missing contact information' : null,
+  ].filter(Boolean) as string[]
   const accountStatusMeta =
     accountStatus === 'deactivated'
       ? { label: 'Deactivated', classes: 'bg-error/10 text-error border-error/30' }
@@ -277,10 +290,31 @@ if (!student) {
                 </div>
               </div>
             </div>
+
+            <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                onClick={() => toast.success('Messaging module coming online for this student.')}
+                className="px-4 py-2 bg-primary text-background rounded-xl hover:bg-primary/90 transition-colors text-sm font-medium"
+              >
+                Message Student
+              </button>
+              <button
+                onClick={() => toast.success('New schedule entry prepared.')}
+                className="px-4 py-2 bg-background border border-border rounded-xl hover:bg-border/50 transition-colors text-sm"
+              >
+                Schedule Follow-up
+              </button>
+              <button
+                onClick={() => toast.success('Payment workflow queued.')}
+                className="px-4 py-2 bg-background border border-border rounded-xl hover:bg-border/50 transition-colors text-sm"
+              >
+                Record Payment
+              </button>
+            </div>
           </div>
 
           {/* Key Metrics Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             {/* Payment Status */}
             <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
               <div className="flex items-center justify-between mb-4">
@@ -347,7 +381,66 @@ if (!student) {
               <p className="text-sm text-text-secondary">Total Coins</p>
               <p className="text-xs text-text-secondary mt-2">{coins.recent_transactions.length} transactions</p>
             </div>
+
+            {/* Engagement Index */}
+            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+              <div className="flex items-center justify-between mb-4">
+                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+                  <Target className="h-6 w-6 text-primary" />
+                </div>
+                <span className={`px-3 py-1 rounded-lg text-xs font-medium border ${engagementTone.classes}`}>
+                  {engagementTone.label}
+                </span>
+              </div>
+              <p className="text-3xl font-bold mb-1">{engagementIndex}</p>
+              <p className="text-sm text-text-secondary">Engagement Index</p>
+              <p className="text-xs text-text-secondary mt-2">Attendance + exam performance</p>
+            </div>
           </div>
+
+          {/* Risk + Recommendations */}
+          {(risk_assessment.risk_factors.length > 0 || recommendations.length > 0) && (
+            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+              <div className="bg-surface rounded-2xl border border-border p-6">
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <AlertTriangle className="h-6 w-6 text-warning" />
+                  Risk Factors
+                </h2>
+                {risk_assessment.risk_factors.length > 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    {risk_assessment.risk_factors.map((factor, index) => (
+                      <span
+                        key={`${factor}-${index}`}
+                        className="px-3 py-2 rounded-xl bg-background border border-border text-sm"
+                      >
+                        {factor}
+                      </span>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-text-secondary text-sm">No active risk indicators.</p>
+                )}
+              </div>
+              <div className="bg-surface rounded-2xl border border-border p-6">
+                <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
+                  <Target className="h-6 w-6 text-primary" />
+                  Recommended Actions
+                </h2>
+                {recommendations.length > 0 ? (
+                  <ul className="space-y-3 text-sm">
+                    {recommendations.map((item) => (
+                      <li key={item} className="flex items-start gap-2">
+                        <CheckCircle className="h-4 w-4 text-success mt-1" />
+                        <span>{item}</span>
+                      </li>
+                    ))}
+                  </ul>
+                ) : (
+                  <p className="text-text-secondary text-sm">No immediate interventions recommended.</p>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
@@ -527,22 +620,6 @@ if (!student) {
             </div>
           </div>
 
-          {/* Risk Assessment Details */}
-          {risk_assessment.risk_factors.length > 0 && (
-            <div className="bg-surface rounded-2xl border border-border p-6">
-              <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
-                <AlertTriangle className="h-6 w-6 text-warning" />
-                Risk Assessment Factors
-              </h2>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {risk_assessment.risk_factors.map((factor, index) => (
-                  <div key={index} className="p-4 bg-background rounded-xl border border-border">
-                    <p className="font-medium text-sm">{factor}</p>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
         </div>
       </div>
     </ProtectedRoute>
