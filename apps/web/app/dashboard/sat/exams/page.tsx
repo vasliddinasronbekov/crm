@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toast } from 'react-hot-toast'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface SATExam {
   id: number
@@ -120,13 +121,7 @@ export default function SATExamsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="min-h-screen bg-gray-50 dark:bg-gray-900 p-8">
-        <div className="flex items-center justify-center h-64">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600"></div>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading..." />
   }
 
   return (

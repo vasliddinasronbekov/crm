@@ -15,6 +15,7 @@ import { saveAs } from 'file-saver'
 
 import ScheduleView from '@/components/dashboard/schedule/ScheduleView'
 import UnscheduledGroupsPanel from '@/components/dashboard/schedule/UnscheduledGroupsPanel'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface ScheduleChange {
   groupId: number
@@ -627,14 +628,7 @@ export default function SchedulePage() {
   }, [activeWeekRange.start, buildExportRows, currentWeekOffset])
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading schedule...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading schedule..." />
   }
 
   return (

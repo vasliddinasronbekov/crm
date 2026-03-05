@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useRealtimeAccountingDashboard } from '@/lib/hooks/useAccounting'
 import {
+import LoadingScreen from '@/components/LoadingScreen'
   Users, GraduationCap, BookOpen, DollarSign,
   ShoppingCart, Calendar, MessageCircle, Mail,
   Megaphone, Receipt, Trophy, Award, CheckSquare,
@@ -394,11 +395,10 @@ export default function DashboardPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">{translateText('Loading dashboard...')}</p>
+    return <LoadingScreen message="Loading..." />
+  }
+
+</p>
         </div>
       </div>
     )

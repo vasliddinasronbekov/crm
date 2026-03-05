@@ -24,6 +24,7 @@ import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { WEEK_DAYS } from '@/lib/utils/schedule'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface Student {
   id: number
@@ -783,17 +784,10 @@ export default function GroupDetailPage() {
   }
 
   if (isLoading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-          <p className="text-text-secondary">Loading group details...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading group details..." />
   }
 
-  if (!group) {
+if (!group) {
     return (
       <div className="p-8">
         <div className="card text-center py-12">

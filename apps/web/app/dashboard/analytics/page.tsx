@@ -33,6 +33,7 @@ import {
 } from '@/lib/hooks/useAnalytics'
 import { useGetLeaderboard } from '@/lib/hooks/useLeaderboard'
 import { useSettings } from '@/contexts/SettingsContext'
+import LoadingScreen from '@/components/LoadingScreen'
 
 type TabKey = 'overview' | 'reports'
 
@@ -147,14 +148,7 @@ export default function AnalyticsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
-          <p className="mt-4 text-text-secondary">Loading analytics dashboard...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading analytics dashboard..." />
   }
 
   return (

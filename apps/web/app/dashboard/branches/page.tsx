@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import {
+import LoadingScreen from '@/components/LoadingScreen'
   Building2,
   Plus,
   Edit,
@@ -134,14 +135,7 @@ export default function BranchesPage() {
   )
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading branches...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading branches..." />
   }
 
   return (

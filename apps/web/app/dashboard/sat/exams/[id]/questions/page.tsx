@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toast } from 'react-hot-toast'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface SATExam {
   id: number
@@ -292,17 +293,10 @@ export default function SATQuestionsPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto"></div>
-          <p className="mt-4 text-slate-400">Loading exam...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading exam..." />
   }
 
-  if (!exam) {
+if (!exam) {
     return (
       <div className="text-center py-12">
         <p className="text-slate-400">Exam not found</p>

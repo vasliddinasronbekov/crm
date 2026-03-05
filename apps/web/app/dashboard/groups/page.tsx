@@ -8,6 +8,7 @@ import { useGroups, useCreateGroup, useUpdateGroup, useDeleteGroup, Group } from
 import { useCourses, Course } from '@/lib/hooks/useCourses'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { normalizeDayToken, parseGroupDays, type WeekDay } from '@/lib/utils/schedule'
+import LoadingScreen from '@/components/LoadingScreen'
 
 type SearchStatus = 'all' | 'scheduled' | 'unscheduled'
 
@@ -255,14 +256,7 @@ export default function GroupsPage() {
   )
 
   if (isLoading && !groupsData) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading groups...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading groups..." />
   }
 
   return (
@@ -561,4 +555,3 @@ export default function GroupsPage() {
     </div>
   )
 }
-

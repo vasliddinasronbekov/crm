@@ -11,6 +11,7 @@ import {
 import { ProtectedRoute, RequirePermission } from '@/components/ProtectedRoute'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import {
+import LoadingScreen from '@/components/LoadingScreen'
   useStudents,
   useCreateStudent,
   useUpdateStudent,
@@ -190,14 +191,7 @@ export default function StudentsPage() {
   );
 
   if (isLoading && page === 1) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading students...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading students..." />
   }
 
   return (

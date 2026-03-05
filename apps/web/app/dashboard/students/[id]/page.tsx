@@ -15,6 +15,7 @@ import {
   Activity, BarChart3, AlertTriangle, XCircle, Percent, Coins
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface StudentDetailData {
   // Personal info (flat structure from backend)
@@ -191,17 +192,10 @@ export default function StudentDetailPage() {
   }
 
   if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading student details...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading student details..." />
   }
 
-  if (!student) {
+if (!student) {
     return null
   }
 

@@ -16,6 +16,7 @@ import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import { useAuth } from '@/contexts/AuthContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
+import LoadingScreen from '@/components/LoadingScreen'
 
 type ConversationType = 'platform' | 'sms'
 
@@ -403,11 +404,7 @@ export default function MessagingPage() {
     message.sender?.id === currentUser?.id || (message.sender_type === 'user' && !message.sender)
 
   if (isLoadingConversations) {
-    return (
-      <div className="flex h-[70vh] items-center justify-center">
-        <div className="w-14 h-14 border-4 border-primary border-t-transparent rounded-full animate-spin" />
-      </div>
-    )
+    return <LoadingScreen message="Loading..." />
   }
 
   return (
@@ -739,4 +736,3 @@ export default function MessagingPage() {
     </div>
   )
 }
-

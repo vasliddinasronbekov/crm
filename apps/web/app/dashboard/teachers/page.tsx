@@ -7,6 +7,7 @@ import { useTeachers, useCreateTeacher, useUpdateTeacher, useDeleteTeacher, Teac
 import { ProtectedRoute, RequirePermission } from '@/components/ProtectedRoute'
 import { ActionButton } from '@/components/PermissionButton'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
+import LoadingScreen from '@/components/LoadingScreen'
 
 type ViewMode = 'grid' | 'table'
 type FilterType = 'all' | 'admin' | 'teacher' | 'withEmail' | 'withPhone'
@@ -153,14 +154,7 @@ export default function TeachersPage() {
   );
 
   if (isLoading && page === 1) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading teachers...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading teachers..." />
   }
 
   return (

@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
 import { toast } from 'react-hot-toast'
 import { Calendar, Plus, Search, Edit, Trash2, X, Users, MapPin, Clock, Image as ImageIcon, Upload } from 'lucide-react'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface Event {
   id: number
@@ -237,14 +238,7 @@ export default function EventsPage() {
   }
 
   if (authLoading || loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="mt-4 text-text-secondary">Loading events...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading events..." />
   }
 
   return (

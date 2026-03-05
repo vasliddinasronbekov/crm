@@ -20,6 +20,7 @@ import {
   Calendar
 } from 'lucide-react'
 import { useCourses, useCreateCourse, useUpdateCourse, useDeleteCourse, Course } from '@/lib/hooks/useCourses'
+import LoadingScreen from '@/components/LoadingScreen'
 
 export default function CoursesPage() {
   const { currency, formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency } = useSettings()
@@ -163,14 +164,7 @@ export default function CoursesPage() {
   );
 
   if (isLoading && page === 1) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-16 h-16 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-text-secondary">Loading courses...</p>
-        </div>
-      </div>
-    )
+    return <LoadingScreen message="Loading courses..." />
   }
 
   return (

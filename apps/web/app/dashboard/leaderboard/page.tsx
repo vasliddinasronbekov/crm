@@ -16,6 +16,7 @@ import {
   GraduationCap,
 } from "lucide-react";
 import {
+import LoadingScreen from '@/components/LoadingScreen'
   useGetLeaderboard,
   type LeaderboardEntry,
   type LeaderboardMetric,
@@ -122,53 +123,10 @@ export default function LeaderboardPage() {
   }
 
   if (authLoading || loading) {
-    return (
-      <div className="flex items-center justify-center h-screen">
-        <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="mt-4 text-text-secondary">Loading leaderboard...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Loading leaderboard..." />
   }
 
-  return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-            <Trophy className="h-8 w-8 text-primary" />
-            Leaderboard
-          </h1>
-          <p className="text-text-secondary">
-            Top performing students and their rankings
-          </p>
-        </div>
-
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-surface p-6 rounded-2xl border border-border">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-text-secondary text-sm">Total Students</p>
-              <User className="h-5 w-5 text-primary" />
-            </div>
-            <p className="text-3xl font-bold">{stats.totalStudents}</p>
-            <p className="text-xs text-text-secondary mt-1">In rankings</p>
-          </div>
-
-          <div className="bg-surface p-6 rounded-2xl border border-border">
-            <div className="flex items-center justify-between mb-2">
-              <p className="text-text-secondary text-sm">
-                Top {selectedMetric.shortLabel}
-              </p>
-              <Crown className="h-5 w-5 text-warning" />
-            </div>
-            <p className="text-3xl font-bold">
-              {metric === "score"
-                ? stats.topMetric.toFixed(1)
-                : stats.topMetric.toLocaleString()}
-            </p>
+</p>
             <p className="text-xs text-text-secondary mt-1">
               Current leading value
             </p>

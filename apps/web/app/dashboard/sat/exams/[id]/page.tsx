@@ -6,6 +6,7 @@ import { useParams, useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 
 import { api } from '@/lib/api'
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface SATExamDetail {
   id: number
@@ -144,14 +145,10 @@ export default function SATExamDetailPage() {
   }, [report])
 
   if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="h-10 w-10 animate-spin rounded-full border-4 border-primary-500 border-t-transparent" />
-      </div>
-    )
+    return <LoadingScreen message="Loading..." />
   }
 
-  if (!exam || !report) {
+if (!exam || !report) {
     return null
   }
 

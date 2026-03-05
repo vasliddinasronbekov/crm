@@ -28,6 +28,7 @@ import {
 } from "lucide-react";
 import CertificateEditorWrapper from "@/components/CertificateEditor";
 import { CertificateTemplate } from "@/lib/types";
+import LoadingScreen from '@/components/LoadingScreen'
 
 interface Certificate {
   id: number;
@@ -494,98 +495,10 @@ export default function CertificatesPage() {
   }, [certificates, templates]);
 
   if (authLoading || loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="text-center">
-          <Loader2 className="mx-auto h-12 w-12 animate-spin text-primary" />
-          <p className="mt-4 text-text-secondary">Loading certificates...</p>
-        </div>
-      </div>
-    );
+    return <LoadingScreen message="Loading certificates..." />
   }
 
-  if (showTemplateEditor) {
-    return (
-      <CertificateEditorWrapper
-        template={editingTemplate}
-        onSave={handleSaveTemplate}
-        onClose={() => {
-          setShowTemplateEditor(false);
-          setEditingTemplate(null);
-        }}
-      />
-    );
-  }
-
-  return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="mx-auto max-w-7xl">
-        <div className="mb-8 flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-          <div>
-            <h1 className="mb-2 flex items-center gap-3 text-3xl font-bold">
-              <Award className="h-8 w-8 text-primary" />
-              Certificates Management
-            </h1>
-            <p className="max-w-3xl text-text-secondary">
-              Manage certificate templates, verify issue readiness, and generate
-              downloadable certificates with verification metadata.
-            </p>
-          </div>
-          <div className="rounded-2xl border border-primary/20 bg-primary/5 px-4 py-3 text-sm text-text-secondary">
-            Public verification route:{" "}
-            <span className="font-mono text-text-primary">
-              /verify/[certificate-id]
-            </span>
-          </div>
-        </div>
-
-        <div className="mb-8 grid grid-cols-1 gap-6 md:grid-cols-4">
-          <div className="rounded-2xl border border-border bg-surface p-6">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm text-text-secondary">Total Certificates</p>
-              <Award className="h-5 w-5 text-primary" />
-            </div>
-            <p className="text-3xl font-bold">{stats.totalCertificates}</p>
-            <p className="mt-1 text-xs text-text-secondary">
-              All issued records
-            </p>
-          </div>
-          <div className="rounded-2xl border border-border bg-surface p-6">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm text-text-secondary">Verified</p>
-              <ShieldCheck className="h-5 w-5 text-success" />
-            </div>
-            <p className="text-3xl font-bold">{stats.verifiedCertificates}</p>
-            <p className="mt-1 text-xs text-text-secondary">
-              Certificates available for public validation
-            </p>
-          </div>
-          <div className="rounded-2xl border border-border bg-surface p-6">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm text-text-secondary">Active Templates</p>
-              <FileText className="h-5 w-5 text-info" />
-            </div>
-            <p className="text-3xl font-bold">{stats.activeTemplates}</p>
-            <p className="mt-1 text-xs text-text-secondary">
-              Reusable layout presets
-            </p>
-          </div>
-          <div className="rounded-2xl border border-border bg-surface p-6">
-            <div className="mb-2 flex items-center justify-between">
-              <p className="text-sm text-text-secondary">Issued This Month</p>
-              <Users className="h-5 w-5 text-warning" />
-            </div>
-            <p className="text-3xl font-bold">{stats.issuedThisMonth}</p>
-            <p className="mt-1 text-xs text-text-secondary">
-              Current month activity
-            </p>
-          </div>
-        </div>
-
-        <div className="mb-6 flex gap-2 border-b border-border">
-          <button
-            onClick={() => setActiveTab("certificates")}
-            className={`border-b-2 px-6 py-3 font-medium transition-colors ${
+className={`border-b-2 px-6 py-3 font-medium transition-colors ${
               activeTab === "certificates"
                 ? "border-primary text-primary"
                 : "border-transparent text-text-secondary hover:text-text-primary"
