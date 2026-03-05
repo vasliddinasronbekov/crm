@@ -1,6 +1,7 @@
 """
 Subscription & Payment Serializers
 """
+from typing import Any
 from rest_framework import serializers
 from decimal import Decimal
 from .models import (
@@ -82,6 +83,7 @@ class PaymentSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Payment
+        ref_name = 'SubscriptionPayment'
         fields = [
             'id', 'user', 'subscription', 'amount', 'currency', 'payment_method',
             'status', 'stripe_payment_intent_id', 'payme_transaction_id',
@@ -175,7 +177,7 @@ class CouponSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['redemptions_count', 'created_at', 'updated_at']
 
-    def get_applicable_plan_names(self, obj):
+    def get_applicable_plan_names(self, obj) -> Any:
         return [plan.name for plan in obj.applicable_plans.all()]
 
 

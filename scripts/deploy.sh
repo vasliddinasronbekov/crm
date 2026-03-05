@@ -107,7 +107,7 @@ MAX_RETRIES=30
 RETRY_COUNT=0
 
 while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
-    if curl -f http://localhost:8008/api/health/ >/dev/null 2>&1; then
+    if curl -f https://api.crmai.uz/api/health/ >/dev/null 2>&1; then
         log_info "Backend is healthy"
         break
     fi
@@ -151,7 +151,7 @@ fi
 log_info "All services are running"
 
 # Final health check
-if curl -f http://localhost:8008/api/health/ >/dev/null 2>&1; then
+if curl -f https://api.crmai.uz/api/health/ >/dev/null 2>&1; then
     log_info "Final health check passed"
 else
     log_error "Final health check failed!"

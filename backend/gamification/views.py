@@ -206,6 +206,8 @@ class LeaderboardViewSet(viewsets.ViewSet):
     my_rank: Get current user's rank
     """
     permission_classes = [IsAuthenticated]
+    serializer_class = LeaderboardEntrySerializer
+    queryset = UserLevel.objects.all()
 
     def list(self, request):
         """
@@ -311,6 +313,8 @@ class GamificationProfileViewSet(viewsets.ViewSet):
     my_profile: Get full gamification data for current user
     """
     permission_classes = [IsAuthenticated]
+    serializer_class = UserGamificationProfileSerializer
+    queryset = UserLevel.objects.all()
 
     @action(detail=False, methods=['get'])
     def my_profile(self, request):

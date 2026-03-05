@@ -1,7 +1,7 @@
 import Constants from 'expo-constants';
 
 // API Configuration
-export const API_URL = Constants.expoConfig?.extra?.apiUrl || 'http://localhost:8008/api';
+export const API_URL = Constants.expoConfig?.extra?.apiUrl || 'https://api.crmai.uz/api';
 
 // API Endpoints
 export const ENDPOINTS = {

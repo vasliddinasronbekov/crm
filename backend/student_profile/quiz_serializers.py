@@ -1,6 +1,7 @@
 """
 Quiz & Assignment System Serializers
 """
+from typing import Any
 
 from rest_framework import serializers
 from django.utils import timezone
@@ -33,13 +34,13 @@ class AssignmentSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at']
 
-    def get_total_submissions(self, obj):
+    def get_total_submissions(self, obj) -> Any:
         return obj.submissions.count()
 
-    def get_graded_submissions(self, obj):
+    def get_graded_submissions(self, obj) -> Any:
         return obj.submissions.filter(graded_at__isnull=False).count()
 
-    def get_user_submission(self, obj):
+    def get_user_submission(self, obj) -> Any:
         """Get current user's submission if exists"""
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
@@ -213,13 +214,13 @@ class QuizSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at']
 
-    def get_question_count(self, obj):
+    def get_question_count(self, obj) -> Any:
         return obj.questions.count()
 
-    def get_total_points(self, obj):
+    def get_total_points(self, obj) -> Any:
         return obj.questions.aggregate(total=models.Sum('points'))['total'] or 0
 
-    def get_user_best_attempt(self, obj):
+    def get_user_best_attempt(self, obj) -> Any:
         """Get user's best attempt score"""
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
@@ -241,7 +242,7 @@ class QuizSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_user_attempts_count(self, obj):
+    def get_user_attempts_count(self, obj) -> Any:
         """Count user's attempts"""
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
@@ -272,7 +273,7 @@ class QuizAttemptSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at', 'started_at', 'submitted_at', 'passed']
 
-    def get_answers(self, obj):
+    def get_answers(self, obj) -> Any:
         """Get all answers for this attempt"""
         answers = QuizAnswer.objects.filter(attempt=obj).select_related('question')
         return QuizAnswerSerializer(answers, many=True).data
@@ -333,7 +334,7 @@ class QuizAnswerSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'is_correct', 'points_earned']
 
-    def get_correct_answer_text(self, obj):
+    def get_correct_answer_text(self, obj) -> Any:
         """Show correct answer (only if quiz allows or after submission)"""
         if not obj.attempt.quiz.show_correct_answers and obj.attempt.status == 'in_progress':
             return None

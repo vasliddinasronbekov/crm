@@ -1,6 +1,7 @@
 """
 Certificate API Serializers
 """
+from typing import Any
 
 from rest_framework import serializers
 from .certificate_models import Certificate, CertificateTemplate, CertificateVerification
@@ -38,7 +39,7 @@ class CertificateSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
 
-    def get_certificate_url(self, obj):
+    def get_certificate_url(self, obj) -> Any:
         """Get full URL to certificate file"""
         if obj.certificate_file:
             request = self.context.get('request')
@@ -47,24 +48,24 @@ class CertificateSerializer(serializers.ModelSerializer):
             return obj.certificate_file.url
         return None
 
-    def get_download_url(self, obj):
+    def get_download_url(self, obj) -> Any:
         request = self.context.get('request')
         if not request:
             return None
         return request.build_absolute_uri(f'/api/task/certificates/{obj.id}/download/')
 
-    def get_issued_by_name(self, obj):
+    def get_issued_by_name(self, obj) -> Any:
         if not obj.issued_by:
             return ''
         return obj.issued_by.get_full_name().strip() or obj.issued_by.username
 
-    def get_verification_count(self, obj):
+    def get_verification_count(self, obj) -> Any:
         annotated_value = getattr(obj, 'verification_count', None)
         if annotated_value is not None:
             return annotated_value
         return obj.verifications.count()
 
-    def get_last_verified_at(self, obj):
+    def get_last_verified_at(self, obj) -> Any:
         annotated_value = getattr(obj, 'last_verified_at', None)
         if annotated_value is not None:
             return annotated_value
@@ -147,7 +148,7 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at',
         ]
 
-    def get_background_image_url(self, obj):
+    def get_background_image_url(self, obj) -> Any:
         if not obj.background_image:
             return None
         request = self.context.get('request')

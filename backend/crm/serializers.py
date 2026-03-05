@@ -1,3 +1,4 @@
+from typing import Any
 # /mnt/usb/edu-api-project/crm/serializers.py
 
 from rest_framework import serializers
@@ -33,21 +34,21 @@ class LeadSerializer(serializers.ModelSerializer):
         model = Lead
         fields = '__all__'
 
-    def get_first_name(self, obj):
+    def get_first_name(self, obj) -> Any:
         """Split full_name into first_name for frontend compatibility"""
         if obj.full_name:
             parts = obj.full_name.split(' ', 1)
             return parts[0] if parts else ''
         return ''
 
-    def get_last_name(self, obj):
+    def get_last_name(self, obj) -> Any:
         """Split full_name into last_name for frontend compatibility"""
         if obj.full_name:
             parts = obj.full_name.split(' ', 1)
             return parts[1] if len(parts) > 1 else ''
         return ''
 
-    def get_source(self, obj):
+    def get_source(self, obj) -> Any:
         """Return source name as string instead of object"""
         if obj.source:
             return obj.source.name

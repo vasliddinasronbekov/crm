@@ -46,7 +46,7 @@ export function PricingPlans({
 
   async function fetchPlans() {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8008'
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.crmai.uz'
       const response = await fetch(`${apiUrl}/api/subscriptions/plans/`, {
         headers: {
           'Authorization': `Bearer ${localStorage.getItem('access_token')}`

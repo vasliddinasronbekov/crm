@@ -1,6 +1,7 @@
 """
 CRM Activity and Pipeline Serializers
 """
+from typing import Any
 
 from rest_framework import serializers
 from .activity_models import Activity, Pipeline, PipelineStage, Deal
@@ -60,10 +61,10 @@ class PipelineSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'is_default', 'is_active', 'stages', 'total_deals', 'total_value', 'created_at', 'updated_at']
         read_only_fields = ['created_at', 'updated_at']
 
-    def get_total_deals(self, obj):
+    def get_total_deals(self, obj) -> Any:
         return Deal.objects.filter(pipeline=obj).count()
 
-    def get_total_value(self, obj):
+    def get_total_value(self, obj) -> Any:
         deals = Deal.objects.filter(pipeline=obj)
         return sum(float(deal.value) for deal in deals)
 

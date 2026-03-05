@@ -47,17 +47,17 @@ class Certificate(models.Model):
         return f"Certificate {self.certificate_id} - {self.student.get_full_name()} - {self.course.name}"
 
     @property
-    def verification_code(self):
+    def verification_code(self) -> str:
         """Short verification code"""
         return str(self.certificate_id).split('-')[0].upper()
 
     @property
-    def student_name(self):
+    def student_name(self) -> str:
         """Full student name"""
         return self.student.get_full_name()
 
     @property
-    def course_name(self):
+    def course_name(self) -> str:
         """Course name"""
         return self.course.name
 

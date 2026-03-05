@@ -66,7 +66,7 @@ export function SubscriptionDashboard() {
         'Content-Type': 'application/json'
       }
 
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8008'
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.crmai.uz'
 
       // Fetch current subscription
       const subResponse = await fetch(
@@ -106,7 +106,7 @@ export function SubscriptionDashboard() {
     if (!subscription) return
 
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8008'
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.crmai.uz'
       const response = await fetch(
         `${apiUrl}/api/subscriptions/subscriptions/${subscription.id}/cancel/`,
         {

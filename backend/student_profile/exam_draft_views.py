@@ -29,6 +29,7 @@ class IELTSExamDraftViewSet(viewsets.ModelViewSet):
     ViewSet for managing IELTS exam drafts
     """
     permission_classes = [IsAuthenticated, IsStaffOrAdmin]
+    queryset = IELTSExamDraft.objects.all()
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -201,6 +202,7 @@ class IELTSQuestionDraftViewSet(viewsets.ModelViewSet):
     """
     serializer_class = IELTSQuestionDraftSerializer
     permission_classes = [IsAuthenticated, IsStaffOrAdmin]
+    queryset = IELTSQuestionDraft.objects.all()
 
     def get_queryset(self):
         user = self.request.user
@@ -229,6 +231,7 @@ class AIExamGenerationViewSet(viewsets.ModelViewSet):
     serializer_class = AIExamGenerationRequestSerializer
     permission_classes = [IsAuthenticated, IsStaffOrAdmin]
     http_method_names = ['get', 'post']  # Read-only after creation
+    queryset = AIExamGenerationRequest.objects.all()
 
     def get_queryset(self):
         user = self.request.user
@@ -254,6 +257,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     """
     serializer_class = NotificationSerializer
     permission_classes = [IsAuthenticated]
+    queryset = Notification.objects.all()
 
     def get_queryset(self):
         return Notification.objects.filter(
@@ -290,6 +294,7 @@ class InboxSettingsViewSet(viewsets.ModelViewSet):
     serializer_class = InboxSettingsSerializer
     permission_classes = [IsAuthenticated]
     http_method_names = ['get', 'put', 'patch']
+    queryset = InboxSettings.objects.all()
 
     def get_queryset(self):
         return InboxSettings.objects.filter(user=self.request.user)

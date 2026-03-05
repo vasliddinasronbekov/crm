@@ -1,3 +1,4 @@
+from typing import Any
 # /mnt/usb/edu-api-project/users/serializers.py
 
 from rest_framework import serializers
@@ -127,10 +128,11 @@ class UserBasicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
+        ref_name = 'UsersUserBasic'
         fields = ['id', 'username', 'first_name', 'last_name', 'full_name', 'email', 'photo', 'is_teacher', 'is_staff']
         read_only_fields = fields
 
-    def get_full_name(self, obj):
+    def get_full_name(self, obj) -> Any:
         return obj.get_full_name()
 
 
@@ -153,4 +155,3 @@ class ChangePasswordSerializer(serializers.Serializer):
         if len(value) < 8:
             raise serializers.ValidationError("Password must be at least 8 characters long.")
         return value
-

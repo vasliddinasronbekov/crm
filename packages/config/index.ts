@@ -1,7 +1,7 @@
 // Shared Configuration
 export const config = {
   api: {
-    baseUrl: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8008/api/v1',
+    baseUrl: process.env.NEXT_PUBLIC_API_URL || 'https://api.crmai.uz/api/v1',
     timeout: 30000,
   },
   auth: {

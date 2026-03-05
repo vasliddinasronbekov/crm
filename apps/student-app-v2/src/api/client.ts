@@ -3,7 +3,7 @@
 import axios from 'axios';
 
 // TODO: Move this to a configuration file or environment variable
-const API_BASE_URL = 'http://localhost:8008/api';
+const API_BASE_URL = 'https://api.crmai.uz/api';
 
 const apiClient = axios.create({
   baseURL: API_BASE_URL,

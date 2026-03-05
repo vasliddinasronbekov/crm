@@ -8,7 +8,7 @@ export default function PricingPage() {
 
   const handleSelectPlan = async (plan: any) => {
     try {
-      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8008'
+      const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.crmai.uz'
       const response = await fetch(`${apiUrl}/api/subscriptions/subscriptions/subscribe/`, {
         method: 'POST',
         headers: {

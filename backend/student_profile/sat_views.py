@@ -104,6 +104,7 @@ class SATAttemptViewSet(viewsets.ModelViewSet):
     """
     permission_classes = [IsAuthenticated]
     http_method_names = ['get', 'post', 'head', 'options']
+    queryset = SATAttempt.objects.all()
 
     def get_queryset(self):
         """Students can only see their own attempts"""
@@ -377,6 +378,7 @@ class SATAnswerViewSet(viewsets.ReadOnlyModelViewSet):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = SATAnswerSerializer
+    queryset = SATAnswer.objects.all()
 
     def get_queryset(self):
         """Students can only see their own answers"""

@@ -1,6 +1,7 @@
 """
 Serializers for Exam Draft and Notification System
 """
+from typing import Any
 
 from rest_framework import serializers
 from .exam_draft_models import (
@@ -55,13 +56,13 @@ class IELTSExamDraftListSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
 
-    def get_question_count(self, obj):
+    def get_question_count(self, obj) -> Any:
         return obj.draft_questions.count()
 
-    def get_can_submit_for_review(self, obj):
+    def get_can_submit_for_review(self, obj) -> Any:
         return obj.status == ExamDraftStatus.DRAFT and obj.draft_questions.count() > 0
 
-    def get_can_submit_for_approval(self, obj):
+    def get_can_submit_for_approval(self, obj) -> Any:
         return obj.status == ExamDraftStatus.AI_REVIEWED
 
 

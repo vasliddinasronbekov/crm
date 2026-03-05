@@ -1,6 +1,7 @@
 """
 IELTS Exam Serializers
 """
+from typing import Any
 
 from rest_framework import serializers
 from .ielts_models import IELTSExam, IELTSQuestion, IELTSAttempt, IELTSAnswer, IELTSSection
@@ -33,7 +34,7 @@ class IELTSExamSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at']
 
-    def get_questions_count(self, obj):
+    def get_questions_count(self, obj) -> Any:
         return obj.questions.count()
 
 
@@ -126,7 +127,7 @@ class IELTSAttemptSerializer(serializers.ModelSerializer):
             'ai_evaluation', 'ai_evaluated_at', 'created_at'
         ]
 
-    def get_can_refund(self, obj):
+    def get_can_refund(self, obj) -> Any:
         """Check if attempt is eligible for refund"""
         return (
             obj.status == 'completed' and
@@ -134,7 +135,7 @@ class IELTSAttemptSerializer(serializers.ModelSerializer):
             obj.coins_refunded == 0
         )
 
-    def get_overall_feedback(self, obj):
+    def get_overall_feedback(self, obj) -> Any:
         return (
             obj.ai_evaluation.get('overall_feedback')
             or obj.ai_evaluation.get('overall_assessment')
@@ -142,7 +143,7 @@ class IELTSAttemptSerializer(serializers.ModelSerializer):
             or ''
         )
 
-    def get_rubric_cards(self, obj):
+    def get_rubric_cards(self, obj) -> Any:
         cards = obj.ai_evaluation.get('rubric_cards')
         if isinstance(cards, list):
             return cards
@@ -158,19 +159,19 @@ class IELTSAttemptSerializer(serializers.ModelSerializer):
             ]
         return []
 
-    def get_strengths_list(self, obj):
+    def get_strengths_list(self, obj) -> Any:
         source = obj.ai_evaluation.get('strengths_list') or obj.ai_evaluation.get('overall_strengths') or obj.strengths
         return _listify_feedback(source)
 
-    def get_weaknesses_list(self, obj):
+    def get_weaknesses_list(self, obj) -> Any:
         source = obj.ai_evaluation.get('weaknesses_list') or obj.ai_evaluation.get('overall_weaknesses') or obj.weaknesses
         return _listify_feedback(source)
 
-    def get_recommendations_list(self, obj):
+    def get_recommendations_list(self, obj) -> Any:
         source = obj.ai_evaluation.get('recommendations_list') or obj.recommendations
         return _listify_feedback(source)
 
-    def get_question_feedback(self, obj):
+    def get_question_feedback(self, obj) -> Any:
         feedback_items = []
         for answer in obj.answers.all():
             if not answer.ai_feedback and not answer.ai_score:
@@ -185,7 +186,7 @@ class IELTSAttemptSerializer(serializers.ModelSerializer):
             })
         return feedback_items
 
-    def get_response_feedback(self, obj):
+    def get_response_feedback(self, obj) -> Any:
         evaluations = obj.ai_evaluation.get('essays') or obj.ai_evaluation.get('responses') or []
         label_prefix = 'Task' if obj.exam.section == IELTSSection.WRITING else 'Response'
         items = []
@@ -211,7 +212,7 @@ class IELTSAttemptSerializer(serializers.ModelSerializer):
 
         return items
 
-    def get_is_pending_evaluation(self, obj):
+    def get_is_pending_evaluation(self, obj) -> Any:
         return obj.status in {'submitted', 'evaluating'}
 
 

@@ -30,6 +30,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = ConversationSerializer
+    queryset = Conversation.objects.all()
 
     def get_queryset(self):
         """Get conversations for current user."""
@@ -188,6 +189,7 @@ class ChatMessageViewSet(viewsets.ReadOnlyModelViewSet):
     """
     permission_classes = [IsAuthenticated]
     serializer_class = ChatMessageSerializer
+    queryset = ChatMessage.objects.all()
 
     def get_queryset(self):
         """Get messages for user's conversations."""

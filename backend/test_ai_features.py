@@ -22,7 +22,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 
 User = get_user_model()
 
-BASE_URL = "http://localhost:8008/api/v1/ai"
+BASE_URL = "https://api.crmai.uz/api/v1/ai"
 
 
 class Colors:

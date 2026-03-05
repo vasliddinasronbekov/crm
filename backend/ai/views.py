@@ -103,6 +103,11 @@ def stt_view(request):
 
 
 # ----------- STT View (Asynchronous) -----------
+@extend_schema(
+    request=OpenApiTypes.OBJECT,
+    responses=OpenApiTypes.OBJECT,
+    description="Upload audio and process STT asynchronously."
+)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def stt_async_view(request):
@@ -189,6 +194,11 @@ def apply_intent(request):
 
 
 # ----------- Voice Navigation View -----------
+@extend_schema(
+    request=OpenApiTypes.OBJECT,
+    responses=OpenApiTypes.OBJECT,
+    description="Execute a voice navigation command."
+)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def voice_navigation_view(request):
@@ -228,6 +238,10 @@ def voice_navigation_view(request):
 
 
 # ----------- Get Voice Commands View -----------
+@extend_schema(
+    responses=OpenApiTypes.OBJECT,
+    description="Get available voice commands for a language."
+)
 @api_view(["GET"])
 @permission_classes([IsAuthenticated])
 def voice_commands_list_view(request):
@@ -254,6 +268,11 @@ def voice_commands_list_view(request):
 
 
 # ----------- Hybrid AI Chat View -----------
+@extend_schema(
+    request=OpenApiTypes.OBJECT,
+    responses=OpenApiTypes.OBJECT,
+    description="Process a message using the hybrid AI pipeline."
+)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def hybrid_chat_view(request):
@@ -317,6 +336,11 @@ def hybrid_chat_view(request):
 
 
 # ----------- Unified AI Voice Command View -----------
+@extend_schema(
+    request=OpenApiTypes.OBJECT,
+    responses=OpenApiTypes.OBJECT,
+    description="Unified command endpoint for text/audio AI interactions."
+)
 @api_view(["POST"])
 @permission_classes([IsAuthenticated])
 def unified_ai_command_view(request):

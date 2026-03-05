@@ -248,5 +248,5 @@ if __name__ == '__main__':
     create_plans()
 
     print("\n" + "="*60)
-    print("✅ DONE! Access plans at: http://localhost:8008/admin/subscriptions/subscriptionplan/")
+    print("✅ DONE! Access plans at: https://api.crmai.uz/admin/subscriptions/subscriptionplan/")
     print("="*60 + "\n")

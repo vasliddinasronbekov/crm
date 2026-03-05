@@ -170,7 +170,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 # -----------------------
 # Site Configuration
 # -----------------------
-SITE_URL = config("SITE_URL", default="http://localhost:8008")
+SITE_URL = config("SITE_URL", default="https://api.crmai.uz")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
@@ -184,7 +184,7 @@ CORS_ALLOWED_ORIGINS = [
     'http://*',
     'http://localhost:3000',
     'https://localhost:3000',
-    'http://localhost:8008',
+    'https://api.crmai.uz',
     'https://localhost:8008',
 ]
 

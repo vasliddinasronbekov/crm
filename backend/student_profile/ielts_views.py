@@ -65,6 +65,7 @@ class IELTSAttemptViewSet(viewsets.ModelViewSet):
     ViewSet for IELTS Attempts
     """
     permission_classes = [IsAuthenticated]
+    queryset = IELTSAttempt.objects.all()
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -278,6 +279,7 @@ class IELTSAnswerViewSet(viewsets.ReadOnlyModelViewSet):
     """
     serializer_class = IELTSAnswerSerializer
     permission_classes = [IsAuthenticated]
+    queryset = IELTSAnswer.objects.all()
 
     def get_queryset(self):
         """Get user's answers"""

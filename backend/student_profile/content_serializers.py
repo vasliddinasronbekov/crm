@@ -1,6 +1,7 @@
 """
 Content Delivery System Serializers
 """
+from typing import Any
 from django.db.models import Q, Sum, Value
 from django.db.models.functions import Coalesce
 from django.utils import timezone
@@ -44,10 +45,10 @@ class CourseModuleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at']
 
-    def get_lesson_count(self, obj):
+    def get_lesson_count(self, obj) -> Any:
         return obj.lessons.count()
 
-    def get_total_duration_minutes(self, obj):
+    def get_total_duration_minutes(self, obj) -> Any:
         total_seconds = obj.lessons.aggregate(
             total_video=Coalesce(Sum('video_duration_seconds'), Value(0)),
             total_audio=Coalesce(Sum('audio_duration_seconds'), Value(0))
@@ -55,7 +56,7 @@ class CourseModuleSerializer(serializers.ModelSerializer):
         total = total_seconds.get('total_video', 0) + total_seconds.get('total_audio', 0)
         return total // 60
 
-    def get_is_locked(self, obj):
+    def get_is_locked(self, obj) -> Any:
         """Check if module is locked based on prerequisites"""
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
@@ -68,7 +69,7 @@ class CourseModuleSerializer(serializers.ModelSerializer):
         is_locked, _ = get_module_lock_state(request.user, obj, access_state)
         return is_locked
 
-    def get_unlock_reason(self, obj):
+    def get_unlock_reason(self, obj) -> Any:
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return 'Login required'
@@ -80,7 +81,7 @@ class CourseModuleSerializer(serializers.ModelSerializer):
         is_locked, reason = get_module_lock_state(request.user, obj, access_state)
         return reason if is_locked else ''
 
-    def get_completed_lessons(self, obj):
+    def get_completed_lessons(self, obj) -> Any:
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return 0
@@ -92,7 +93,7 @@ class CourseModuleSerializer(serializers.ModelSerializer):
         completed_lessons, _, _ = get_module_completion_snapshot(obj, access_state)
         return completed_lessons
 
-    def get_completion_percentage(self, obj):
+    def get_completion_percentage(self, obj) -> Any:
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return 0
@@ -104,7 +105,7 @@ class CourseModuleSerializer(serializers.ModelSerializer):
         _, _, completion_percentage = get_module_completion_snapshot(obj, access_state)
         return completion_percentage
 
-    def get_next_lesson_id(self, obj):
+    def get_next_lesson_id(self, obj) -> Any:
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return None
@@ -116,7 +117,7 @@ class CourseModuleSerializer(serializers.ModelSerializer):
         next_lesson = get_next_lesson_in_module(obj, request.user, access_state)
         return next_lesson.id if next_lesson else None
 
-    def get_lessons(self, obj):
+    def get_lessons(self, obj) -> Any:
         if not self.context.get('include_lessons'):
             return []
 
@@ -160,7 +161,7 @@ class LessonSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at']
 
-    def get_student_progress(self, obj):
+    def get_student_progress(self, obj) -> Any:
         """Get current user's progress on this lesson"""
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
@@ -180,7 +181,7 @@ class LessonSerializer(serializers.ModelSerializer):
         except StudentProgress.DoesNotExist:
             return None
 
-    def get_is_completed(self, obj):
+    def get_is_completed(self, obj) -> Any:
         """Check if lesson is completed by current user"""
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
@@ -192,7 +193,7 @@ class LessonSerializer(serializers.ModelSerializer):
             completion_percentage=100
         ).exists()
 
-    def get_is_locked(self, obj):
+    def get_is_locked(self, obj) -> Any:
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return True
@@ -204,7 +205,7 @@ class LessonSerializer(serializers.ModelSerializer):
         is_locked, _ = get_lesson_lock_state(request.user, obj, access_state)
         return is_locked
 
-    def get_unlock_reason(self, obj):
+    def get_unlock_reason(self, obj) -> Any:
         request = self.context.get('request')
         if not request or not request.user.is_authenticated:
             return 'Login required'

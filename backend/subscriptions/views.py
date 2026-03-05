@@ -175,6 +175,8 @@ class CouponViewSet(viewsets.ReadOnlyModelViewSet):
 class SubscriptionStatsViewSet(viewsets.ViewSet):
     """Subscription statistics - Analytics dashboard"""
     permission_classes = [IsAdminUser]
+    serializer_class = SubscriptionStatsSerializer
+    queryset = UserSubscription.objects.all()
 
     @action(detail=False, methods=['get'])
     def overview(self, request):

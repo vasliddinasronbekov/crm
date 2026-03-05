@@ -5,7 +5,7 @@ echo "🔐 Step 1: Login to get JWT token..."
 echo ""
 
 # Login and get token (replace with your actual credentials)
-LOGIN_RESPONSE=$(curl -s -X POST http://localhost:8008/api/v1/student-profile/login/ \
+LOGIN_RESPONSE=$(curl -s -X POST https://api.crmai.uz/api/v1/student-profile/login/ \
   -H "Content-Type: application/json" \
   -d '{
     "username": "admin",
@@ -32,7 +32,7 @@ echo "🎤 Step 2: Testing TTS API..."
 echo ""
 
 # Test TTS API
-curl -X POST http://localhost:8008/api/v1/ai/tts/ \
+curl -X POST https://api.crmai.uz/api/v1/ai/tts/ \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
   -d '{

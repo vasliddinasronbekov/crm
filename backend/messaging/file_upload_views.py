@@ -9,6 +9,8 @@ from rest_framework.decorators import api_view, permission_classes, parser_class
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.response import Response
 from rest_framework.parsers import MultiPartParser, FormParser
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from django.core.files.storage import default_storage
 from django.core.files.base import ContentFile
 import os
@@ -34,6 +36,11 @@ ALLOWED_DOCUMENT_TYPES = [
 ]
 
 
+@extend_schema(
+    request=OpenApiTypes.OBJECT,
+    responses=OpenApiTypes.OBJECT,
+    description='Upload and attach a file to a conversation message.'
+)
 @api_view(['POST'])
 @permission_classes([IsAuthenticated])
 @parser_classes([MultiPartParser, FormParser])
@@ -195,6 +202,11 @@ def generate_thumbnail(image_path, size=(300, 300)):
         return None
 
 
+@extend_schema(
+    request=OpenApiTypes.OBJECT,
+    responses=OpenApiTypes.OBJECT,
+    description='Delete a previously uploaded message attachment.'
+)
 @api_view(['DELETE'])
 @permission_classes([IsAuthenticated])
 def delete_message_attachment(request, message_id):

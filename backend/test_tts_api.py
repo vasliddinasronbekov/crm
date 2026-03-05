@@ -6,7 +6,7 @@ import requests
 import os
 
 # Configuration
-BASE_URL = "http://localhost:8008"
+BASE_URL = "https://api.crmai.uz"
 LOGIN_URL = f"{BASE_URL}/api/auth/login/"
 TTS_URL = f"{BASE_URL}/api/v1/ai/tts/"
 

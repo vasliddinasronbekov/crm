@@ -68,7 +68,7 @@ class SubscriptionPlan(models.Model):
         return f"{self.name} - {self.price} {self.currency}/{self.interval}"
 
     @property
-    def monthly_price(self):
+    def monthly_price(self) -> Decimal:
         """Convert price to monthly equivalent"""
         if self.interval == 'monthly':
             return self.price
@@ -125,12 +125,12 @@ class UserSubscription(models.Model):
         return f"{self.user.get_full_name()} - {self.plan.name} ({self.status})"
 
     @property
-    def is_active(self):
+    def is_active(self) -> bool:
         """Check if subscription is currently active"""
         return self.status in ['active', 'trialing'] and self.current_period_end > timezone.now()
 
     @property
-    def days_until_renewal(self):
+    def days_until_renewal(self) -> int:
         """Days until next renewal"""
         if self.current_period_end:
             delta = self.current_period_end - timezone.now()
@@ -138,7 +138,7 @@ class UserSubscription(models.Model):
         return 0
 
     @property
-    def is_trial(self):
+    def is_trial(self) -> bool:
         """Check if in trial period"""
         return self.status == 'trialing' and self.trial_end and self.trial_end > timezone.now()
 
@@ -233,7 +233,7 @@ class Payment(models.Model):
         return f"Payment #{self.id} - {self.user.get_full_name()} - {self.amount} {self.currency} ({self.status})"
 
     @property
-    def is_successful(self):
+    def is_successful(self) -> bool:
         return self.status == 'succeeded'
 
     def mark_succeeded(self):

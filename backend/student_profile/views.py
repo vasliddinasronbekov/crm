@@ -22,6 +22,8 @@ from rest_framework import viewsets, permissions, generics, status
 from rest_framework.decorators import action
 from rest_framework.views import APIView
 from rest_framework.response import Response
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from weasyprint import HTML
 import qrcode
 import io
@@ -707,6 +709,7 @@ class BookingViewSet(viewsets.ModelViewSet):
 
 # --- MAXSUS VIEW'LAR (APIView, GenericAPIView) ---
 
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class StudentStatisticsView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def get(self, request, *args, **kwargs):
@@ -734,6 +737,7 @@ class StudentUpdateView(generics.UpdateAPIView):
     def get_object(self):
         return self.request.user
 
+@extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
 class CreatePaymentView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request, *args, **kwargs):
@@ -766,6 +770,7 @@ class CreatePaymentView(APIView):
 
 
 @method_decorator(csrf_exempt, name='dispatch')
+@extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
 class PaymentCallbackView(APIView):
     permission_classes = [permissions.AllowAny]
     def post(self, request, *args, **kwargs):
@@ -820,6 +825,7 @@ class UpcomingBookingView(generics.ListAPIView):
     def get_queryset(self):
         return Booking.objects.filter(student=self.request.user, slot__start_time__gte=timezone.now())
 
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class PaymentReceiptView(APIView):
     """
     Berilgan to'lov ID'si bo'yicha QR kodli PDF kvitansiya (chek) generatsiya qiladi.

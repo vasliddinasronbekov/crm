@@ -6,6 +6,8 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from django.db.models import Q, Count
 from django.utils import timezone
 from datetime import timedelta
@@ -292,6 +294,7 @@ class PaymentReminderViewSet(viewsets.ReadOnlyModelViewSet):
         })
 
 
+@extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
 class BulkPaymentReminderView(APIView):
     """
     API endpoint for sending bulk payment reminders
@@ -347,6 +350,7 @@ class BulkPaymentReminderView(APIView):
         }, status=status.HTTP_200_OK)
 
 
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class PendingPaymentsForRemindersView(APIView):
     """
     API endpoint to get pending payments that need reminders

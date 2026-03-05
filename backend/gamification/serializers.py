@@ -1,6 +1,7 @@
 """
 Gamification Serializers
 """
+from typing import Any
 
 from rest_framework import serializers
 from .models import (
@@ -62,7 +63,7 @@ class UserLevelSerializer(serializers.ModelSerializer):
             'last_activity_date', 'updated_at'
         ]
 
-    def get_xp_progress_percentage(self, obj):
+    def get_xp_progress_percentage(self, obj) -> Any:
         """Calculate % progress to next level"""
         if obj.xp_to_next_level == 0:
             return 100
@@ -95,7 +96,7 @@ class UserDailyChallengeSerializer(serializers.ModelSerializer):
             'progress_percentage'
         ]
 
-    def get_progress_percentage(self, obj):
+    def get_progress_percentage(self, obj) -> Any:
         """Calculate progress percentage"""
         if obj.challenge.target_value == 0:
             return 100 if obj.is_completed else 0
@@ -129,7 +130,7 @@ class UserAchievementSerializer(serializers.ModelSerializer):
             'unlocked_at', 'last_updated'
         ]
 
-    def get_current_tier_info(self, obj):
+    def get_current_tier_info(self, obj) -> Any:
         """Get current tier details"""
         if obj.achievement.tiers and obj.current_tier > 0:
             try:
@@ -138,7 +139,7 @@ class UserAchievementSerializer(serializers.ModelSerializer):
                 return None
         return None
 
-    def get_next_tier_info(self, obj):
+    def get_next_tier_info(self, obj) -> Any:
         """Get next tier details"""
         if obj.achievement.tiers and obj.current_tier < len(obj.achievement.tiers):
             try:

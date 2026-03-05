@@ -1,6 +1,7 @@
 """
 Email Marketing System Serializers
 """
+from typing import Any
 
 from rest_framework import serializers
 from .email_models import EmailTemplate, EmailCampaign, EmailLog, AutomatedEmail
@@ -49,12 +50,12 @@ class EmailCampaignSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at', 'sent_at', 'emails_sent', 'emails_failed', 'emails_opened', 'emails_clicked']
 
-    def get_open_rate(self, obj):
+    def get_open_rate(self, obj) -> Any:
         if obj.emails_sent > 0:
             return round((obj.emails_opened / obj.emails_sent) * 100, 2)
         return 0
 
-    def get_click_rate(self, obj):
+    def get_click_rate(self, obj) -> Any:
         if obj.emails_sent > 0:
             return round((obj.emails_clicked / obj.emails_sent) * 100, 2)
         return 0

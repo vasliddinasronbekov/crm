@@ -18,8 +18,8 @@ import json
 from pprint import pprint
 
 # Configuration
-BASE_URL = "http://localhost:8008/api/social"
-AUTH_URL = "http://localhost:8008/api/auth/login/"
+BASE_URL = "https://api.crmai.uz/api/social"
+AUTH_URL = "https://api.crmai.uz/api/auth/login/"
 
 # Get your auth token by logging in
 # Replace with your credentials

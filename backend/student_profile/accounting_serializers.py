@@ -1,3 +1,4 @@
+from typing import Any
 # Serializers for Automatic Accounting Models
 
 from decimal import Decimal, ROUND_HALF_UP
@@ -135,7 +136,7 @@ class TeacherEarningsSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
 
-    def get_payment_amount_sum(self, obj):
+    def get_payment_amount_sum(self, obj) -> Any:
         return obj.payment_amount / 100
 
 
@@ -267,22 +268,22 @@ class FinancialSummarySerializer(serializers.ModelSerializer):
             'created_at',
         ]
 
-    def get_total_expenses_sum(self, obj):
+    def get_total_expenses_sum(self, obj) -> Any:
         return obj.total_expenses / 100
 
-    def get_total_teacher_earnings_sum(self, obj):
+    def get_total_teacher_earnings_sum(self, obj) -> Any:
         return obj.total_teacher_earnings / 100
 
-    def get_teacher_earnings_paid_sum(self, obj):
+    def get_teacher_earnings_paid_sum(self, obj) -> Any:
         return obj.teacher_earnings_paid / 100
 
-    def get_total_fines_sum(self, obj):
+    def get_total_fines_sum(self, obj) -> Any:
         return obj.total_fines / 100
 
-    def get_fines_paid_sum(self, obj):
+    def get_fines_paid_sum(self, obj) -> Any:
         return obj.fines_paid / 100
 
-    def get_gross_revenue_sum(self, obj):
+    def get_gross_revenue_sum(self, obj) -> Any:
         return obj.gross_revenue / 100
 
 
@@ -399,10 +400,10 @@ class AccountTransactionSerializer(serializers.ModelSerializer):
             'created_at',
         ]
 
-    def get_balance_before_sum(self, obj):
+    def get_balance_before_sum(self, obj) -> Any:
         return obj.balance_before / 100 if obj.balance_before is not None else None
 
-    def get_balance_after_sum(self, obj):
+    def get_balance_after_sum(self, obj) -> Any:
         return obj.balance_after / 100 if obj.balance_after is not None else None
 
 
@@ -461,7 +462,7 @@ class MonthlySubscriptionChargeSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = fields
 
-    def get_teacher_share_tiyin(self, obj):
+    def get_teacher_share_tiyin(self, obj) -> Any:
         base = obj.final_charge_tiyin or obj.monthly_price_tiyin
         return int((Decimal(base) * Decimal('0.4')).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
 

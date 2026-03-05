@@ -17,7 +17,7 @@ import json
 from decimal import Decimal
 
 # Configuration
-BASE_URL = "http://localhost:8008"
+BASE_URL = "https://api.crmai.uz"
 API_BASE = f"{BASE_URL}/api/subscriptions"
 
 # Test credentials (use existing admin user or create one)

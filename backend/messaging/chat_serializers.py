@@ -1,6 +1,7 @@
 """
 Serializers for real-time chat and conversation models.
 """
+from typing import Any
 from rest_framework import serializers
 from .models import Conversation, ChatMessage, UserPresence, ConversationAnalytics
 from users.serializers import UserSerializer
@@ -39,6 +40,7 @@ class ConversationSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Conversation
+        ref_name = 'RealtimeConversation'
         fields = [
             'conversation_id', 'conversation_type', 'user', 'title',
             'created_at', 'updated_at', 'is_active', 'metadata',
@@ -46,7 +48,7 @@ class ConversationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['conversation_id', 'created_at', 'updated_at']
 
-    def get_last_message(self, obj):
+    def get_last_message(self, obj) -> Any:
         last_msg = obj.messages.order_by('-created_at').first()
         if last_msg:
             return {
@@ -56,7 +58,7 @@ class ConversationSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_unread_count(self, obj):
+    def get_unread_count(self, obj) -> Any:
         request = self.context.get('request')
         if request and request.user:
             return obj.messages.filter(
@@ -72,6 +74,7 @@ class ConversationDetailSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Conversation
+        ref_name = 'RealtimeConversationDetail'
         fields = [
             'conversation_id', 'conversation_type', 'user', 'title',
             'created_at', 'updated_at', 'is_active', 'metadata', 'messages'

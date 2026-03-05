@@ -2,6 +2,7 @@
 SAT 2025 Serializers
 API serialization for SAT exams, questions, attempts, and answers
 """
+from typing import Any
 
 from rest_framework import serializers
 from .sat_models import (
@@ -53,7 +54,7 @@ class SATModuleSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id']
 
-    def get_question_count(self, obj):
+    def get_question_count(self, obj) -> Any:
         return obj.questions.count()
 
 
@@ -92,10 +93,10 @@ class SATExamDetailSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at']
 
-    def get_total_questions(self, obj):
+    def get_total_questions(self, obj) -> Any:
         return obj.rw_total_questions + obj.math_total_questions
 
-    def get_total_time_minutes(self, obj):
+    def get_total_time_minutes(self, obj) -> Any:
         return obj.rw_time_minutes + obj.math_time_minutes
 
 
@@ -148,7 +149,7 @@ class SATAttemptSerializer(serializers.ModelSerializer):
             'time_taken_seconds', 'created_at'
         ]
 
-    def get_can_resume(self, obj):
+    def get_can_resume(self, obj) -> Any:
         return obj.status in {'payment_pending', 'in_progress'}
 
 
@@ -189,17 +190,17 @@ class SATAttemptDetailSerializer(serializers.ModelSerializer):
             'created_at', 'updated_at'
         ]
 
-    def get_rw_percentage(self, obj):
+    def get_rw_percentage(self, obj) -> Any:
         if obj.exam.rw_total_questions > 0:
             return round((obj.rw_correct / obj.exam.rw_total_questions) * 100, 1)
         return 0
 
-    def get_math_percentage(self, obj):
+    def get_math_percentage(self, obj) -> Any:
         if obj.exam.math_total_questions > 0:
             return round((obj.math_correct / obj.exam.math_total_questions) * 100, 1)
         return 0
 
-    def get_can_resume(self, obj):
+    def get_can_resume(self, obj) -> Any:
         return obj.status in {'payment_pending', 'in_progress'}
 
 

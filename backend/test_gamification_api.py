@@ -7,7 +7,7 @@ import requests
 import json
 
 # Configuration
-BASE_URL = "http://localhost:8008/api"
+BASE_URL = "https://api.crmai.uz/api"
 # Replace with your actual token after logging in
 TOKEN = "your_jwt_token_here"
 
@@ -203,6 +203,6 @@ if __name__ == "__main__":
         test_gamification_endpoints()
     except requests.exceptions.ConnectionError:
         print("\n✗ ERROR: Could not connect to server.")
-        print("Make sure Django is running on http://localhost:8008")
+        print("Make sure Django is running on https://api.crmai.uz")
     except Exception as e:
         print(f"\n✗ ERROR: {str(e)}")

@@ -82,6 +82,7 @@ class SendMessageView(generics.GenericAPIView):
 class ConversationViewSet(viewsets.ModelViewSet):
     serializer_class = ConversationSerializer
     permission_classes = [permissions.IsAuthenticated]
+    queryset = Conversation.objects.all()
 
     def get_queryset(self):
         user = self.request.user
@@ -203,4 +204,3 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
         serializer = ChatMessageSerializer(message, context={'request': request})
         return Response(serializer.data, status=status.HTTP_201_CREATED)
-

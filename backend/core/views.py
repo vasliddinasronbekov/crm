@@ -3,6 +3,8 @@ from rest_framework import viewsets, permissions
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from .models import Region, Comment
 from .serializers import RegionSerializer, CommentSerializer
 
@@ -121,6 +123,10 @@ def readiness_check(request):
         }, status=503)
 
 
+@extend_schema(
+    responses=OpenApiTypes.OBJECT,
+    description="Global search across users, groups, and courses."
+)
 @api_view(['GET'])
 @permission_classes([IsAuthenticated])
 def global_search(request):

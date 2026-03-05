@@ -1,6 +1,7 @@
 """
 Social Learning Serializers
 """
+from typing import Any
 
 from rest_framework import serializers
 from django.contrib.auth import get_user_model
@@ -24,9 +25,10 @@ class UserBasicSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = User
+        ref_name = 'SocialUserBasic'
         fields = ['id', 'email', 'first_name', 'last_name', 'full_name', 'avatar']
 
-    def get_avatar(self, obj):
+    def get_avatar(self, obj) -> Any:
         # Return avatar URL or generate initials-based avatar
         return f"https://ui-avatars.com/api/?name={obj.get_full_name()}&background=random"
 
@@ -55,7 +57,7 @@ class ForumListSerializer(serializers.ModelSerializer):
         fields = ['id', 'name', 'description', 'icon', 'category', 'category_name',
                   'course', 'is_public', 'topic_count', 'post_count', 'last_post', 'created_at']
 
-    def get_last_post(self, obj):
+    def get_last_post(self, obj) -> Any:
         last_post = obj.last_post
         if last_post:
             return {
@@ -87,13 +89,13 @@ class ForumPostSerializer(serializers.ModelSerializer):
                   'is_edited', 'upvote_count', 'is_upvoted', 'replies', 'created_at', 'updated_at']
         read_only_fields = ['author', 'is_edited']
 
-    def get_is_upvoted(self, obj):
+    def get_is_upvoted(self, obj) -> Any:
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return obj.upvotes.filter(id=request.user.id).exists()
         return False
 
-    def get_replies(self, obj):
+    def get_replies(self, obj) -> Any:
         # Get direct replies only (not nested beyond 1 level)
         replies = obj.replies.filter(is_published=True)
         return ForumPostSerializer(replies, many=True, context=self.context).data
@@ -113,7 +115,7 @@ class ForumTopicListSerializer(serializers.ModelSerializer):
                   'is_locked', 'is_resolved', 'views', 'reply_count', 'upvote_count',
                   'last_post', 'created_at', 'last_activity_at']
 
-    def get_last_post(self, obj):
+    def get_last_post(self, obj) -> Any:
         last_post = obj.last_post
         if last_post:
             return {
@@ -131,7 +133,7 @@ class ForumTopicDetailSerializer(ForumTopicListSerializer):
     class Meta(ForumTopicListSerializer.Meta):
         fields = ForumTopicListSerializer.Meta.fields + ['content', 'posts', 'is_upvoted', 'updated_at']
 
-    def get_is_upvoted(self, obj):
+    def get_is_upvoted(self, obj) -> Any:
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return obj.upvotes.filter(id=request.user.id).exists()
@@ -173,7 +175,7 @@ class StudyGroupListSerializer(serializers.ModelSerializer):
                   'creator', 'is_public', 'max_members', 'member_count', 'is_full',
                   'is_member', 'created_at']
 
-    def get_is_member(self, obj):
+    def get_is_member(self, obj) -> Any:
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return obj.members.filter(id=request.user.id, studygroupmembership__status='active').exists()
@@ -191,12 +193,12 @@ class StudyGroupDetailSerializer(StudyGroupListSerializer):
             'admins', 'members', 'require_approval', 'recent_posts', 'updated_at'
         ]
 
-    def get_members(self, obj):
+    def get_members(self, obj) -> Any:
         # Only return active members
         memberships = obj.studygroupmembership_set.filter(status='active').select_related('user')
         return StudyGroupMembershipSerializer(memberships, many=True).data
 
-    def get_recent_posts(self, obj):
+    def get_recent_posts(self, obj) -> Any:
         # Return last 5 posts
         posts = obj.posts.all()[:5]
         return StudyGroupPostSerializer(posts, many=True, context=self.context).data
@@ -248,7 +250,7 @@ class StudyGroupPostSerializer(serializers.ModelSerializer):
                   'is_liked', 'comments', 'created_at', 'updated_at']
         read_only_fields = ['author']
 
-    def get_is_liked(self, obj):
+    def get_is_liked(self, obj) -> Any:
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return obj.likes.filter(id=request.user.id).exists()
@@ -279,13 +281,13 @@ class FeedItemSerializer(serializers.ModelSerializer):
         fields = ['id', 'user', 'activity_type', 'title', 'description', 'metadata',
                   'like_count', 'is_liked', 'comments', 'comment_count', 'is_public', 'created_at']
 
-    def get_is_liked(self, obj):
+    def get_is_liked(self, obj) -> Any:
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return obj.likes.filter(id=request.user.id).exists()
         return False
 
-    def get_comment_count(self, obj):
+    def get_comment_count(self, obj) -> Any:
         return obj.comments.count()
 
 
@@ -302,7 +304,7 @@ class MessageSerializer(serializers.ModelSerializer):
                   'is_read', 'created_at', 'updated_at']
         read_only_fields = ['sender', 'is_edited']
 
-    def get_is_read(self, obj):
+    def get_is_read(self, obj) -> Any:
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             try:
@@ -321,10 +323,11 @@ class ConversationListSerializer(serializers.ModelSerializer):
 
     class Meta:
         model = Conversation
+        ref_name = 'SocialConversationList'
         fields = ['id', 'conversation_type', 'title', 'participants', 'last_message',
                   'unread_count', 'created_at', 'updated_at']
 
-    def get_last_message(self, obj):
+    def get_last_message(self, obj) -> Any:
         last_msg = obj.last_message
         if last_msg:
             return {
@@ -334,7 +337,7 @@ class ConversationListSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_unread_count(self, obj):
+    def get_unread_count(self, obj) -> Any:
         request = self.context.get('request')
         if request and request.user.is_authenticated:
             return obj.get_unread_count(request.user)
@@ -346,6 +349,7 @@ class ConversationDetailSerializer(ConversationListSerializer):
     messages = MessageSerializer(many=True, read_only=True, source='social_messages')
 
     class Meta(ConversationListSerializer.Meta):
+        ref_name = 'SocialConversationDetail'
         fields = ConversationListSerializer.Meta.fields + ['messages']
 
 

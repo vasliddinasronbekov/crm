@@ -7,7 +7,7 @@ import axios, { AxiosInstance, AxiosRequestConfig } from 'axios';
 
 // API Configuration
 export const API_CONFIG = {
-  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8008',
+  BASE_URL: process.env.NEXT_PUBLIC_API_URL || 'https://api.crmai.uz',
   WS_URL: process.env.NEXT_PUBLIC_WS_URL || 'ws://localhost:8008',
   TIMEOUT: 30000,
   RETRY_ATTEMPTS: 3,

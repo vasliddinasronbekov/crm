@@ -35,11 +35,11 @@ class ForumCategory(models.Model):
         return self.name
 
     @property
-    def forum_count(self):
+    def forum_count(self) -> int:
         return self.forums.filter(is_active=True).count()
 
     @property
-    def total_topics(self):
+    def total_topics(self) -> int:
         return ForumTopic.objects.filter(forum__category=self, is_published=True).count()
 
 
@@ -69,11 +69,11 @@ class Forum(models.Model):
         return f"{self.category.name} - {self.name}"
 
     @property
-    def topic_count(self):
+    def topic_count(self) -> int:
         return self.topics.filter(is_published=True).count()
 
     @property
-    def post_count(self):
+    def post_count(self) -> int:
         return ForumPost.objects.filter(topic__forum=self).count()
 
     @property
@@ -110,11 +110,11 @@ class ForumTopic(models.Model):
         return self.title
 
     @property
-    def reply_count(self):
+    def reply_count(self) -> int:
         return self.posts.count()
 
     @property
-    def upvote_count(self):
+    def upvote_count(self) -> int:
         return self.upvotes.count()
 
     @property
@@ -153,7 +153,7 @@ class ForumPost(models.Model):
         return f"Post by {self.author.get_full_name()} in {self.topic.title}"
 
     @property
-    def upvote_count(self):
+    def upvote_count(self) -> int:
         return self.upvotes.count()
 
     def save(self, *args, **kwargs):
@@ -194,11 +194,11 @@ class StudyGroup(models.Model):
         return self.name
 
     @property
-    def member_count(self):
+    def member_count(self) -> int:
         return self.members.filter(studygroupmembership__status='active').count()
 
     @property
-    def is_full(self):
+    def is_full(self) -> bool:
         return self.member_count >= self.max_members
 
     def can_join(self, user):
@@ -262,7 +262,7 @@ class StudyGroupPost(models.Model):
         return f"Post by {self.author.get_full_name()} in {self.group.name}"
 
     @property
-    def like_count(self):
+    def like_count(self) -> int:
         return self.likes.count()
 
     @property
@@ -335,7 +335,7 @@ class FeedItem(models.Model):
         return f"{self.user.get_full_name()} - {self.get_activity_type_display()}"
 
     @property
-    def like_count(self):
+    def like_count(self) -> int:
         return self.likes.count()
 
 

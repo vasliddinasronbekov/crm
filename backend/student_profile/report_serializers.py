@@ -2,6 +2,7 @@
 Report and Reminder Serializers
 Serializers for scheduled reports and payment reminders
 """
+from typing import Any
 from rest_framework import serializers
 from .report_models import (
     ScheduledReport,
@@ -40,17 +41,17 @@ class ScheduledReportSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'created_at', 'updated_at', 'last_run', 'next_run']
 
-    def get_created_by_name(self, obj):
+    def get_created_by_name(self, obj) -> Any:
         """Get the name of the user who created this schedule"""
         if obj.created_by:
             return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
         return "Unknown"
 
-    def get_recipients_list(self, obj):
+    def get_recipients_list(self, obj) -> Any:
         """Return recipients as a list"""
         return obj.get_recipients_list()
 
-    def get_status_display(self, obj):
+    def get_status_display(self, obj) -> Any:
         """Return user-friendly status"""
         if not obj.enabled:
             return "Disabled"
@@ -133,7 +134,7 @@ class ReportGenerationSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'started_at', 'completed_at', 'duration']
 
-    def get_scheduled_report_info(self, obj):
+    def get_scheduled_report_info(self, obj) -> Any:
         """Get information about the scheduled report"""
         if obj.scheduled_report:
             return {
@@ -143,7 +144,7 @@ class ReportGenerationSerializer(serializers.ModelSerializer):
             }
         return None
 
-    def get_duration(self, obj):
+    def get_duration(self, obj) -> Any:
         """Calculate generation duration in seconds"""
         if obj.started_at and obj.completed_at:
             delta = obj.completed_at - obj.started_at
@@ -170,7 +171,7 @@ class PaymentReminderSettingsSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'updated_at']
 
-    def get_created_by_name(self, obj):
+    def get_created_by_name(self, obj) -> Any:
         """Get the name of the user who created/updated settings"""
         if obj.created_by:
             return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
@@ -212,7 +213,7 @@ class PaymentReminderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['id', 'scheduled_at', 'sent_at']
 
-    def get_payment_info(self, obj):
+    def get_payment_info(self, obj) -> Any:
         """Get payment details"""
         payment = obj.payment
         return {
@@ -223,7 +224,7 @@ class PaymentReminderSerializer(serializers.ModelSerializer):
             'due_date': payment.due_date if hasattr(payment, 'due_date') else None,
         }
 
-    def get_student_info(self, obj):
+    def get_student_info(self, obj) -> Any:
         """Get student details"""
         student = obj.payment.by_user
         return {

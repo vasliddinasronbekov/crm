@@ -5,7 +5,7 @@
 import { io, Socket } from 'socket.io-client'
 import { useAuthStore } from '../../stores/authStore'
 
-export const WS_BASE_URL = process.env.WS_URL || 'http://localhost:8008'
+export const WS_BASE_URL = process.env.WS_URL || 'https://api.crmai.uz'
 
 export type MessageCallback = (message: any) => void
 export type NotificationCallback = (notification: any) => void

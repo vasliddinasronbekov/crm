@@ -3,6 +3,8 @@
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, generics, status
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from django.utils import timezone
 from django.db.models import Sum, Avg, Count, Q, OuterRef, Subquery, Value, IntegerField, FloatField
 from django.db.models.functions import Coalesce
@@ -15,6 +17,7 @@ from student_profile.content_models import StudentProgress
 from crm.models import Lead
 from gamification.models import UserLevel, UserBadge, UserAchievement
 
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class AnalyticsView(APIView):
     """
     Tizim bo'yicha umumiy statistika va analitikani qaytaradi.
@@ -99,6 +102,7 @@ from .serializers import LeaderboardSerializer, ReportSerializer # Yangi seriali
 from django.utils.timezone import now
 from datetime import timedelta
 
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class DashboardStatsView(APIView):
     """
     Dashboard statistics for admin panel.
@@ -144,6 +148,7 @@ class DashboardStatsView(APIView):
         return Response(data)
 
 
+@extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
 class ReportListView(APIView):
     """
     List and generate reports.

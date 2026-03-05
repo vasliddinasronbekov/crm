@@ -1,3 +1,4 @@
+from typing import Any
 # /mnt/usb/edu-api-project/student_profile/serializers.py
 from .models import PaymentType, AutomaticFine, AssistantSlot, Booking # Importlarga qo'shing
 from rest_framework import serializers
@@ -69,12 +70,12 @@ class GroupReadSerializer(serializers.ModelSerializer):
         model = Group
         fields = '__all__'
 
-    def get_main_teacher_name(self, obj):
+    def get_main_teacher_name(self, obj) -> Any:
         if not obj.main_teacher:
             return None
         return obj.main_teacher.get_full_name() or obj.main_teacher.username
 
-    def get_assistant_teacher_name(self, obj):
+    def get_assistant_teacher_name(self, obj) -> Any:
         if not obj.assistant_teacher:
             return None
         return obj.assistant_teacher.get_full_name() or obj.assistant_teacher.username
@@ -88,7 +89,7 @@ class AttendanceSerializer(serializers.ModelSerializer):
         fields = '__all__'
         depth = 1
 
-    def get_status(self, obj):
+    def get_status(self, obj) -> Any:
         if obj.attendance_status == Attendance.STATUS_PRESENT:
             return 'present'
         if obj.attendance_status == Attendance.STATUS_ABSENCE_EXCUSED:
@@ -132,12 +133,12 @@ class EventSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at']
 
-    def get_created_by_name(self, obj):
+    def get_created_by_name(self, obj) -> Any:
         if obj.created_by:
             return f"{obj.created_by.first_name} {obj.created_by.last_name}".strip() or obj.created_by.username
         return None
 
-    def get_student_count(self, obj):
+    def get_student_count(self, obj) -> Any:
         return obj.students.count()
 
 class ExamScoreSerializer(serializers.ModelSerializer):
@@ -187,19 +188,20 @@ class ShopOrderSerializer(serializers.ModelSerializer):
         ]
         read_only_fields = ['created_at', 'updated_at', 'total_price', 'status']
 
-    def get_student_name(self, obj):
+    def get_student_name(self, obj) -> Any:
         full_name = obj.student.get_full_name().strip()
         return full_name or obj.student.username
 
-    def get_total_price(self, obj):
+    def get_total_price(self, obj) -> Any:
         return obj.price * obj.quantity
 
-    def get_status(self, obj):
+    def get_status(self, obj) -> Any:
         return 'completed'
 
 class PaymentSerializer(serializers.ModelSerializer):
     class Meta:
         model = Payment
+        ref_name = 'StudentProfilePayment'
         fields = '__all__'
         depth = 1
 class StorySerializer(serializers.ModelSerializer):

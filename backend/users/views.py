@@ -9,6 +9,8 @@ from .serializers import MyTokenObtainPairSerializer
 from rest_framework import viewsets, permissions
 from rest_framework.views import APIView
 from rest_framework.decorators import api_view, permission_classes, action
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from django.contrib.auth import update_session_auth_hash
 from .models import User
 from .serializers import UserSerializer, UserProfileSerializer, ChangePasswordSerializer
@@ -517,6 +519,7 @@ class MyTokenObtainPairView(TokenObtainPairView):
         return response
 
 
+@extend_schema(responses=UserProfileSerializer)
 class UserProfileView(APIView):
     """
     Get and update user profile.
@@ -539,6 +542,7 @@ class UserProfileView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(request=ChangePasswordSerializer, responses=OpenApiTypes.OBJECT)
 class ChangePasswordView(APIView):
     """
     Change user password.
@@ -563,6 +567,7 @@ class ChangePasswordView(APIView):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
 class LogoutView(APIView):
     """
     Logout user (blacklist refresh token).

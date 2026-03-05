@@ -4,6 +4,8 @@ from rest_framework import viewsets, permissions, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.views import APIView
+from drf_spectacular.types import OpenApiTypes
+from drf_spectacular.utils import extend_schema
 from django.db.models import Sum, Count, Q
 from django.utils import timezone
 from datetime import datetime, timedelta
@@ -155,6 +157,7 @@ class AccountingActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
         return queryset.select_related('actor', 'student', 'group', 'attendance', 'payment').order_by('-created_at')
 
 
+@extend_schema(responses=OpenApiTypes.OBJECT)
 class RealtimeAccountingDashboardView(APIView):
     permission_classes = [permissions.IsAuthenticated]
 
