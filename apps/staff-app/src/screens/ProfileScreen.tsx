@@ -120,7 +120,7 @@ export default function ProfileScreen({ navigation }: any) {
       </TouchableOpacity>
 
       {/* Version */}
-      <Text style={styles.version}>Version 1.0.0 • EDU Admin</Text>
+      <Text style={styles.version}>Version 1.0.0 • EDUOS</Text>
     </ScrollView>
   );
 }

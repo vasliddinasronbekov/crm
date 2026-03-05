@@ -9,7 +9,7 @@ import { AIProvider } from '@/lib/hooks/useAI'
 import GlobalLanguageBridge from '@/components/GlobalLanguageBridge'
 
 export const metadata: Metadata = {
-  title: 'EDU Admin - Dashboard',
+  title: 'EDUOS - Dashboard',
   description: 'Educational Platform Administration',
 }
 

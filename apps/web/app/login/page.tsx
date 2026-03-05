@@ -44,7 +44,7 @@ export default function LoginPage() {
         <div className="text-center mb-8">
           <div className="flex justify-center items-center gap-2 mb-4">
             <span className="text-4xl">✨</span>
-            <h1 className="text-3xl font-bold text-primary">EDU Admin</h1>
+            <h1 className="text-3xl font-bold text-primary">EDUOS</h1>
           </div>
           <p className="text-text-secondary">
             Sign in to your administrator account

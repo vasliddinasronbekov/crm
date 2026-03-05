@@ -249,7 +249,7 @@ export default function SettingsScreen({ navigation }: any) {
         </View>
 
         <View style={styles.footer}>
-          <Text style={styles.footerText}>EDU Admin Platform © 2025</Text>
+          <Text style={styles.footerText}>EDUOS Platform © 2025</Text>
           <Text style={styles.footerText}>All rights reserved</Text>
         </View>
       </ScrollView>

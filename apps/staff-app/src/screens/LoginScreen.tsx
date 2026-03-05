@@ -48,7 +48,7 @@ export default function LoginScreen() {
         <View style={styles.header}>
           <View style={styles.logoContainer}>
             <Text style={styles.logoIcon}>✨</Text>
-            <Text style={styles.title}>EDU Admin</Text>
+            <Text style={styles.title}>EDUOS</Text>
           </View>
           <Text style={styles.subtitle}>Staff Portal</Text>
         </View>
