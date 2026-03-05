@@ -87,7 +87,6 @@ class AttendanceSerializer(serializers.ModelSerializer):
     class Meta:
         model = Attendance
         fields = '__all__'
-        depth = 1
 
     def get_status(self, obj) -> Any:
         if obj.attendance_status == Attendance.STATUS_PRESENT:
@@ -145,7 +144,6 @@ class ExamScoreSerializer(serializers.ModelSerializer):
     class Meta:
         model = ExamScore
         fields = '__all__'
-        depth = 1
 
 class ShopProductSerializer(serializers.ModelSerializer):
     image = serializers.ImageField(source='photo', read_only=True)
@@ -203,7 +201,6 @@ class PaymentSerializer(serializers.ModelSerializer):
         model = Payment
         ref_name = 'StudentProfilePayment'
         fields = '__all__'
-        depth = 1
 class StorySerializer(serializers.ModelSerializer):
     student = UserSerializer(read_only=True)
     class Meta:
@@ -277,7 +274,6 @@ class RoomSerializer(serializers.ModelSerializer):
     class Meta:
         model = Room
         fields = '__all__'
-        depth = 1 
 
 class ExpenseTypeSerializer(serializers.ModelSerializer):
     class Meta:
@@ -288,7 +284,6 @@ class ExpenseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Expense
         fields = '__all__'
-        depth = 1
 
 class StudentUpdateSerializer(serializers.ModelSerializer):
     # Parolni faqat yozish uchun (`write_only`), o'qishda ko'rinmaydi
@@ -321,19 +316,16 @@ class InformationSerializer(serializers.ModelSerializer):
     class Meta:
         model = Information
         fields = '__all__'
-        depth = 1 # Muallif (author) haqida to'liq ma'lumot ko'rish uchun
 
 class AssistantSlotSerializer(serializers.ModelSerializer):
     class Meta:
         model = AssistantSlot
         fields = '__all__'
-        depth = 1 # Assistant haqida to'liq ma'lumot ko'rsatish uchun
 
 class BookingSerializer(serializers.ModelSerializer):
     class Meta:
         model = Booking
         fields = '__all__'
-        depth = 2 # Student va Slot haqida to'liq ma'lumot ko'rsatish uchun
 
 class BookSlotSerializer(serializers.Serializer):
     slot_id = serializers.IntegerField(required=True)

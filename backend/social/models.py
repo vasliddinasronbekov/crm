@@ -266,7 +266,7 @@ class StudyGroupPost(models.Model):
         return self.likes.count()
 
     @property
-    def comment_count(self):
+    def comment_count(self) -> int:
         return self.comments.count()
 
 

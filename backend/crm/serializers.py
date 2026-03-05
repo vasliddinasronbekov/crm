@@ -18,7 +18,6 @@ class SubDepartmentSerializer(serializers.ModelSerializer):
     class Meta:
         model = SubDepartment
         fields = '__all__'
-        depth = 1 # Qaysi asosiy bo'limga tegishli ekanligini ham ko'rsatish uchun
 
 class LeadSerializer(serializers.ModelSerializer):
     # Add computed fields for frontend compatibility

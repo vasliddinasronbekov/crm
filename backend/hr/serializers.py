@@ -12,7 +12,6 @@ class SalarySerializer(serializers.ModelSerializer):
     class Meta:
         model = Salary
         fields = '__all__'
-        depth = 2 # Mentor va guruh haqida to'liq ma'lumot olish uchun
 
     def validate_mentor(self, value):
         """Ensure mentor is not null and exists"""
@@ -52,7 +51,6 @@ class TeacherSalarySerializer(serializers.ModelSerializer):
     class Meta:
         model = TeacherSalary
         fields = '__all__'
-        depth = 1 # O'qituvchi va hisoblagan xodim haqida to'liq ma'lumot ko'rsatish uchun
 
     def validate_teacher(self, value):
         """Ensure teacher is not null and exists"""

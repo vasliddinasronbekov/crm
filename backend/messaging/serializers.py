@@ -1,3 +1,5 @@
+from typing import Any
+
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
 
@@ -22,7 +24,6 @@ class SmsHistorySerializer(serializers.ModelSerializer):
     class Meta:
         model = SmsHistory
         fields = '__all__'
-        depth = 1
 
 
 class SendMessageSerializer(serializers.Serializer):
@@ -111,19 +112,19 @@ class ConversationSerializer(serializers.ModelSerializer):
             'updated_at',
         ]
 
-    def get_last_message(self, obj):
+    def get_last_message(self, obj) -> Any:
         last_message = obj.messages.order_by('-created_at').first()
         if not last_message:
             return None
         return ChatMessageSerializer(last_message, context=self.context).data
 
-    def get_last_message_at(self, obj):
+    def get_last_message_at(self, obj) -> Any:
         last_message = obj.messages.order_by('-created_at').first()
         if not last_message:
             return None
         return last_message.created_at
 
-    def get_unread_count(self, obj):
+    def get_unread_count(self, obj) -> Any:
         request = self.context.get('request')
         user = getattr(request, 'user', None)
         if not user or not user.is_authenticated:

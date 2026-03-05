@@ -250,6 +250,8 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "O'quv markazining REST API",
     "VERSION": "1.1.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Disable enum postprocessing to avoid name-collision noise in deploy checks.
+    "POSTPROCESSING_HOOKS": [],
 }
 
 # -----------------------
