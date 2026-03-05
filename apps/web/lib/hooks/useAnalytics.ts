@@ -33,6 +33,68 @@ export interface AnalyticsData {
     converted_leads: number
     lead_conversion_rate: string
   }
+  kpis?: {
+    total_students: number
+    total_teachers: number
+    total_groups: number
+    total_courses: number
+    total_branches: number
+    active_students_30d: number
+    attendance_rate_30d: number
+    excused_rate_30d: number
+    unexcused_rate_30d: number
+    avg_exam_score_30d: number
+    exam_pass_rate_30d: number
+    monthly_income: number
+    monthly_expense: number
+    monthly_net_profit: number
+    arpu_minor: number
+    student_teacher_ratio: number
+    groups_per_teacher: number
+    avg_group_size: number
+    outstanding_balance: number
+    pending_payment_amount: number
+    at_risk_students_30d: number
+    lms_completion_rate: number
+    avg_watch_minutes: number
+  }
+  trends?: Array<{
+    key: string
+    label: string
+    new_students: number
+    income: number
+    expense: number
+    net_profit: number
+    new_leads: number
+    converted_leads: number
+    attendance_rate: number
+    avg_exam_score: number
+  }>
+  distribution?: {
+    lead_status: Array<{ key: string; label: string; count: number }>
+    payment_status: Array<{ key: string; label: string; count: number; amount: number }>
+    students_by_branch: Array<{ name: string; students: number }>
+    students_by_gender: Array<{ key: string; label: string; count: number }>
+    top_courses: Array<{ course: string; students: number }>
+    attendance_status_this_month: Array<{ key: string; count: number }>
+  }
+  operations?: {
+    today_attendance: {
+      present: number
+      excused: number
+      unexcused: number
+      total: number
+    }
+    active_group_sessions_today: number
+    pending_payment_count: number
+    failed_payment_count: number
+    paid_payment_count: number
+    failed_payment_amount: number
+    unpaid_teacher_count: number
+    unpaid_teacher_amount: number
+    open_tickets: number
+    overdue_pending_payments: number
+  }
   report_generated_at: string
 }
 

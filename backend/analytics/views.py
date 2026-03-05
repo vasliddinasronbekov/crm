@@ -5,14 +5,27 @@ from rest_framework.response import Response
 from rest_framework import permissions, generics, status
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
+from datetime import timedelta
 from django.utils import timezone
 from django.db.models import Sum, Avg, Count, Q, OuterRef, Subquery, Value, IntegerField, FloatField
-from django.db.models.functions import Coalesce
+from django.db.models.functions import Coalesce, TruncMonth
 from django.core.cache import cache # Django'ning kesh tizimini import qilamiz
 
 # Ma'lumotlarni olish uchun boshqa app'lardagi modellarni import qilamiz
 from users.models import User
-from student_profile.models import Group, Payment, Expense, StudentCoins, ExamScore
+from student_profile.models import (
+    Group,
+    Payment,
+    Expense,
+    StudentCoins,
+    ExamScore,
+    Course,
+    Branch,
+    Attendance,
+    Ticket,
+    TicketStatusEnum,
+)
+from student_profile.accounting_models import StudentBalance, TeacherEarnings
 from student_profile.content_models import StudentProgress
 from crm.models import Lead
 from gamification.models import UserLevel, UserBadge, UserAchievement
@@ -25,57 +38,313 @@ class AnalyticsView(APIView):
     """
     permission_classes = [permissions.IsAdminUser]
 
+    @staticmethod
+    def _pct(part, total):
+        if not total:
+            return 0.0
+        return round((part / total) * 100, 2)
+
+    @staticmethod
+    def _shift_month(dt, offset):
+        month_index = dt.month - 1 + offset
+        year = dt.year + month_index // 12
+        month = month_index % 12 + 1
+        return dt.replace(year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0)
+
     def get(self, request, *args, **kwargs):
-        cache_key = 'full_analytics_data'
+        cache_key = 'full_analytics_data_v2'
         
-        # 1. Avval keshdan ma'lumotni qidirib ko'ramiz
         cached_data = cache.get(cache_key)
         if cached_data:
-            # Agar keshda ma'lumot bo'lsa, uni darhol va bazaga murojaat qilmasdan qaytaramiz
-            print("--- ANALITIKA MA'LUMOTI KESHDAN OLINDI! ---") # Bu qatorni test uchun qo'shdik
             return Response(cached_data)
 
-        # 2. Agar keshda ma'lumot bo'lmasa, uni odatdagidek hisoblaymiz
-        print("--- ANALITIKA MA'LUMOTI BAZADAN HISOBLANDI! ---") # Bu qatorni test uchun qo'shdik
-        
         now = timezone.now()
+        today = now.date()
         start_of_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        start_30d = today - timedelta(days=30)
+        first_trend_month = self._shift_month(start_of_month, -5)
 
-        # --- Talabalar bo'yicha umumiy statistika ---
-        total_students = User.objects.filter(is_staff=False, is_superuser=False, is_active=True).count()
-        new_students_this_month = User.objects.filter(
-            is_staff=False, is_superuser=False, is_active=True,
-            date_joined__gte=start_of_month
-        ).count()
+        active_students_qs = User.objects.filter(
+            is_teacher=False,
+            is_staff=False,
+            is_superuser=False,
+            is_active=True,
+        )
+        active_teachers_qs = User.objects.filter(is_teacher=True, is_active=True)
 
-        # --- Guruhlar bo'yicha statistika ---
+        # --- Core totals ---
+        total_students = active_students_qs.count()
+        total_teachers = active_teachers_qs.count()
         total_groups = Group.objects.count()
+        total_courses = Course.objects.count()
+        total_branches = Branch.objects.count()
 
-        # --- Shu oydagi moliya ---
-        monthly_income_agg = Payment.objects.filter(
-            date__gte=start_of_month,
-            status=Payment.PaymentStatus.PAID
-        ).aggregate(total=Sum('amount'))
-        monthly_income = monthly_income_agg.get('total') or 0
-
-        monthly_expense_agg = Expense.objects.filter(
-            date__gte=start_of_month
-        ).aggregate(total=Sum('amount'))
-        monthly_expense = monthly_expense_agg.get('total') or 0
-        
-        net_profit_this_month = monthly_income - monthly_expense
-
-        # --- Shu oydagi CRM / Lidlar statistikasi ---
+        # --- This month growth ---
+        new_students_this_month = active_students_qs.filter(date_joined__gte=start_of_month).count()
         active_leads = Lead.objects.filter(status='in_progress').count()
         new_leads_this_month = Lead.objects.filter(created_at__gte=start_of_month).count()
         converted_leads_this_month = Lead.objects.filter(
             created_at__gte=start_of_month,
-            status='converted'
+            status='converted',
         ).count()
-        
-        lead_conversion_rate_this_month = (converted_leads_this_month / new_leads_this_month * 100) if new_leads_this_month > 0 else 0
+        lead_conversion_rate_this_month = self._pct(converted_leads_this_month, new_leads_this_month)
 
-        # --- Yakuniy javobni tayyorlash ---
+        # --- Financial ---
+        monthly_income_agg = Payment.objects.filter(
+            date__gte=start_of_month,
+            status=Payment.PaymentStatus.PAID,
+        ).aggregate(total=Sum('amount'))
+        monthly_income = monthly_income_agg.get('total') or 0
+
+        monthly_expense_agg = Expense.objects.filter(
+            date__gte=start_of_month,
+        ).aggregate(total=Sum('amount'))
+        monthly_expense = monthly_expense_agg.get('total') or 0
+
+        net_profit_this_month = monthly_income - monthly_expense
+        pending_payment_amount = Payment.objects.filter(
+            status=Payment.PaymentStatus.PENDING
+        ).aggregate(total=Sum('amount')).get('total') or 0
+        failed_payment_amount = Payment.objects.filter(
+            status=Payment.PaymentStatus.FAILED
+        ).aggregate(total=Sum('amount')).get('total') or 0
+        pending_payment_count = Payment.objects.filter(status=Payment.PaymentStatus.PENDING).count()
+        failed_payment_count = Payment.objects.filter(status=Payment.PaymentStatus.FAILED).count()
+        paid_payment_count = Payment.objects.filter(status=Payment.PaymentStatus.PAID).count()
+
+        # Prefer accounting balances for receivables if available.
+        outstanding_balance = StudentBalance.objects.filter(balance__gt=0).aggregate(
+            total=Sum('balance')
+        ).get('total') or pending_payment_amount
+
+        # --- Learning quality ---
+        attendance_30d = Attendance.objects.filter(date__gte=start_30d)
+        attendance_total_30d = attendance_30d.count()
+        attendance_present_30d = attendance_30d.filter(attendance_status=Attendance.STATUS_PRESENT).count()
+        attendance_excused_30d = attendance_30d.filter(attendance_status=Attendance.STATUS_ABSENCE_EXCUSED).count()
+        attendance_unexcused_30d = attendance_30d.filter(
+            attendance_status=Attendance.STATUS_ABSENT_UNEXCUSED
+        ).count()
+
+        attendance_rate_30d = self._pct(attendance_present_30d, attendance_total_30d)
+        excused_rate_30d = self._pct(attendance_excused_30d, attendance_total_30d)
+        unexcused_rate_30d = self._pct(attendance_unexcused_30d, attendance_total_30d)
+
+        exam_30d = ExamScore.objects.filter(date__gte=start_30d)
+        avg_exam_score_30d = round(float(exam_30d.aggregate(avg=Avg('score')).get('avg') or 0), 2)
+        pass_rate_30d = self._pct(exam_30d.filter(score__gte=60).count(), exam_30d.count())
+
+        active_students_30d = active_students_qs.filter(
+            Q(attendances__date__gte=start_30d)
+            | Q(course_progress__last_accessed__gte=start_30d)
+            | Q(made_payments__date__gte=start_30d)
+        ).distinct().count()
+
+        at_risk_students_30d = Attendance.objects.filter(
+            date__gte=start_30d,
+            attendance_status=Attendance.STATUS_ABSENT_UNEXCUSED,
+        ).values('student_id').annotate(missed=Count('id')).filter(missed__gte=3).count()
+
+        lms_started_records = StudentProgress.objects.filter(is_started=True).count()
+        lms_completed_records = StudentProgress.objects.filter(is_completed=True).count()
+        lms_completion_rate = self._pct(lms_completed_records, lms_started_records)
+        avg_watch_minutes = round(
+            float(
+                StudentProgress.objects.aggregate(avg=Avg('total_watch_time_seconds')).get('avg') or 0
+            ) / 60,
+            1,
+        )
+
+        # --- Workforce and operational ---
+        avg_group_size = Group.objects.annotate(student_count=Count('students', distinct=True)).aggregate(
+            avg=Avg('student_count')
+        ).get('avg') or 0
+
+        student_teacher_ratio = round(total_students / total_teachers, 2) if total_teachers else 0
+        groups_per_teacher = round(total_groups / total_teachers, 2) if total_teachers else 0
+        arpu_minor = int(monthly_income / total_students) if total_students else 0
+
+        unpaid_teacher_count = TeacherEarnings.objects.filter(
+            is_paid_to_teacher=False
+        ).values('teacher_id').distinct().count()
+        unpaid_teacher_amount = TeacherEarnings.objects.filter(
+            is_paid_to_teacher=False
+        ).aggregate(total=Sum('amount')).get('total') or 0
+
+        today_attendance = Attendance.objects.filter(date=today)
+        today_present = today_attendance.filter(attendance_status=Attendance.STATUS_PRESENT).count()
+        today_excused = today_attendance.filter(attendance_status=Attendance.STATUS_ABSENCE_EXCUSED).count()
+        today_unexcused = today_attendance.filter(
+            attendance_status=Attendance.STATUS_ABSENT_UNEXCUSED
+        ).count()
+
+        active_group_sessions_today = Group.objects.filter(
+            start_day__lte=today,
+            end_day__gte=today,
+        ).count()
+        open_tickets = Ticket.objects.filter(status=TicketStatusEnum.ACTIVE).count()
+        overdue_pending_payments = Payment.objects.filter(
+            status=Payment.PaymentStatus.PENDING,
+            date__lt=today - timedelta(days=30),
+        ).count()
+
+        # --- Trend series (last 6 months) ---
+        trend_months = [self._shift_month(start_of_month, offset) for offset in range(-5, 1)]
+        trend_index = {}
+        for month_dt in trend_months:
+            month_key = month_dt.strftime('%Y-%m')
+            trend_index[month_key] = {
+                'key': month_key,
+                'label': month_dt.strftime('%b %Y'),
+                'new_students': 0,
+                'income': 0,
+                'expense': 0,
+                'net_profit': 0,
+                'new_leads': 0,
+                'converted_leads': 0,
+                'attendance_rate': 0.0,
+                'avg_exam_score': 0.0,
+            }
+
+        student_growth = active_students_qs.filter(date_joined__gte=first_trend_month).annotate(
+            month=TruncMonth('date_joined')
+        ).values('month').annotate(total=Count('id'))
+        for row in student_growth:
+            key = row['month'].strftime('%Y-%m')
+            if key in trend_index:
+                trend_index[key]['new_students'] = int(row['total'] or 0)
+
+        trend_start_date = first_trend_month.date()
+
+        income_series = Payment.objects.filter(
+            date__gte=trend_start_date,
+            status=Payment.PaymentStatus.PAID,
+        ).annotate(month=TruncMonth('date')).values('month').annotate(total=Sum('amount'))
+        for row in income_series:
+            key = row['month'].strftime('%Y-%m')
+            if key in trend_index:
+                trend_index[key]['income'] = int(row['total'] or 0)
+
+        expense_series = Expense.objects.filter(
+            date__gte=trend_start_date
+        ).annotate(month=TruncMonth('date')).values('month').annotate(total=Sum('amount'))
+        for row in expense_series:
+            key = row['month'].strftime('%Y-%m')
+            if key in trend_index:
+                trend_index[key]['expense'] = int(row['total'] or 0)
+
+        leads_series = Lead.objects.filter(created_at__gte=first_trend_month).annotate(
+            month=TruncMonth('created_at')
+        ).values('month').annotate(
+            new_leads=Count('id'),
+            converted=Count('id', filter=Q(status='converted')),
+        )
+        for row in leads_series:
+            key = row['month'].strftime('%Y-%m')
+            if key in trend_index:
+                trend_index[key]['new_leads'] = int(row['new_leads'] or 0)
+                trend_index[key]['converted_leads'] = int(row['converted'] or 0)
+
+        attendance_series = Attendance.objects.filter(date__gte=trend_start_date).annotate(
+            month=TruncMonth('date')
+        ).values('month').annotate(
+            total=Count('id'),
+            present=Count('id', filter=Q(attendance_status=Attendance.STATUS_PRESENT)),
+        )
+        for row in attendance_series:
+            key = row['month'].strftime('%Y-%m')
+            if key in trend_index:
+                trend_index[key]['attendance_rate'] = self._pct(row['present'] or 0, row['total'] or 0)
+
+        exam_series = ExamScore.objects.filter(date__gte=trend_start_date).annotate(
+            month=TruncMonth('date')
+        ).values('month').annotate(avg=Avg('score'))
+        for row in exam_series:
+            key = row['month'].strftime('%Y-%m')
+            if key in trend_index:
+                trend_index[key]['avg_exam_score'] = round(float(row['avg'] or 0), 2)
+
+        trends = []
+        for month in trend_months:
+            key = month.strftime('%Y-%m')
+            item = trend_index[key]
+            item['net_profit'] = int(item['income'] - item['expense'])
+            trends.append(item)
+
+        # --- Distributions ---
+        lead_status_labels = dict(Lead.STATUS_CHOICES)
+        lead_status_distribution = [
+            {
+                'key': row['status'],
+                'label': lead_status_labels.get(row['status'], row['status']),
+                'count': row['count'],
+            }
+            for row in Lead.objects.values('status').annotate(count=Count('id')).order_by('-count')
+        ]
+
+        payment_status_labels = dict(Payment.PaymentStatus.choices)
+        payment_status_distribution = [
+            {
+                'key': row['status'],
+                'label': payment_status_labels.get(row['status'], row['status']),
+                'count': row['count'],
+                'amount': int(row['amount'] or 0),
+            }
+            for row in Payment.objects.values('status').annotate(
+                count=Count('id'),
+                amount=Sum('amount'),
+            ).order_by('-amount')
+        ]
+
+        students_by_branch = [
+            {
+                'name': row['name'],
+                'students': row['students'],
+            }
+            for row in Branch.objects.annotate(
+                students=Count(
+                    'staff',
+                    filter=Q(
+                        staff__is_teacher=False,
+                        staff__is_staff=False,
+                        staff__is_active=True,
+                    ),
+                    distinct=True,
+                )
+            ).values('name', 'students').order_by('-students')[:8]
+        ]
+
+        gender_labels = dict(User._meta.get_field('gender').choices)
+        students_by_gender = [
+            {
+                'key': row['gender'] or 'unknown',
+                'label': gender_labels.get(row['gender'], 'Unknown'),
+                'count': row['count'],
+            }
+            for row in active_students_qs.values('gender').annotate(count=Count('id')).order_by('-count')
+        ]
+
+        top_courses = [
+            {
+                'course': row['name'],
+                'students': row['students'],
+            }
+            for row in Course.objects.annotate(
+                students=Count('groups__students', distinct=True),
+            ).values('name', 'students').order_by('-students')[:8]
+        ]
+
+        attendance_status_distribution = [
+            {
+                'key': row['attendance_status'],
+                'count': row['count'],
+            }
+            for row in Attendance.objects.filter(date__gte=start_of_month).values(
+                'attendance_status'
+            ).annotate(count=Count('id')).order_by('-count')
+        ]
+
+        # --- Final payload ---
         data = {
             'general': {
                 'total_active_students': total_students,
@@ -84,23 +353,71 @@ class AnalyticsView(APIView):
             },
             'this_month': {
                 'new_students': new_students_this_month,
-                'income': monthly_income, # Eslatma: bu summa tiyinlarda
+                'income': monthly_income,  # minor units (tiyin)
                 'expense': monthly_expense,
                 'net_profit': net_profit_this_month,
                 'new_leads': new_leads_this_month,
                 'converted_leads': converted_leads_this_month,
                 'lead_conversion_rate': f"{lead_conversion_rate_this_month:.2f}%",
             },
-            'report_generated_at': now
+            'kpis': {
+                'total_students': total_students,
+                'total_teachers': total_teachers,
+                'total_groups': total_groups,
+                'total_courses': total_courses,
+                'total_branches': total_branches,
+                'active_students_30d': active_students_30d,
+                'attendance_rate_30d': attendance_rate_30d,
+                'excused_rate_30d': excused_rate_30d,
+                'unexcused_rate_30d': unexcused_rate_30d,
+                'avg_exam_score_30d': avg_exam_score_30d,
+                'exam_pass_rate_30d': pass_rate_30d,
+                'monthly_income': monthly_income,
+                'monthly_expense': monthly_expense,
+                'monthly_net_profit': net_profit_this_month,
+                'arpu_minor': arpu_minor,
+                'student_teacher_ratio': student_teacher_ratio,
+                'groups_per_teacher': groups_per_teacher,
+                'avg_group_size': round(float(avg_group_size), 2),
+                'outstanding_balance': int(outstanding_balance),
+                'pending_payment_amount': int(pending_payment_amount),
+                'at_risk_students_30d': at_risk_students_30d,
+                'lms_completion_rate': lms_completion_rate,
+                'avg_watch_minutes': avg_watch_minutes,
+            },
+            'trends': trends,
+            'distribution': {
+                'lead_status': lead_status_distribution,
+                'payment_status': payment_status_distribution,
+                'students_by_branch': students_by_branch,
+                'students_by_gender': students_by_gender,
+                'top_courses': top_courses,
+                'attendance_status_this_month': attendance_status_distribution,
+            },
+            'operations': {
+                'today_attendance': {
+                    'present': today_present,
+                    'excused': today_excused,
+                    'unexcused': today_unexcused,
+                    'total': today_present + today_excused + today_unexcused,
+                },
+                'active_group_sessions_today': active_group_sessions_today,
+                'pending_payment_count': pending_payment_count,
+                'failed_payment_count': failed_payment_count,
+                'paid_payment_count': paid_payment_count,
+                'failed_payment_amount': int(failed_payment_amount),
+                'unpaid_teacher_count': unpaid_teacher_count,
+                'unpaid_teacher_amount': int(unpaid_teacher_amount),
+                'open_tickets': open_tickets,
+                'overdue_pending_payments': overdue_pending_payments,
+            },
+            'report_generated_at': now,
         }
 
-        # 3. Natijani keyingi safar uchun keshga saqlaymiz (15 daqiqa)
         cache.set(cache_key, data, timeout=60 * 15)
-
         return Response(data)
 from .serializers import LeaderboardSerializer, ReportSerializer # Yangi serializer'ni import qilamiz
 from django.utils.timezone import now
-from datetime import timedelta
 
 @extend_schema(responses=OpenApiTypes.OBJECT)
 class DashboardStatsView(APIView):

@@ -1,15 +1,28 @@
 'use client'
 
-import { useState } from 'react'
-import { useAuth } from '@/contexts/AuthContext'
-import { useSettings } from '@/contexts/SettingsContext'
-import { useRouter } from 'next/navigation'
-import toast from '@/lib/toast'
+import { useMemo, useState } from 'react'
 import {
-  BarChart3, TrendingUp, Users, GraduationCap, DollarSign,
-  Calendar, Download, RefreshCw, FileText, Activity,
-  Award, BookOpen, Target, Filter, ChevronDown, Loader2
+  Activity,
+  AlertTriangle,
+  BarChart3,
+  BookOpen,
+  Building2,
+  CheckCircle2,
+  Clock3,
+  DollarSign,
+  Download,
+  FileText,
+  GraduationCap,
+  Loader2,
+  RefreshCw,
+  Target,
+  TrendingDown,
+  TrendingUp,
+  Trophy,
+  Users,
+  Wallet,
 } from 'lucide-react'
+import toast from '@/lib/toast'
 import {
   useDashboardStats,
   useAnalytics,
@@ -18,55 +31,127 @@ import {
   useRefreshAnalytics,
   Report,
 } from '@/lib/hooks/useAnalytics'
+import { useGetLeaderboard } from '@/lib/hooks/useLeaderboard'
+import { useSettings } from '@/contexts/SettingsContext'
+
+type TabKey = 'overview' | 'reports'
+
+function percent(value: number): string {
+  return `${value.toFixed(1)}%`
+}
+
+function clampWidth(value: number, max: number): number {
+  if (max <= 0) return 0
+  return Math.min(100, Math.max(0, (value / max) * 100))
+}
+
+function getStatusClass(isGood: boolean): string {
+  return isGood
+    ? 'bg-success/10 text-success border-success/20'
+    : 'bg-warning/10 text-warning border-warning/20'
+}
 
 export default function AnalyticsPage() {
-  const { user, isLoading: authLoading } = useAuth()
-  const { formatCurrencyFromMinor, formatCurrency } = useSettings()
-  const router = useRouter()
+  const { formatCurrencyFromMinor } = useSettings()
 
-  // React Query hooks - automatic caching, loading, and error states
   const { data: dashboardStats, isLoading: statsLoading } = useDashboardStats()
   const { data: analytics, isLoading: analyticsLoading } = useAnalytics()
-  const { data: reportsData = { results: [], count: 0, next: null, previous: null }, isLoading: reportsLoading } = useReports()
+  const {
+    data: reportsData = { results: [], count: 0, next: null, previous: null },
+    isLoading: reportsLoading,
+  } = useReports()
+  const { data: topStudents = [], isLoading: leaderboardLoading } = useGetLeaderboard({
+    metric: 'score',
+    filter: 'top10',
+  })
+
   const generateReport = useGenerateReport()
   const refreshAnalytics = useRefreshAnalytics()
 
-  // Loading state
   const loading = statsLoading || analyticsLoading || reportsLoading
 
-  // Local UI state
-  const [activeTab, setActiveTab] = useState<'overview' | 'reports'>('overview')
-
-  // Report generation form
+  const [activeTab, setActiveTab] = useState<TabKey>('overview')
   const [reportType, setReportType] = useState('student-performance')
   const [reportPeriod, setReportPeriod] = useState('month')
   const [selectedReport, setSelectedReport] = useState<Report | null>(null)
 
-  const handleGenerateReport = async () => {
+  const trends = useMemo(() => analytics?.trends ?? [], [analytics?.trends])
+  const leadDistribution = useMemo(
+    () => analytics?.distribution?.lead_status ?? [],
+    [analytics?.distribution?.lead_status]
+  )
+  const paymentDistribution = useMemo(
+    () => analytics?.distribution?.payment_status ?? [],
+    [analytics?.distribution?.payment_status]
+  )
+  const branchDistribution = useMemo(
+    () => analytics?.distribution?.students_by_branch ?? [],
+    [analytics?.distribution?.students_by_branch]
+  )
+  const topCourses = useMemo(
+    () => analytics?.distribution?.top_courses ?? [],
+    [analytics?.distribution?.top_courses]
+  )
+
+  const maxTrendAmount = useMemo(
+    () =>
+      Math.max(
+        1,
+        ...trends.map((row) => Math.max(row.income, row.expense, Math.abs(row.net_profit), 1))
+      ),
+    [trends]
+  )
+
+  const maxLeadCount = useMemo(
+    () => Math.max(1, ...leadDistribution.map((row) => row.count || 0)),
+    [leadDistribution]
+  )
+
+  const maxBranchStudents = useMemo(
+    () => Math.max(1, ...branchDistribution.map((row) => row.students || 0)),
+    [branchDistribution]
+  )
+
+  const maxCourseStudents = useMemo(
+    () => Math.max(1, ...topCourses.map((row) => row.students || 0)),
+    [topCourses]
+  )
+
+  const paymentTotalAmount = useMemo(
+    () => paymentDistribution.reduce((sum, row) => sum + (row.amount || 0), 0),
+    [paymentDistribution]
+  )
+
+  const kpis = analytics?.kpis
+  const operations = analytics?.operations
+
+  const conversionRate = Number.parseFloat(
+    (analytics?.this_month.lead_conversion_rate || '0').replace('%', '')
+  )
+
+  const handleRefresh = () => {
+    refreshAnalytics()
+    toast.success('Analytics refreshed')
+  }
+
+  const handleGenerateReport = () => {
     generateReport.mutate(
       {
         reportType,
         options: { period: reportPeriod },
       },
       {
-        onSuccess: (report) => {
-          setSelectedReport(report)
-        },
+        onSuccess: (report) => setSelectedReport(report),
       }
     )
   }
 
-  const handleRefresh = () => {
-    refreshAnalytics()
-    toast.success('Data refreshed')
-  }
-
-  if (authLoading || loading) {
+  if (loading) {
     return (
       <div className="flex items-center justify-center h-screen">
         <div className="text-center">
-          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
-          <p className="mt-4 text-text-secondary">Loading analytics...</p>
+          <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-primary" />
+          <p className="mt-4 text-text-secondary">Loading analytics dashboard...</p>
         </div>
       </div>
     )
@@ -74,173 +159,31 @@ export default function AnalyticsPage() {
 
   return (
     <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex items-center justify-between">
-            <div>
-              <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
-                <BarChart3 className="h-8 w-8 text-primary" />
-                Analytics & Reports
-              </h1>
-              <p className="text-text-secondary">Track performance and generate detailed reports</p>
-            </div>
-            <button
-              onClick={handleRefresh}
-              className="px-4 py-2 bg-surface border border-border rounded-xl hover:bg-border/50 transition-colors flex items-center gap-2 font-medium"
-            >
-              <RefreshCw className="h-5 w-5" />
-              Refresh
-            </button>
+      <div className="max-w-7xl mx-auto space-y-6">
+        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+          <div>
+            <h1 className="text-3xl font-bold flex items-center gap-3">
+              <BarChart3 className="h-8 w-8 text-primary" />
+              EdTech Analytics Intelligence
+            </h1>
+            <p className="text-text-secondary mt-1">
+              Enrollment, learning quality, finance, CRM, and operations in one production dashboard.
+            </p>
           </div>
+
+          <button
+            onClick={handleRefresh}
+            className="px-4 py-2 bg-surface border border-border rounded-xl hover:bg-border/50 transition-colors flex items-center gap-2 font-medium"
+          >
+            <RefreshCw className="h-5 w-5" />
+            Refresh Data
+          </button>
         </div>
 
-        {/* Overview Statistics Cards */}
-        {dashboardStats && (
-          <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
-              <div className="flex items-center justify-between mb-4">
-                <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
-                  <Users className="h-6 w-6 text-primary" />
-                </div>
-                <TrendingUp className="h-5 w-5 text-success" />
-              </div>
-              <p className="text-3xl font-bold mb-1">{dashboardStats.total_students}</p>
-              <p className="text-sm text-text-secondary">Total Students</p>
-            </div>
-
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
-              <div className="flex items-center justify-between mb-4">
-                <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
-                  <GraduationCap className="h-6 w-6 text-success" />
-                </div>
-                <span className="text-xs text-text-secondary">Active</span>
-              </div>
-              <p className="text-3xl font-bold mb-1">{dashboardStats.total_teachers}</p>
-              <p className="text-sm text-text-secondary">Total Teachers</p>
-            </div>
-
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
-              <div className="flex items-center justify-between mb-4">
-                <div className="h-12 w-12 rounded-xl bg-info/10 flex items-center justify-center">
-                  <BookOpen className="h-6 w-6 text-info" />
-                </div>
-                <span className="text-xs text-text-secondary">Running</span>
-              </div>
-              <p className="text-3xl font-bold mb-1">{dashboardStats.total_groups}</p>
-              <p className="text-sm text-text-secondary">Total Groups</p>
-            </div>
-
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
-              <div className="flex items-center justify-between mb-4">
-                <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center">
-                  <Award className="h-6 w-6 text-warning" />
-                </div>
-                <span className="text-xs text-text-secondary">Available</span>
-              </div>
-              <p className="text-3xl font-bold mb-1">{dashboardStats.active_courses}</p>
-              <p className="text-sm text-text-secondary">Active Courses</p>
-            </div>
-
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
-              <div className="flex items-center justify-between mb-4">
-                <div className="h-12 w-12 rounded-xl bg-error/10 flex items-center justify-center">
-                  <Target className="h-6 w-6 text-error" />
-                </div>
-                <span className="text-xs text-text-secondary">Pending</span>
-              </div>
-              <p className="text-3xl font-bold mb-1">{dashboardStats.pending_tasks}</p>
-              <p className="text-sm text-text-secondary">Pending Tasks</p>
-            </div>
-          </div>
-        )}
-
-        {/* Monthly Analytics */}
-        {analytics && (
-          <div className="bg-surface p-6 rounded-2xl border border-border mb-8">
-            <h2 className="text-xl font-bold mb-6 flex items-center gap-2">
-              <Calendar className="h-6 w-6 text-primary" />
-              This Month&apos;s Performance
-            </h2>
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
-              <div className="p-4 bg-background rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-text-secondary text-sm">New Students</p>
-                  <Users className="h-5 w-5 text-primary" />
-                </div>
-                <p className="text-2xl font-bold">{analytics.this_month.new_students}</p>
-                <p className="text-xs text-success mt-1">+{analytics.this_month.new_students} joined</p>
-              </div>
-
-              <div className="p-4 bg-background rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-text-secondary text-sm">Income</p>
-                  <DollarSign className="h-5 w-5 text-success" />
-                </div>
-                <p className="text-2xl font-bold">{formatCurrencyFromMinor(analytics.this_month.income)}</p>
-                <p className="text-xs text-text-secondary mt-1">Total revenue</p>
-              </div>
-
-              <div className="p-4 bg-background rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-text-secondary text-sm">Expenses</p>
-                  <TrendingUp className="h-5 w-5 text-error" />
-                </div>
-                <p className="text-2xl font-bold">{formatCurrencyFromMinor(analytics.this_month.expense)}</p>
-                <p className="text-xs text-text-secondary mt-1">Total spent</p>
-              </div>
-
-              <div className="p-4 bg-background rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-text-secondary text-sm">Net Profit</p>
-                  <Activity className="h-5 w-5 text-info" />
-                </div>
-                <p className="text-2xl font-bold">{formatCurrencyFromMinor(analytics.this_month.net_profit)}</p>
-                <p className="text-xs text-success mt-1">
-                  {analytics.this_month.net_profit > 0 ? '+' : ''}{((analytics.this_month.net_profit / analytics.this_month.income) * 100).toFixed(1)}%
-                </p>
-              </div>
-            </div>
-
-            {/* CRM Stats */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-              <div className="p-4 bg-background rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-text-secondary text-sm">Active Leads</p>
-                  <Target className="h-5 w-5 text-warning" />
-                </div>
-                <p className="text-2xl font-bold">{analytics.general.active_leads}</p>
-                <p className="text-xs text-text-secondary mt-1">In progress</p>
-              </div>
-
-              <div className="p-4 bg-background rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-text-secondary text-sm">New Leads</p>
-                  <Users className="h-5 w-5 text-info" />
-                </div>
-                <p className="text-2xl font-bold">{analytics.this_month.new_leads}</p>
-                <p className="text-xs text-text-secondary mt-1">This month</p>
-              </div>
-
-              <div className="p-4 bg-background rounded-xl">
-                <div className="flex items-center justify-between mb-2">
-                  <p className="text-text-secondary text-sm">Conversion Rate</p>
-                  <TrendingUp className="h-5 w-5 text-success" />
-                </div>
-                <p className="text-2xl font-bold">{analytics.this_month.lead_conversion_rate}</p>
-                <p className="text-xs text-success mt-1">
-                  {analytics.this_month.converted_leads} converted
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Tabs */}
-        <div className="flex gap-2 mb-6 border-b border-border">
+        <div className="flex gap-2 border-b border-border">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-6 py-3 font-medium transition-colors border-b-2 ${
+            className={`px-5 py-3 border-b-2 transition-colors ${
               activeTab === 'overview'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-text-secondary hover:text-text-primary'
@@ -251,7 +194,7 @@ export default function AnalyticsPage() {
           </button>
           <button
             onClick={() => setActiveTab('reports')}
-            className={`px-6 py-3 font-medium transition-colors border-b-2 ${
+            className={`px-5 py-3 border-b-2 transition-colors ${
               activeTab === 'reports'
                 ? 'border-primary text-primary'
                 : 'border-transparent text-text-secondary hover:text-text-primary'
@@ -262,230 +205,399 @@ export default function AnalyticsPage() {
           </button>
         </div>
 
-        {/* Overview Tab */}
         {activeTab === 'overview' && (
-          <div>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Quick Stats */}
-              <div className="bg-surface p-6 rounded-2xl border border-border">
-                <h3 className="text-lg font-bold mb-4">Quick Statistics</h3>
+          <>
+            <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <Users className="h-5 w-5 text-primary" />
+                  <span className="text-xs text-text-secondary">Total</span>
+                </div>
+                <p className="text-3xl font-bold">{kpis?.total_students ?? dashboardStats?.total_students ?? 0}</p>
+                <p className="text-sm text-text-secondary">Students</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <Activity className="h-5 w-5 text-success" />
+                  <span className={`text-xs px-2 py-1 rounded-full border ${getStatusClass((kpis?.active_students_30d || 0) > 0)}`}>
+                    30d
+                  </span>
+                </div>
+                <p className="text-3xl font-bold">{kpis?.active_students_30d ?? 0}</p>
+                <p className="text-sm text-text-secondary">Active Students</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <Wallet className="h-5 w-5 text-info" />
+                  <TrendingUp className="h-4 w-4 text-success" />
+                </div>
+                <p className="text-2xl font-bold">{formatCurrencyFromMinor(kpis?.monthly_income ?? analytics?.this_month.income ?? 0)}</p>
+                <p className="text-sm text-text-secondary">Monthly Revenue</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <DollarSign className="h-5 w-5 text-primary" />
+                  {(kpis?.monthly_net_profit ?? analytics?.this_month.net_profit ?? 0) >= 0 ? (
+                    <TrendingUp className="h-4 w-4 text-success" />
+                  ) : (
+                    <TrendingDown className="h-4 w-4 text-error" />
+                  )}
+                </div>
+                <p className="text-2xl font-bold">{formatCurrencyFromMinor(kpis?.monthly_net_profit ?? analytics?.this_month.net_profit ?? 0)}</p>
+                <p className="text-sm text-text-secondary">Net Profit</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <GraduationCap className="h-5 w-5 text-warning" />
+                  <span className="text-xs text-text-secondary">30d</span>
+                </div>
+                <p className="text-3xl font-bold">{percent(kpis?.attendance_rate_30d ?? 0)}</p>
+                <p className="text-sm text-text-secondary">Attendance Rate</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <Target className="h-5 w-5 text-success" />
+                  <span className="text-xs text-text-secondary">30d</span>
+                </div>
+                <p className="text-3xl font-bold">{percent(kpis?.exam_pass_rate_30d ?? 0)}</p>
+                <p className="text-sm text-text-secondary">Exam Pass Rate</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  <span className="text-xs text-text-secondary">LMS</span>
+                </div>
+                <p className="text-3xl font-bold">{percent(kpis?.lms_completion_rate ?? 0)}</p>
+                <p className="text-sm text-text-secondary">Completion Rate</p>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-5">
+                <div className="flex items-center justify-between mb-3">
+                  <AlertTriangle className="h-5 w-5 text-error" />
+                  <span className="text-xs text-text-secondary">Risk</span>
+                </div>
+                <p className="text-3xl font-bold">{kpis?.at_risk_students_30d ?? 0}</p>
+                <p className="text-sm text-text-secondary">At-Risk Students</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
+              <div className="lg:col-span-4 bg-surface border border-border rounded-2xl p-6">
+                <div className="flex items-center justify-between mb-5">
+                  <h2 className="text-lg font-bold">6-Month Financial Trend</h2>
+                  <p className="text-sm text-text-secondary">Revenue vs Expense vs Net</p>
+                </div>
+
+                {trends.length > 0 ? (
+                  <div className="grid grid-cols-6 gap-3 h-64 items-end">
+                    {trends.map((row) => {
+                      const incomeHeight = clampWidth(row.income, maxTrendAmount)
+                      const expenseHeight = clampWidth(row.expense, maxTrendAmount)
+                      const profitHeight = clampWidth(Math.abs(row.net_profit), maxTrendAmount)
+                      const profitColor = row.net_profit >= 0 ? 'bg-primary' : 'bg-error'
+
+                      return (
+                        <div key={row.key} className="flex flex-col items-center gap-2">
+                          <div className="w-full h-44 flex items-end justify-center gap-1">
+                            <div className="w-3 rounded-t bg-success" style={{ height: `${incomeHeight}%` }} title={`Income: ${formatCurrencyFromMinor(row.income)}`} />
+                            <div className="w-3 rounded-t bg-warning" style={{ height: `${expenseHeight}%` }} title={`Expense: ${formatCurrencyFromMinor(row.expense)}`} />
+                            <div className={`w-3 rounded-t ${profitColor}`} style={{ height: `${profitHeight}%` }} title={`Net: ${formatCurrencyFromMinor(row.net_profit)}`} />
+                          </div>
+                          <p className="text-xs text-text-secondary">{row.label.split(' ')[0]}</p>
+                        </div>
+                      )
+                    })}
+                  </div>
+                ) : (
+                  <div className="h-64 flex items-center justify-center text-text-secondary">No trend data available.</div>
+                )}
+
+                <div className="flex flex-wrap gap-4 mt-4 text-xs text-text-secondary">
+                  <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-success" /> Revenue</span>
+                  <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-warning" /> Expense</span>
+                  <span className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-primary" /> Net Profit</span>
+                </div>
+              </div>
+
+              <div className="lg:col-span-3 bg-surface border border-border rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-5">Learning Quality</h2>
                 <div className="space-y-4">
-                  <div className="flex items-center justify-between p-4 bg-background rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-primary/10 flex items-center justify-center">
-                        <Users className="h-5 w-5 text-primary" />
-                      </div>
-                      <span className="font-medium">Active Students</span>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-text-secondary">Attendance (30d)</span>
+                      <span className="font-semibold">{percent(kpis?.attendance_rate_30d ?? 0)}</span>
                     </div>
-                    <span className="text-xl font-bold">{analytics?.general.total_active_students || 0}</span>
+                    <div className="h-2 bg-background rounded-full overflow-hidden">
+                      <div className="h-full bg-success" style={{ width: `${kpis?.attendance_rate_30d ?? 0}%` }} />
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-background rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-success/10 flex items-center justify-center">
-                        <BookOpen className="h-5 w-5 text-success" />
-                      </div>
-                      <span className="font-medium">Total Groups</span>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-text-secondary">Exam Pass Rate (30d)</span>
+                      <span className="font-semibold">{percent(kpis?.exam_pass_rate_30d ?? 0)}</span>
                     </div>
-                    <span className="text-xl font-bold">{analytics?.general.total_groups || 0}</span>
+                    <div className="h-2 bg-background rounded-full overflow-hidden">
+                      <div className="h-full bg-primary" style={{ width: `${kpis?.exam_pass_rate_30d ?? 0}%` }} />
+                    </div>
                   </div>
 
-                  <div className="flex items-center justify-between p-4 bg-background rounded-xl">
-                    <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-lg bg-warning/10 flex items-center justify-center">
-                        <Award className="h-5 w-5 text-warning" />
-                      </div>
-                      <span className="font-medium">Active Courses</span>
+                  <div>
+                    <div className="flex justify-between text-sm mb-1">
+                      <span className="text-text-secondary">LMS Completion</span>
+                      <span className="font-semibold">{percent(kpis?.lms_completion_rate ?? 0)}</span>
                     </div>
-                    <span className="text-xl font-bold">{dashboardStats?.active_courses || 0}</span>
+                    <div className="h-2 bg-background rounded-full overflow-hidden">
+                      <div className="h-full bg-info" style={{ width: `${kpis?.lms_completion_rate ?? 0}%` }} />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-3 pt-2">
+                    <div className="p-3 rounded-xl bg-background">
+                      <p className="text-xs text-text-secondary mb-1">Avg Exam Score (30d)</p>
+                      <p className="text-xl font-bold">{kpis?.avg_exam_score_30d ?? 0}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-background">
+                      <p className="text-xs text-text-secondary mb-1">Avg Watch Time</p>
+                      <p className="text-xl font-bold">{kpis?.avg_watch_minutes ?? 0}m</p>
+                    </div>
+                  </div>
+
+                  <div className="p-3 rounded-xl border border-border bg-background flex items-center justify-between">
+                    <span className="text-sm text-text-secondary">Student / Teacher Ratio</span>
+                    <span className="font-bold">{kpis?.student_teacher_ratio ?? 0}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="lg:col-span-2 bg-surface border border-border rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-5">Lead Funnel & Conversion</h2>
+                <div className="space-y-4">
+                  {leadDistribution.length > 0 ? (
+                    leadDistribution.map((row) => (
+                      <div key={row.key}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-text-secondary">{row.label}</span>
+                          <span className="font-semibold">{row.count}</span>
+                        </div>
+                        <div className="h-2 bg-background rounded-full overflow-hidden">
+                          <div className="h-full bg-primary" style={{ width: `${clampWidth(row.count, maxLeadCount)}%` }} />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-text-secondary text-sm">No lead funnel data.</p>
+                  )}
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-border">
+                    <div className="p-3 rounded-xl bg-background">
+                      <p className="text-xs text-text-secondary mb-1">New Leads</p>
+                      <p className="text-xl font-bold">{analytics?.this_month.new_leads ?? 0}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-background">
+                      <p className="text-xs text-text-secondary mb-1">Converted Leads</p>
+                      <p className="text-xl font-bold">{analytics?.this_month.converted_leads ?? 0}</p>
+                    </div>
+                    <div className="p-3 rounded-xl bg-background">
+                      <p className="text-xs text-text-secondary mb-1">Conversion Rate</p>
+                      <p className="text-xl font-bold text-success">{conversionRate.toFixed(1)}%</p>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Revenue Trends Chart */}
-              <div className="bg-surface p-6 rounded-2xl border border-border">
-                <h3 className="text-lg font-bold mb-4">Revenue Trends</h3>
-                {analytics && (
-                  <div className="space-y-4">
-                    {/* Monthly Revenue */}
-                    <div>
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-text-secondary font-medium">This Month</span>
-                        <span className="font-bold text-success">{formatCurrencyFromMinor(analytics.this_month.income)}</span>
-                      </div>
-                      <div className="w-full bg-background rounded-full h-3 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-success to-success/80 rounded-full"
-                          style={{ width: '85%' }}
-                        />
-                      </div>
-                    </div>
+              <div className="bg-surface border border-border rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-5">Collection Health</h2>
+                <div className="space-y-3">
+                  <div className="p-3 rounded-xl bg-background">
+                    <p className="text-xs text-text-secondary mb-1">Outstanding Balance</p>
+                    <p className="text-xl font-bold">{formatCurrencyFromMinor(kpis?.outstanding_balance ?? 0)}</p>
+                  </div>
 
-                    {/* Monthly Expenses */}
-                    <div>
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-text-secondary font-medium">Expenses</span>
-                        <span className="font-bold text-error">{formatCurrencyFromMinor(analytics.this_month.expense)}</span>
-                      </div>
-                      <div className="w-full bg-background rounded-full h-3 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-error to-error/80 rounded-full"
-                          style={{ width: `${(analytics.this_month.expense / analytics.this_month.income) * 100}%` }}
-                        />
-                      </div>
-                    </div>
+                  <div className="p-3 rounded-xl bg-background">
+                    <p className="text-xs text-text-secondary mb-1">ARPU (This Month)</p>
+                    <p className="text-xl font-bold">{formatCurrencyFromMinor(kpis?.arpu_minor ?? 0)}</p>
+                  </div>
 
-                    {/* Net Profit */}
-                    <div>
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-text-secondary font-medium">Net Profit</span>
-                        <span className="font-bold text-primary">{formatCurrencyFromMinor(analytics.this_month.net_profit)}</span>
-                      </div>
-                      <div className="w-full bg-background rounded-full h-3 overflow-hidden">
-                        <div
-                          className="h-full bg-gradient-to-r from-primary to-primary/80 rounded-full"
-                          style={{ width: `${(analytics.this_month.net_profit / analytics.this_month.income) * 100}%` }}
-                        />
-                      </div>
-                    </div>
-
-                    {/* Visual Bar Chart */}
-                    <div className="mt-6 pt-6 border-t border-border">
-                      <div className="flex items-end justify-around gap-4 h-48">
-                        {/* Income Bar */}
-                        <div className="flex-1 flex flex-col items-center">
-                          <div
-                            className="w-full bg-gradient-to-t from-success to-success/80 rounded-t-lg"
-                            style={{ height: '100%' }}
-                          ></div>
-                          <p className="text-xs text-text-secondary mt-2 font-medium">Income</p>
-                          <p className="text-sm font-bold text-success">{formatCurrencyFromMinor(analytics.this_month.income)}</p>
+                  <div className="space-y-2 pt-1">
+                    {paymentDistribution.map((row) => {
+                      const amountShare = paymentTotalAmount > 0 ? (row.amount / paymentTotalAmount) * 100 : 0
+                      return (
+                        <div key={row.key}>
+                          <div className="flex justify-between text-xs mb-1">
+                            <span className="text-text-secondary">{row.label}</span>
+                            <span className="font-medium">{row.count}</span>
+                          </div>
+                          <div className="h-2 bg-background rounded-full overflow-hidden">
+                            <div className="h-full bg-info" style={{ width: `${amountShare}%` }} />
+                          </div>
                         </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            </div>
 
-                        {/* Expenses Bar */}
-                        <div className="flex-1 flex flex-col items-center">
-                          <div
-                            className="w-full bg-gradient-to-t from-error to-error/80 rounded-t-lg"
-                            style={{ height: `${(analytics.this_month.expense / analytics.this_month.income) * 100}%` }}
-                          ></div>
-                          <p className="text-xs text-text-secondary mt-2 font-medium">Expenses</p>
-                          <p className="text-sm font-bold text-error">{formatCurrencyFromMinor(analytics.this_month.expense)}</p>
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+              <div className="bg-surface border border-border rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-5 flex items-center gap-2">
+                  <Building2 className="h-5 w-5 text-primary" />
+                  Branch Distribution
+                </h2>
+                <div className="space-y-3">
+                  {branchDistribution.length > 0 ? (
+                    branchDistribution.map((row) => (
+                      <div key={row.name}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-text-secondary truncate pr-3">{row.name}</span>
+                          <span className="font-semibold">{row.students}</span>
                         </div>
-
-                        {/* Profit Bar */}
-                        <div className="flex-1 flex flex-col items-center">
-                          <div
-                            className="w-full bg-gradient-to-t from-primary to-primary/80 rounded-t-lg"
-                            style={{ height: `${(analytics.this_month.net_profit / analytics.this_month.income) * 100}%` }}
-                          ></div>
-                          <p className="text-xs text-text-secondary mt-2 font-medium">Profit</p>
-                          <p className="text-sm font-bold text-primary">{formatCurrencyFromMinor(analytics.this_month.net_profit)}</p>
+                        <div className="h-2 bg-background rounded-full overflow-hidden">
+                          <div className="h-full bg-primary" style={{ width: `${clampWidth(row.students, maxBranchStudents)}%` }} />
                         </div>
                       </div>
-                    </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-text-secondary">No branch data.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-5 flex items-center gap-2">
+                  <BookOpen className="h-5 w-5 text-primary" />
+                  Course Demand
+                </h2>
+                <div className="space-y-3">
+                  {topCourses.length > 0 ? (
+                    topCourses.map((row) => (
+                      <div key={row.course}>
+                        <div className="flex justify-between text-sm mb-1">
+                          <span className="text-text-secondary truncate pr-3">{row.course}</span>
+                          <span className="font-semibold">{row.students}</span>
+                        </div>
+                        <div className="h-2 bg-background rounded-full overflow-hidden">
+                          <div className="h-full bg-success" style={{ width: `${clampWidth(row.students, maxCourseStudents)}%` }} />
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-text-secondary">No course demand data.</p>
+                  )}
+                </div>
+              </div>
+
+              <div className="bg-surface border border-border rounded-2xl p-6">
+                <h2 className="text-lg font-bold mb-5 flex items-center gap-2">
+                  <Trophy className="h-5 w-5 text-primary" />
+                  Top Students
+                </h2>
+
+                {leaderboardLoading ? (
+                  <div className="h-24 flex items-center justify-center text-text-secondary text-sm">
+                    Loading leaderboard...
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {topStudents.slice(0, 5).map((entry) => (
+                      <div key={entry.id} className="flex items-center justify-between p-3 rounded-xl bg-background">
+                        <div className="min-w-0">
+                          <p className="font-medium truncate">{entry.student_name}</p>
+                          <p className="text-xs text-text-secondary">Rank #{entry.rank}</p>
+                        </div>
+                        <span className="text-sm font-bold text-primary">{entry.avg_score}</span>
+                      </div>
+                    ))}
+                    {topStudents.length === 0 && (
+                      <p className="text-sm text-text-secondary">No leaderboard data.</p>
+                    )}
                   </div>
                 )}
               </div>
             </div>
 
-            {/* Additional Charts Row */}
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mt-6">
-              {/* Enrollment Funnel */}
-              <div className="bg-surface p-6 rounded-2xl border border-border">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Users className="h-5 w-5 text-primary" />
-                  Lead Conversion Funnel
-                </h3>
-                {analytics && (
-                  <div className="space-y-4">
-                    <div>
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-text-secondary">Active Leads</span>
-                        <span className="font-bold">{analytics.general.active_leads}</span>
-                      </div>
-                      <div className="w-full bg-background rounded-full h-3">
-                        <div className="h-full bg-gradient-to-r from-info to-info/80 rounded-full" style={{ width: '100%' }} />
-                      </div>
-                    </div>
+            <div className="bg-surface border border-border rounded-2xl p-6">
+              <h2 className="text-lg font-bold mb-5">Operational Monitor</h2>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
+                <div className="p-4 rounded-xl bg-background border border-border">
+                  <p className="text-xs text-text-secondary mb-1">Today Attendance</p>
+                  <p className="text-2xl font-bold">{operations?.today_attendance.total ?? 0}</p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    P: {operations?.today_attendance.present ?? 0} / E: {operations?.today_attendance.excused ?? 0} / U: {operations?.today_attendance.unexcused ?? 0}
+                  </p>
+                </div>
 
-                    <div>
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-text-secondary">New Leads (This Month)</span>
-                        <span className="font-bold">{analytics.this_month.new_leads}</span>
-                      </div>
-                      <div className="w-full bg-background rounded-full h-3">
-                        <div className="h-full bg-gradient-to-r from-warning to-warning/80 rounded-full" style={{ width: `${(analytics.this_month.new_leads / analytics.general.active_leads) * 100}%` }} />
-                      </div>
-                    </div>
+                <div className="p-4 rounded-xl bg-background border border-border">
+                  <p className="text-xs text-text-secondary mb-1">Active Groups Today</p>
+                  <p className="text-2xl font-bold">{operations?.active_group_sessions_today ?? 0}</p>
+                  <p className="text-xs text-text-secondary mt-1">Scheduled sessions</p>
+                </div>
 
-                    <div>
-                      <div className="flex items-center justify-between text-sm mb-2">
-                        <span className="text-text-secondary">Converted Leads</span>
-                        <span className="font-bold">{analytics.this_month.converted_leads}</span>
-                      </div>
-                      <div className="w-full bg-background rounded-full h-3">
-                        <div className="h-full bg-gradient-to-r from-success to-success/80 rounded-full" style={{ width: `${(analytics.this_month.converted_leads / analytics.this_month.new_leads) * 100}%` }} />
-                      </div>
-                    </div>
+                <div className="p-4 rounded-xl bg-background border border-border">
+                  <p className="text-xs text-text-secondary mb-1">Pending Payments</p>
+                  <p className="text-2xl font-bold">{operations?.pending_payment_count ?? 0}</p>
+                  <p className="text-xs text-text-secondary mt-1">Overdue: {operations?.overdue_pending_payments ?? 0}</p>
+                </div>
 
-                    <div className="mt-6 pt-4 border-t border-border">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-medium">Conversion Rate</span>
-                        <span className="text-2xl font-bold text-success">{analytics.this_month.lead_conversion_rate}</span>
-                      </div>
-                    </div>
-                  </div>
-                )}
+                <div className="p-4 rounded-xl bg-background border border-border">
+                  <p className="text-xs text-text-secondary mb-1">Unpaid Teachers</p>
+                  <p className="text-2xl font-bold">{operations?.unpaid_teacher_count ?? 0}</p>
+                  <p className="text-xs text-text-secondary mt-1">
+                    {formatCurrencyFromMinor(operations?.unpaid_teacher_amount ?? 0)} pending
+                  </p>
+                </div>
+
+                <div className="p-4 rounded-xl bg-background border border-border">
+                  <p className="text-xs text-text-secondary mb-1">Open Tickets</p>
+                  <p className="text-2xl font-bold">{operations?.open_tickets ?? 0}</p>
+                  <p className="text-xs text-text-secondary mt-1">Support queue</p>
+                </div>
               </div>
 
-              {/* Financial Health */}
-              <div className="bg-surface p-6 rounded-2xl border border-border">
-                <h3 className="text-lg font-bold mb-4 flex items-center gap-2">
-                  <Activity className="h-5 w-5 text-primary" />
-                  Financial Health
-                </h3>
-                {analytics && dashboardStats && (
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-between p-4 bg-background rounded-xl">
-                      <div>
-                        <p className="text-text-secondary text-sm mb-1">Profit Margin</p>
-                        <p className="text-2xl font-bold text-success">
-                          {analytics.this_month.income > 0 ? ((analytics.this_month.net_profit / analytics.this_month.income) * 100).toFixed(1) : 0}%
-                        </p>
-                      </div>
-                      <TrendingUp className="h-8 w-8 text-success" />
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-background rounded-xl">
-                      <div>
-                        <p className="text-text-secondary text-sm mb-1">Revenue per Student</p>
-                        <p className="text-2xl font-bold text-primary">
-                          {formatCurrency(dashboardStats.total_students > 0 ? (analytics.this_month.income / 100) / dashboardStats.total_students : 0)}
-                        </p>
-                      </div>
-                      <Users className="h-8 w-8 text-primary" />
-                    </div>
-
-                    <div className="flex items-center justify-between p-4 bg-background rounded-xl">
-                      <div>
-                        <p className="text-text-secondary text-sm mb-1">Active Students</p>
-                        <p className="text-2xl font-bold text-info">{analytics.general.total_active_students}</p>
-                      </div>
-                      <GraduationCap className="h-8 w-8 text-info" />
-                    </div>
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                <div className="p-3 rounded-xl border border-border bg-background flex items-center gap-3">
+                  <CheckCircle2 className="h-5 w-5 text-success" />
+                  <div>
+                    <p className="text-xs text-text-secondary">Paid Payments</p>
+                    <p className="font-semibold">{operations?.paid_payment_count ?? 0}</p>
                   </div>
-                )}
+                </div>
+
+                <div className="p-3 rounded-xl border border-border bg-background flex items-center gap-3">
+                  <AlertTriangle className="h-5 w-5 text-warning" />
+                  <div>
+                    <p className="text-xs text-text-secondary">Failed Payments</p>
+                    <p className="font-semibold">
+                      {operations?.failed_payment_count ?? 0} ({formatCurrencyFromMinor(operations?.failed_payment_amount ?? 0)})
+                    </p>
+                  </div>
+                </div>
+
+                <div className="p-3 rounded-xl border border-border bg-background flex items-center gap-3">
+                  <Clock3 className="h-5 w-5 text-info" />
+                  <div>
+                    <p className="text-xs text-text-secondary">Report Generated At</p>
+                    <p className="font-semibold">{analytics?.report_generated_at ? new Date(analytics.report_generated_at).toLocaleString() : '-'}</p>
+                  </div>
+                </div>
               </div>
             </div>
-          </div>
+          </>
         )}
 
-        {/* Reports Tab */}
         {activeTab === 'reports' && (
-          <div>
-            {/* Report Generation Form */}
-            <div className="bg-surface p-6 rounded-2xl border border-border mb-6">
-              <h3 className="text-lg font-bold mb-4">Generate New Report</h3>
+          <div className="space-y-6">
+            <div className="bg-surface p-6 rounded-2xl border border-border">
+              <h3 className="text-lg font-bold mb-4">Generate Analytical Report</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <label className="block text-sm font-medium mb-2">Report Type</label>
@@ -500,6 +612,10 @@ export default function AnalyticsPage() {
                     <option value="teacher-workload">Teacher Workload</option>
                     <option value="course-completion">Course Completion</option>
                     <option value="enrollment-trends">Enrollment Trends</option>
+                    <option value="profit-loss">Profit & Loss</option>
+                    <option value="cash-flow">Cash Flow</option>
+                    <option value="accounts-receivable">Accounts Receivable</option>
+                    <option value="teacher-compensation">Teacher Compensation</option>
                   </select>
                 </div>
 
@@ -539,10 +655,9 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            {/* Generated Report Display */}
             {selectedReport && (
-              <div className="bg-surface p-6 rounded-2xl border border-border mb-6">
-                <div className="flex items-center justify-between mb-6">
+              <div className="bg-surface p-6 rounded-2xl border border-border">
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                   <div>
                     <h3 className="text-xl font-bold">{selectedReport.title}</h3>
                     <p className="text-sm text-text-secondary">
@@ -555,9 +670,8 @@ export default function AnalyticsPage() {
                   </button>
                 </div>
 
-                {/* Report Summary */}
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
-                  {Object.entries(selectedReport.summary).map(([key, value]) => (
+                  {Object.entries(selectedReport.summary || {}).map(([key, value]) => (
                     <div key={key} className="p-4 bg-background rounded-xl">
                       <p className="text-sm text-text-secondary capitalize mb-1">
                         {key.replace(/_/g, ' ')}
@@ -567,9 +681,8 @@ export default function AnalyticsPage() {
                   ))}
                 </div>
 
-                {/* Report Data Table */}
                 {selectedReport.data && selectedReport.data.length > 0 && (
-                  <div className="overflow-x-auto">
+                  <div className="overflow-x-auto border border-border rounded-xl">
                     <table className="w-full">
                       <thead className="bg-background border-b border-border">
                         <tr>
@@ -584,7 +697,7 @@ export default function AnalyticsPage() {
                         {selectedReport.data.map((row, idx) => (
                           <tr key={idx} className="border-b border-border hover:bg-background transition-colors">
                             {Object.values(row).map((value, colIdx) => (
-                              <td key={colIdx} className="p-4">
+                              <td key={colIdx} className="p-4 text-sm">
                                 {typeof value === 'object' ? JSON.stringify(value) : value?.toString() || '-'}
                               </td>
                             ))}
@@ -597,14 +710,11 @@ export default function AnalyticsPage() {
               </div>
             )}
 
-            {/* Empty State */}
-            {!selectedReport && reportsData.results.length === 0 && (
+            {!selectedReport && (reportsData.results?.length || 0) === 0 && (
               <div className="text-center py-12 bg-surface rounded-2xl border border-border">
-                <FileText className="h-16 w-16 text-text-secondary/50 mx-auto mb-4" />
-                <p className="text-text-secondary text-lg mb-2">No reports generated yet</p>
-                <p className="text-sm text-text-secondary">
-                  Generate your first report to view detailed analytics
-                </p>
+                <FileText className="h-14 w-14 text-text-secondary/50 mx-auto mb-4" />
+                <p className="text-text-secondary text-lg mb-1">No generated reports yet</p>
+                <p className="text-sm text-text-secondary">Create your first report for detailed analysis output.</p>
               </div>
             )}
           </div>
