@@ -484,7 +484,7 @@ export default function DashboardPage() {
           {/* Real-time accounting cards + feed */}
           {canViewFinanceOverview ? (
             <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-8">
-              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-success/50 transition-all">
+              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-success/50 transition-all h-[220px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-text-secondary">Total Income</p>
                   <TrendingUp className="h-5 w-5 text-success" />
@@ -495,7 +495,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-text-secondary mt-1">All paid payments</p>
               </div>
 
-              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-error/50 transition-all">
+              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-error/50 transition-all h-[220px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-text-secondary">Total Debt</p>
                   <AlertCircle className="h-5 w-5 text-error" />
@@ -506,7 +506,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-text-secondary mt-1">Sum of all negative balances</p>
               </div>
 
-              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all h-[220px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-text-secondary">Net Profit</p>
                   <PiggyBank className="h-5 w-5 text-primary" />
@@ -518,7 +518,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-text-secondary mt-1">Income + sum of all balances</p>
               </div>
 
-              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-warning/50 transition-all">
+              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-warning/50 transition-all h-[220px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-text-secondary">Teacher Payroll</p>
                   <Briefcase className="h-5 w-5 text-warning" />
@@ -529,12 +529,12 @@ export default function DashboardPage() {
                 <p className="text-xs text-text-secondary mt-1">40% pro-rated payout obligation</p>
               </div>
 
-              <div className="bg-surface rounded-2xl border border-border p-4">
+              <div className="bg-surface rounded-2xl border border-border p-4 h-[220px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm font-semibold">Live Activity Feed</p>
                   {isRealtimeLoading && <span className="text-xs text-text-secondary">syncing...</span>}
                 </div>
-                <div className="space-y-2 max-h-[270px] overflow-y-auto pr-1">
+                <div className="space-y-2 h-[120px] overflow-y-auto pr-1">
                   {(realtimeDashboard?.recent_logs || []).length > 0 ? (
                     (realtimeDashboard?.recent_logs || []).map((log) => (
                       <div key={log.id} className="rounded-xl border border-border bg-background p-3">
