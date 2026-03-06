@@ -434,7 +434,12 @@ export default function StudentsPage() {
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <button
-                  onClick={() => exportStudents(displayStudents.filter((student) => selectedIds.includes(student.id)), 'students-selected.csv')}
+                  onClick={() =>
+                    exportStudents(
+                      displayStudents.filter((student: Student) => selectedIds.includes(student.id)),
+                      'students-selected.csv'
+                    )
+                  }
                   className="px-3 py-2 bg-background border border-border rounded-lg hover:bg-border/50 text-sm"
                 >
                   Export Selected
