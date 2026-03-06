@@ -55,6 +55,27 @@ interface StudentStatsResponse {
   total_coins: number
 }
 
+const buildUserFromResponse = (
+  response: StudentLoginResponse,
+  fallbackUsername: string
+): User => {
+  const nestedUser = response.user
+  const resolvedId = nestedUser?.id?.toString() || '0'
+  const resolvedEmail = nestedUser?.email || fallbackUsername
+  const resolvedFullName = nestedUser?.first_name
+    ? `${nestedUser.first_name} ${nestedUser.last_name || ''}`.trim()
+    : fallbackUsername
+
+  return {
+    id: resolvedId,
+    email: resolvedEmail,
+    full_name: resolvedFullName,
+    role: 'student',
+    avatar: undefined,
+    phone: undefined,
+  }
+}
+
 export const studentAuthApi = {
   /**
    * Login student
@@ -64,23 +85,20 @@ export const studentAuthApi = {
     try {
       useAuthStore.getState().setLoading(true)
 
-      // Using the STUDENT-SPECIFIC login endpoint
+      const username = data.username.trim()
+      const password = data.password
+      if (!username || !password) {
+        throw new Error('Username and password are required.')
+      }
+
+      const normalizedPayload: StudentLoginRequest = { username, password }
+
       const response = await apiClient.post<StudentLoginResponse>(
-        AUTH_ENDPOINTS.LOGIN, // ✅ /api/v1/student-profile/login/
-        data
+        AUTH_ENDPOINTS.LOGIN,
+        normalizedPayload
       )
 
-      // Map student data to User interface
-      const user: User = {
-        id: response.user?.id?.toString() || '0',
-        email: response.user?.email || data.username,
-        full_name: response.user?.first_name
-          ? `${response.user.first_name} ${response.user.last_name || ''}`.trim()
-          : data.username,
-        role: 'student',
-        avatar: undefined,
-        phone: undefined,
-      }
+      const user = buildUserFromResponse(response, username)
 
       // Store tokens and user
       useAuthStore.getState().setTokens(response.access, response.refresh)

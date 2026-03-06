@@ -11,6 +11,23 @@ import { API_CONFIG } from '../../config/api'
 // API Base URL from config
 export const API_BASE_URL = API_CONFIG.BASE_URL
 
+const joinUrl = (baseUrl: string, path: string): string => {
+  const normalizedBase = baseUrl.replace(/\/+$/, '')
+  const normalizedPath = path.replace(/^\/+/, '')
+  return `${normalizedBase}/${normalizedPath}`
+}
+
+const resolveRefreshEndpoint = (requestUrl?: string): string => {
+  const { user } = useAuthStore.getState()
+
+  // Student app uses dedicated refresh endpoint.
+  if (requestUrl?.includes('/api/v1/student-profile/') || user?.role === 'student') {
+    return '/api/v1/student-profile/token/refresh/'
+  }
+
+  return '/api/auth/token/refresh/'
+}
+
 // Create axios instance
 const rawApiClient = axios.create({
   baseURL: API_BASE_URL,
@@ -56,9 +73,8 @@ rawApiClient.interceptors.response.use(
           return Promise.reject(error)
         }
 
-        // Attempt to refresh access token
-        // TESTED ✅ - Uses /api/auth/token/refresh/
-        const response = await axios.post(`${API_BASE_URL}/api/auth/token/refresh/`, {
+        const refreshEndpoint = resolveRefreshEndpoint(originalRequest.url)
+        const response = await axios.post(joinUrl(API_BASE_URL, refreshEndpoint), {
           refresh: refreshToken,
         })
 

@@ -18,7 +18,7 @@ import Constants from 'expo-constants';
 export const API_BASE_URL =
   Constants.expoConfig?.extra?.['apiUrl'] ||
   process.env['EXPO_PUBLIC_API_URL'] ||
-  'http://192.168.0.106:8008';
+  'https://api.crmai.uz';
 
 // ============================================================================
 // API ENDPOINTS - ALL TESTED AND WORKING

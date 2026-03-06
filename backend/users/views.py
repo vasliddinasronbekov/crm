@@ -3,7 +3,7 @@
 from rest_framework_simplejwt.views import TokenObtainPairView
 from rest_framework.response import Response
 from rest_framework import status
-from .serializers import MyTokenObtainPairSerializer
+from .serializers import StaffTokenObtainPairSerializer, StudentTokenObtainPairSerializer
 
 # --- YANGI KODLAR ---
 from rest_framework import viewsets, permissions
@@ -492,7 +492,11 @@ class TeacherViewSet(viewsets.ModelViewSet):
 
 # --- MAVJUD KOD ---
 class MyTokenObtainPairView(TokenObtainPairView):
-    serializer_class = MyTokenObtainPairSerializer
+    """
+    Staff login view.
+    Kept with the same class name for backward compatibility.
+    """
+    serializer_class = StaffTokenObtainPairSerializer
 
     def post(self, request, *args, **kwargs):
         # Get client IP
@@ -527,6 +531,14 @@ class MyTokenObtainPairView(TokenObtainPairView):
                 response.data['warning'] = f'Login failed. {remaining} attempts remaining.'
 
         return response
+
+
+class StudentTokenObtainPairView(MyTokenObtainPairView):
+    """
+    Student/public login view.
+    Rejects staff/teacher/admin accounts.
+    """
+    serializer_class = StudentTokenObtainPairSerializer
 
 
 @extend_schema(responses=UserProfileSerializer)

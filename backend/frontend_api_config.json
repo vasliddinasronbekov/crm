@@ -1,5 +1,5 @@
 {
-  "API_BASE_URL": "http://192.168.0.106:8008",
+  "API_BASE_URL": "https://api.crmai.uz",
   "ENDPOINTS": {
     "auth": {
       "AUTH_LOGIN": "/api/auth/login/"

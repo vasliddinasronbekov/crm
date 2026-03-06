@@ -43,8 +43,8 @@ module.exports = {
     },
     extra: {
       // ===== API CONFIGURATION =====
-      apiUrl: process.env.EXPO_PUBLIC_API_URL || "http://192.168.0.106:8008",
-      wsUrl: process.env.EXPO_PUBLIC_WS_URL || "ws://192.168.0.106:8008",
+      apiUrl: process.env.EXPO_PUBLIC_API_URL || "https://api.crmai.uz",
+      wsUrl: process.env.EXPO_PUBLIC_WS_URL || "ws://api.crmai.uz",
       apiTimeout: parseInt(process.env.EXPO_PUBLIC_API_TIMEOUT || "30000"),
 
       // ===== FEATURE FLAGS =====

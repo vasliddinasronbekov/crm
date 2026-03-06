@@ -10,7 +10,7 @@ import {
 import { useTranslation } from 'react-i18next';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
-import { authApi, useAuthStore, useTheme, useThemeStore } from '@eduvoice/mobile-shared';
+import { studentAuthApi, useAuthStore, useTheme, useThemeStore } from '@eduvoice/mobile-shared';
 
 import { changeLanguage, LANGUAGES } from '../i18n';
 import { GlassCard } from '../components/app/GlassCard';
@@ -32,7 +32,7 @@ export const SettingsScreen = () => {
         onPress: async () => {
           setIsLoggingOut(true);
           try {
-            await authApi.logout();
+            await studentAuthApi.logout();
           } catch (error) {
             console.error('Logout error:', error);
           } finally {

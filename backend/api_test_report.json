@@ -616,7 +616,7 @@
           "description": "This is powerfull gaming laptop for daily use,gaming,3d modeling,IT and all of them in Digital world",
           "price": 10000,
           "quantity": 100,
-          "photo": "http://192.168.0.106:8008/media/products/images.jpeg",
+          "photo": "https://api.crmai.uz/media/products/images.jpeg",
           "created_at": "2025-08-21T16:11:46.326701+05:00",
           "updated_at": "2025-11-08T12:47:25.552558+05:00"
         }

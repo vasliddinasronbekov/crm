@@ -3,6 +3,7 @@ from typing import Any
 
 from rest_framework import serializers
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
+from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from users.models import User
 from student_profile.models import Payment, StudentCoins, Group 
 from django.db.models import Sum
@@ -97,6 +98,50 @@ class MyTokenObtainPairSerializer(TokenObtainPairSerializer):
             "rank": user.rank if user.rank else "N/A", # Modelning o'zidan o'qish
         }
         
+        return data
+
+
+def is_staff_portal_user(user: User) -> bool:
+    """
+    Staff-side portal accounts:
+    - admin/superuser
+    - is_staff users
+    - teachers
+    """
+    return bool(user.is_superuser or user.is_staff or user.is_teacher)
+
+
+class StaffTokenObtainPairSerializer(MyTokenObtainPairSerializer):
+    """
+    /api/auth/login/ uchun:
+    faqat staff/teacher/admin kirishi kerak.
+    """
+    default_error_messages = {
+        "staff_only": "This account does not have staff access. Use student login.",
+    }
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if not is_staff_portal_user(self.user):
+            raise AuthenticationFailed(self.error_messages["staff_only"], code="staff_only")
+        data["portal"] = "staff"
+        return data
+
+
+class StudentTokenObtainPairSerializer(MyTokenObtainPairSerializer):
+    """
+    /api/v1/student-profile/login/ uchun:
+    staff/teacher/admin kirishi kerak emas.
+    """
+    default_error_messages = {
+        "student_only": "This account must use staff login.",
+    }
+
+    def validate(self, attrs):
+        data = super().validate(attrs)
+        if is_staff_portal_user(self.user):
+            raise AuthenticationFailed(self.error_messages["student_only"], code="student_only")
+        data["portal"] = "student"
         return data
 # Bu sizda avvaldan bor edi va to'g'ri edi
 class UserSerializer(serializers.ModelSerializer):

@@ -63,6 +63,35 @@ class TestUserAuthentication:
 
         assert response.status_code == status.HTTP_400_BAD_REQUEST
 
+    def test_staff_login_is_rejected_on_student_endpoint(self, api_client, user, user_data):
+        """Staff accounts must not authenticate via student login endpoint."""
+        user.is_staff = True
+        user.save(update_fields=['is_staff'])
+
+        response = api_client.post(
+            '/api/v1/student-profile/login/',
+            {
+                'username': user_data['username'],
+                'password': user_data['password']
+            },
+            format='json'
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
+    def test_student_login_is_rejected_on_staff_endpoint(self, api_client, user, user_data):
+        """Non-staff accounts must not authenticate via staff login endpoint."""
+        response = api_client.post(
+            '/api/auth/login/',
+            {
+                'username': user_data['username'],
+                'password': user_data['password']
+            },
+            format='json'
+        )
+
+        assert response.status_code == status.HTTP_401_UNAUTHORIZED
+
     def test_jwt_token_refresh_works(self, api_client, user):
         """Test JWT token refresh endpoint."""
         # Get initial tokens

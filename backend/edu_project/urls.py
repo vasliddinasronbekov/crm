@@ -9,7 +9,7 @@ from drf_spectacular.views import SpectacularAPIView, SpectacularSwaggerView, Sp
 
 # `users` app'idan
 from users.views import (
-    UserViewSet, StudentViewSet, TeacherViewSet, MyTokenObtainPairView,
+    UserViewSet, StudentViewSet, TeacherViewSet, MyTokenObtainPairView, StudentTokenObtainPairView,
     UserProfileView, ChangePasswordView, LogoutView
 )
 from rest_framework_simplejwt.views import TokenRefreshView
@@ -173,7 +173,7 @@ urlpatterns = [
     # --- AUTHENTICATION ENDPOINTS ---
     path('api/task/', include('task.urls')),
     path('api/auth/login/', MyTokenObtainPairView.as_view(), name='token_obtain_pair'),
-    path('api/v1/student-profile/login/', MyTokenObtainPairView.as_view(), name='student_token_obtain_pair'),
+    path('api/v1/student-profile/login/', StudentTokenObtainPairView.as_view(), name='student_token_obtain_pair'),
     path('api/auth/token/refresh/', TokenRefreshView.as_view(), name='token_refresh'),
     path('api/auth/profile/', UserProfileView.as_view(), name='user_profile'),
     path('api/auth/change-password/', ChangePasswordView.as_view(), name='change_password'),

@@ -13,7 +13,10 @@ export const LoginScreen = () => {
   const [isLoading, setIsLoading] = React.useState(false);
 
   const handleLogin = async () => {
-    if (!username || !password) {
+    const normalizedUsername = username.trim();
+    const normalizedPassword = password;
+
+    if (!normalizedUsername || !normalizedPassword) {
       Alert.alert(t('common.error'), t('auth.enterUsernameAndPassword'));
       return;
     }
@@ -22,7 +25,10 @@ export const LoginScreen = () => {
     try {
       // studentAuthApi.login uses /api/v1/student-profile/login/ endpoint
       // Automatically updates authStore with tokens and user
-      await studentAuthApi.login({ username, password });
+      await studentAuthApi.login({
+        username: normalizedUsername,
+        password: normalizedPassword,
+      });
       // Navigation to the main app stack will happen automatically
       // because isAuthenticated changes in the authStore
     } catch (error: any) {
@@ -45,6 +51,9 @@ export const LoginScreen = () => {
           value={username}
           onChangeText={setUsername}
           autoCapitalize="none"
+          autoCorrect={false}
+          autoComplete="username"
+          textContentType="username"
           editable={!isLoading}
         />
         <TextInput
@@ -52,6 +61,9 @@ export const LoginScreen = () => {
           value={password}
           onChangeText={setPassword}
           secureTextEntry
+          autoCorrect={false}
+          autoComplete="password"
+          textContentType="password"
           style={styles.passwordInput}
           editable={!isLoading}
         />

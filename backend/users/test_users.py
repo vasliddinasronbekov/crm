@@ -65,7 +65,10 @@ class TestAuthenticationAPI:
     """Test authentication endpoints"""
 
     def test_user_login_success(self, api_client, user):
-        """Test successful user login"""
+        """Test successful staff login"""
+        user.is_staff = True
+        user.save(update_fields=['is_staff'])
+
         response = api_client.post('/api/auth/login/', {
             'username': 'testuser',
             'password': 'testpass123'
@@ -84,6 +87,9 @@ class TestAuthenticationAPI:
 
     def test_token_refresh(self, api_client, user):
         """Test token refresh"""
+        user.is_staff = True
+        user.save(update_fields=['is_staff'])
+
         # Login to get tokens
         login_response = api_client.post('/api/auth/login/', {
             'username': 'testuser',

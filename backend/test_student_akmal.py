@@ -8,7 +8,7 @@ import requests
 import json
 from datetime import datetime
 
-BASE_URL = "http://192.168.0.106:8008"  # Your machine's IP
+BASE_URL = "https://api.crmai.uz"  # Your machine's IP
 USERNAME = "student_akmal"
 PASSWORD = "test"
 
