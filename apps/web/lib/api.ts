@@ -145,7 +145,7 @@ class ApiService {
     if (!this.refreshToken) return null;
 
     try {
-      const response = await axios.post(`${API_URL}/auth/token/refresh/`, {
+      const response = await axios.post(`${API_URL}auth/token/refresh/`, {
         refresh: this.refreshToken,
       });
 

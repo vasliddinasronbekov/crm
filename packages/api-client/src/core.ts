@@ -49,7 +49,7 @@ export function createApiClient(config: ApiClientConfig): AxiosInstance {
             throw new Error('No refresh token available.');
           }
 
-          const response = await axios.post(`${config.baseURL}/auth/token/refresh/`, {
+          const response = await axios.post(`${config.baseURL}auth/token/refresh/`, {
             refresh: refreshToken,
           });
 
