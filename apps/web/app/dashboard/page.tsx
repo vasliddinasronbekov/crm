@@ -6,13 +6,14 @@ import apiService from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useRealtimeAccountingDashboard } from '@/lib/hooks/useAccounting'
+import { type Permission, usePermissions } from '@/lib/permissions'
 import {
   Users, GraduationCap, BookOpen, DollarSign,
   ShoppingCart, Calendar, MessageCircle, Mail,
   Megaphone, Receipt, Trophy, Award, CheckSquare,
   Briefcase, TrendingUp, ArrowRight, Activity,
   Clock, Target, Zap, BarChart3, Wallet, Layers, AlertCircle, PiggyBank,
-  LineChart, MailCheck
+  LineChart, MailCheck, type LucideIcon
 } from 'lucide-react'
 import LoadingScreen from '@/components/LoadingScreen'
 
@@ -37,7 +38,8 @@ interface AnalyticsData {
 }
 
 export default function DashboardPage() {
-  const { user, isAdmin, isTeacher, isStaff } = useAuth()
+  const { user } = useAuth()
+  const permissions = usePermissions(user)
   const { language, translateText, formatCurrencyFromMinor } = useSettings()
   const {
     data: realtimeDashboard,
@@ -49,6 +51,7 @@ export default function DashboardPage() {
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const realtimeRefetchRef = useRef(refetchRealtimeDashboard)
+  const canViewFinanceOverview = permissions.hasAnyPermission(['payments.view'])
 
   useEffect(() => {
     realtimeRefetchRef.current = refetchRealtimeDashboard
@@ -60,6 +63,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     if (typeof window === 'undefined') return
+    if (!canViewFinanceOverview) return
     const token = localStorage.getItem('access_token')
     if (!token) return
 
@@ -122,7 +126,7 @@ export default function DashboardPage() {
         websocket.close(1000, 'dashboard-unmount')
       }
     }
-  }, [user?.id])
+  }, [canViewFinanceOverview, user?.id])
 
   const loadDashboardData = async () => {
     try {
@@ -194,17 +198,26 @@ export default function DashboardPage() {
   }
 
   const getUserRole = () => {
-    if (user?.is_superuser) return translateText('Superuser')
-    if (user?.is_staff) return translateText('Administrator')
-    if (user?.is_teacher) return translateText('Teacher')
-    return translateText('Staff Member')
+    return translateText(permissions.roleLabel)
   }
 
   const dateLocale = language === 'uz' ? 'uz-UZ' : language === 'ru' ? 'ru-RU' : 'en-US'
 
-  // Feature cards based on role
+  interface FeatureCard {
+    title: string
+    description: string
+    icon: LucideIcon
+    color: string
+    iconColor: string
+    href: string
+    stat: string | number
+    statLabel: string
+    requiredPermissions: Permission[]
+  }
+
+  // Feature cards based on permissions
   const getFeatureCards = () => {
-    const allCards = [
+    const allCards: FeatureCard[] = [
       {
         title: 'Students',
         description: 'Manage student profiles',
@@ -214,7 +227,7 @@ export default function DashboardPage() {
         href: '/dashboard/students',
         stat: stats?.total_students || 0,
         statLabel: 'Total Students',
-        roles: ['admin', 'staff']
+        requiredPermissions: ['students.view']
       },
       {
         title: 'Teachers',
@@ -225,7 +238,7 @@ export default function DashboardPage() {
         href: '/dashboard/teachers',
         stat: stats?.total_teachers || 0,
         statLabel: 'Total Teachers',
-        roles: ['admin']
+        requiredPermissions: ['teachers.view']
       },
       {
         title: 'Groups',
@@ -236,7 +249,7 @@ export default function DashboardPage() {
         href: '/dashboard/groups',
         stat: stats?.total_groups || 0,
         statLabel: 'Active Groups',
-        roles: ['admin', 'teacher', 'staff']
+        requiredPermissions: ['groups.view']
       },
       {
         title: 'Tasks',
@@ -247,7 +260,7 @@ export default function DashboardPage() {
         href: '/dashboard/tasks',
         stat: stats?.pending_tasks || 0,
         statLabel: 'Pending Tasks',
-        roles: ['admin', 'teacher', 'staff']
+        requiredPermissions: ['tasks.view']
       },
       {
         title: 'Shop & Rewards',
@@ -258,7 +271,7 @@ export default function DashboardPage() {
         href: '/dashboard/shop',
         stat: '🪙',
         statLabel: 'Rewards System',
-        roles: ['admin', 'staff']
+        requiredPermissions: ['shop.view']
       },
       {
         title: 'Events',
@@ -269,7 +282,7 @@ export default function DashboardPage() {
         href: '/dashboard/events',
         stat: '📅',
         statLabel: 'Event Management',
-        roles: ['admin', 'teacher', 'staff']
+        requiredPermissions: ['events.view']
       },
       {
         title: 'Support Tickets',
@@ -280,7 +293,7 @@ export default function DashboardPage() {
         href: '/dashboard/support',
         stat: '🎫',
         statLabel: 'Support System',
-        roles: ['admin', 'staff']
+        requiredPermissions: ['support.view']
       },
       {
         title: 'Email Marketing',
@@ -291,7 +304,7 @@ export default function DashboardPage() {
         href: '/dashboard/email',
         stat: '📧',
         statLabel: 'Email Campaigns',
-        roles: ['admin', 'staff']
+        requiredPermissions: ['email.view']
       },
       {
         title: 'Announcements',
@@ -302,7 +315,7 @@ export default function DashboardPage() {
         href: '/dashboard/announcements',
         stat: '📢',
         statLabel: 'Announcements',
-        roles: ['admin', 'teacher']
+        requiredPermissions: ['announcements.view']
       },
       {
         title: 'Expenses',
@@ -313,7 +326,7 @@ export default function DashboardPage() {
         href: '/dashboard/expenses',
         stat: '💸',
         statLabel: 'Expense Tracking',
-        roles: ['admin']
+        requiredPermissions: ['expenses.view']
       },
       {
         title: 'Leaderboard',
@@ -324,7 +337,7 @@ export default function DashboardPage() {
         href: '/dashboard/leaderboard',
         stat: '🏆',
         statLabel: 'Rankings',
-        roles: ['admin', 'teacher', 'staff']
+        requiredPermissions: ['analytics.view']
       },
       {
         title: 'Certificates',
@@ -335,7 +348,7 @@ export default function DashboardPage() {
         href: '/dashboard/certificates',
         stat: '🎓',
         statLabel: 'Certifications',
-        roles: ['admin', 'teacher']
+        requiredPermissions: ['certificates.view']
       },
       {
         title: 'HR & Salary',
@@ -346,7 +359,7 @@ export default function DashboardPage() {
         href: '/dashboard/hr',
         stat: '💼',
         statLabel: 'HR System',
-        roles: ['admin']
+        requiredPermissions: ['hr.view']
       },
       {
         title: 'Finance Dashboard',
@@ -357,7 +370,7 @@ export default function DashboardPage() {
         href: '/dashboard/finance',
         stat: '💰',
         statLabel: 'Financial Hub',
-        roles: ['admin']
+        requiredPermissions: ['payments.view']
       },
       {
         title: 'Analytics',
@@ -368,7 +381,7 @@ export default function DashboardPage() {
         href: '/dashboard/analytics',
         stat: '📊',
         statLabel: 'Analytics',
-        roles: ['admin']
+        requiredPermissions: ['analytics.view']
       },
       {
         title: 'Payments',
@@ -379,7 +392,7 @@ export default function DashboardPage() {
         href: '/dashboard/payments',
         stat: '💰',
         statLabel: 'Payments',
-        roles: ['admin', 'staff']
+        requiredPermissions: ['payments.view']
       },
       {
         title: 'Accounting',
@@ -390,7 +403,7 @@ export default function DashboardPage() {
         href: '/dashboard/accounting',
         stat: '💼',
         statLabel: 'Accounting',
-        roles: ['admin']
+        requiredPermissions: ['payments.view']
       },
       {
         title: 'CRM Pipelines',
@@ -401,7 +414,7 @@ export default function DashboardPage() {
         href: '/dashboard/crm/pipelines',
         stat: '🎯',
         statLabel: 'Deal Tracking',
-        roles: ['admin', 'staff']
+        requiredPermissions: ['crm.view']
       },
       {
         title: 'LMS Progress',
@@ -412,7 +425,7 @@ export default function DashboardPage() {
         href: '/dashboard/lms/progress',
         stat: '📈',
         statLabel: 'Student Progress',
-        roles: ['admin', 'teacher']
+        requiredPermissions: ['lms.view']
       },
       {
         title: 'Email Logs',
@@ -423,12 +436,14 @@ export default function DashboardPage() {
         href: '/dashboard/email/logs',
         stat: '📬',
         statLabel: 'Email Analytics',
-        roles: ['admin', 'staff']
+        requiredPermissions: ['email.view']
       },
     ]
 
-    const userRole = isAdmin ? 'admin' : isTeacher ? 'teacher' : isStaff ? 'staff' : null
-    return allCards.filter(card => card.roles.includes(userRole as string))
+    return allCards.filter((card) => (
+      permissions.canAccessPage(card.href) &&
+      permissions.hasAnyPermission(card.requiredPermissions)
+    ))
   }
 
   if (isLoading) {
@@ -467,74 +482,82 @@ export default function DashboardPage() {
           </div>
 
           {/* Real-time accounting cards + feed */}
-          <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-8">
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-success/50 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm text-text-secondary">Total Income</p>
-                <TrendingUp className="h-5 w-5 text-success" />
+          {canViewFinanceOverview ? (
+            <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-8">
+              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-success/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm text-text-secondary">Total Income</p>
+                  <TrendingUp className="h-5 w-5 text-success" />
+                </div>
+                <p className="text-2xl font-bold text-success">
+                  {formatCurrencyFromMinor(realtimeDashboard?.total_income_tiyin || 0)}
+                </p>
+                <p className="text-xs text-text-secondary mt-1">All paid payments</p>
               </div>
-              <p className="text-2xl font-bold text-success">
-                {formatCurrencyFromMinor(realtimeDashboard?.total_income_tiyin || 0)}
-              </p>
-              <p className="text-xs text-text-secondary mt-1">All paid payments</p>
-            </div>
 
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-error/50 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm text-text-secondary">Total Debt</p>
-                <AlertCircle className="h-5 w-5 text-error" />
+              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-error/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm text-text-secondary">Total Debt</p>
+                  <AlertCircle className="h-5 w-5 text-error" />
+                </div>
+                <p className="text-2xl font-bold text-error">
+                  {formatCurrencyFromMinor(realtimeDashboard?.total_debt_tiyin || 0)}
+                </p>
+                <p className="text-xs text-text-secondary mt-1">Sum of all negative balances</p>
               </div>
-              <p className="text-2xl font-bold text-error">
-                {formatCurrencyFromMinor(realtimeDashboard?.total_debt_tiyin || 0)}
-              </p>
-              <p className="text-xs text-text-secondary mt-1">Sum of all negative balances</p>
-            </div>
 
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm text-text-secondary">Net Profit</p>
-                <PiggyBank className="h-5 w-5 text-primary" />
+              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm text-text-secondary">Net Profit</p>
+                  <PiggyBank className="h-5 w-5 text-primary" />
+                </div>
+                <p className={`text-2xl font-bold ${(realtimeDashboard?.net_profit_tiyin || 0) >= 0 ? 'text-success' : 'text-error'}`}>
+                  {(realtimeDashboard?.net_profit_tiyin || 0) >= 0 ? '+' : ''}
+                  {formatCurrencyFromMinor(realtimeDashboard?.net_profit_tiyin || 0)}
+                </p>
+                <p className="text-xs text-text-secondary mt-1">Income + sum of all balances</p>
               </div>
-              <p className={`text-2xl font-bold ${(realtimeDashboard?.net_profit_tiyin || 0) >= 0 ? 'text-success' : 'text-error'}`}>
-                {(realtimeDashboard?.net_profit_tiyin || 0) >= 0 ? '+' : ''}
-                {formatCurrencyFromMinor(realtimeDashboard?.net_profit_tiyin || 0)}
-              </p>
-              <p className="text-xs text-text-secondary mt-1">Income + sum of all balances</p>
-            </div>
 
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-warning/50 transition-all">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm text-text-secondary">Teacher Payroll</p>
-                <Briefcase className="h-5 w-5 text-warning" />
+              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-warning/50 transition-all">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm text-text-secondary">Teacher Payroll</p>
+                  <Briefcase className="h-5 w-5 text-warning" />
+                </div>
+                <p className="text-2xl font-bold text-warning">
+                  {formatCurrencyFromMinor(realtimeDashboard?.teacher_payroll_tiyin || 0)}
+                </p>
+                <p className="text-xs text-text-secondary mt-1">40% pro-rated payout obligation</p>
               </div>
-              <p className="text-2xl font-bold text-warning">
-                {formatCurrencyFromMinor(realtimeDashboard?.teacher_payroll_tiyin || 0)}
-              </p>
-              <p className="text-xs text-text-secondary mt-1">40% pro-rated payout obligation</p>
-            </div>
 
-            <div className="bg-surface rounded-2xl border border-border p-4">
-              <div className="flex items-center justify-between mb-3">
-                <p className="text-sm font-semibold">Live Activity Feed</p>
-                {isRealtimeLoading && <span className="text-xs text-text-secondary">syncing...</span>}
-              </div>
-              <div className="space-y-2 max-h-[270px] overflow-y-auto pr-1">
-                {(realtimeDashboard?.recent_logs || []).length > 0 ? (
-                  (realtimeDashboard?.recent_logs || []).map((log) => (
-                    <div key={log.id} className="rounded-xl border border-border bg-background p-3">
-                      <p className="text-xs font-medium mb-1">{log.message}</p>
-                      <div className="flex items-center justify-between text-[11px] text-text-secondary">
-                        <span>{log.actor_username || 'System'}</span>
-                        <span>{new Date(log.created_at).toLocaleString()}</span>
+              <div className="bg-surface rounded-2xl border border-border p-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold">Live Activity Feed</p>
+                  {isRealtimeLoading && <span className="text-xs text-text-secondary">syncing...</span>}
+                </div>
+                <div className="space-y-2 max-h-[270px] overflow-y-auto pr-1">
+                  {(realtimeDashboard?.recent_logs || []).length > 0 ? (
+                    (realtimeDashboard?.recent_logs || []).map((log) => (
+                      <div key={log.id} className="rounded-xl border border-border bg-background p-3">
+                        <p className="text-xs font-medium mb-1">{log.message}</p>
+                        <div className="flex items-center justify-between text-[11px] text-text-secondary">
+                          <span>{log.actor_username || 'System'}</span>
+                          <span>{new Date(log.created_at).toLocaleString()}</span>
+                        </div>
                       </div>
-                    </div>
-                  ))
-                ) : (
-                  <div className="text-xs text-text-secondary py-8 text-center">No activity logs yet</div>
-                )}
+                    ))
+                  ) : (
+                    <div className="text-xs text-text-secondary py-8 text-center">No activity logs yet</div>
+                  )}
+                </div>
               </div>
             </div>
-          </div>
+          ) : (
+            <div className="mb-8 bg-surface rounded-2xl border border-border p-6">
+              <p className="text-sm text-text-secondary">
+                Financial realtime metrics are available for finance-enabled roles.
+              </p>
+            </div>
+          )}
 
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">

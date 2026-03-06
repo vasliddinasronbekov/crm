@@ -47,7 +47,7 @@ export function RoleBased({
 // Convenience components for common roles
 export function AdminOnly({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
-    <RoleBased roles={['superuser', 'staff']} fallback={fallback}>
+    <RoleBased roles={['superuser', 'superadmin', 'admin', 'director', 'manager', 'crm_manager', 'lms_manager', 'staff']} fallback={fallback}>
       {children}
     </RoleBased>
   )
@@ -55,7 +55,7 @@ export function AdminOnly({ children, fallback }: { children: ReactNode; fallbac
 
 export function SuperuserOnly({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
-    <RoleBased roles={['superuser']} fallback={fallback}>
+    <RoleBased roles={['superuser', 'superadmin']} fallback={fallback}>
       {children}
     </RoleBased>
   )
@@ -71,7 +71,7 @@ export function TeacherOnly({ children, fallback }: { children: ReactNode; fallb
 
 export function StaffAndTeacher({ children, fallback }: { children: ReactNode; fallback?: ReactNode }) {
   return (
-    <RoleBased roles={['superuser', 'staff', 'teacher']} fallback={fallback}>
+    <RoleBased roles={['superuser', 'superadmin', 'admin', 'director', 'manager', 'crm_manager', 'lms_manager', 'staff', 'teacher']} fallback={fallback}>
       {children}
     </RoleBased>
   )

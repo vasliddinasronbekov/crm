@@ -5,7 +5,20 @@
  * utility functions to check permissions throughout the application.
  */
 
-export type UserRole = 'superuser' | 'staff' | 'teacher' | 'student';
+export type BackendRole =
+  | 'student'
+  | 'parent'
+  | 'teacher'
+  | 'staff'
+  | 'crm_manager'
+  | 'lms_manager'
+  | 'manager'
+  | 'director'
+  | 'admin'
+  | 'superadmin';
+
+// Keep "superuser" for backward compatibility with older UI helpers.
+export type UserRole = BackendRole | 'superuser' | 'guest';
 
 export type Permission =
   // User Management
@@ -138,7 +151,7 @@ export type Permission =
 /**
  * Permission mappings for each role
  */
-export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
+const LEGACY_ROLE_PERMISSIONS: Record<'superuser' | 'staff' | 'teacher' | 'student', Permission[]> = {
   superuser: [
     // Full access to everything
     'users.view', 'users.create', 'users.edit', 'users.delete',
@@ -245,93 +258,198 @@ export const ROLE_PERMISSIONS: Record<UserRole, Permission[]> = {
   ],
 };
 
-/**
- * Page access permissions - defines which roles can access which pages
- */
-export const PAGE_PERMISSIONS: Record<string, Permission[]> = {
-  '/dashboard': ['lms.view'],
-  '/dashboard/students': ['students.view'],
-  '/dashboard/teachers': ['teachers.view'],
-  '/dashboard/crm': ['crm.view'],
-  '/dashboard/lms': ['lms.view'],
-  '/dashboard/lms/modules': ['modules.view'],
-  '/dashboard/lms/lessons': ['lessons.view'],
-  '/dashboard/lms/assignments': ['assignments.view'],
-  '/dashboard/groups': ['groups.view'],
-  '/dashboard/analytics': ['analytics.view'],
-  '/dashboard/reports': ['reports.view'],
-  '/dashboard/payments': ['payments.view'],
-  '/dashboard/expenses': ['expenses.view'],
-  '/dashboard/hr': ['hr.view'],
-  '/dashboard/tasks': ['tasks.view'],
-  '/dashboard/messaging': ['messaging.view'],
-  '/dashboard/shop': ['shop.view'],
-  '/dashboard/events': ['events.view'],
-  '/dashboard/support': ['support.view'],
-  '/dashboard/announcements': ['announcements.view'],
-  '/dashboard/leaderboard': ['analytics.view'],
-  '/dashboard/certificates': ['certificates.view'],
-  '/dashboard/email': ['email.view'],
-  '/dashboard/quizzes': ['quizzes.view'],
-  '/dashboard/quizzes/create': ['quizzes.create'],
-  '/dashboard/settings': ['settings.view'],
+export const STAFF_SIDE_ROLES: UserRole[] = [
+  'superuser',
+  'superadmin',
+  'admin',
+  'director',
+  'manager',
+  'crm_manager',
+  'lms_manager',
+  'staff',
+  'teacher',
+];
+
+const ROLE_PERMISSION_SOURCE: Record<UserRole, 'superuser' | 'staff' | 'teacher' | 'student'> = {
+  superuser: 'superuser',
+  superadmin: 'superuser',
+  admin: 'staff',
+  director: 'staff',
+  manager: 'staff',
+  crm_manager: 'staff',
+  lms_manager: 'staff',
+  staff: 'staff',
+  teacher: 'teacher',
+  student: 'student',
+  parent: 'student',
+  guest: 'student',
 };
 
+interface PagePermissionRule {
+  pattern: string;
+  requiredPermissions: Permission[];
+}
+
 /**
- * Get user role from user object
+ * Page access permissions with wildcard support.
+ * `*` means prefix match.
  */
+export const PAGE_PERMISSION_RULES: PagePermissionRule[] = [
+  { pattern: '/dashboard/students*', requiredPermissions: ['students.view'] },
+  { pattern: '/dashboard/teachers*', requiredPermissions: ['teachers.view'] },
+  { pattern: '/dashboard/attendance*', requiredPermissions: ['attendance.view'] },
+  { pattern: '/dashboard/branches*', requiredPermissions: ['settings.view'] },
+  { pattern: '/dashboard/courses*', requiredPermissions: ['courses.view'] },
+  { pattern: '/dashboard/crm*', requiredPermissions: ['crm.view'] },
+  { pattern: '/dashboard/data-view*', requiredPermissions: ['reports.view'] },
+  { pattern: '/dashboard/exam-scores*', requiredPermissions: ['grades.view'] },
+  { pattern: '/dashboard/exams*', requiredPermissions: ['quizzes.view'] },
+  { pattern: '/dashboard/inbox*', requiredPermissions: ['messaging.view'] },
+  { pattern: '/dashboard/lms/modules*', requiredPermissions: ['modules.view'] },
+  { pattern: '/dashboard/lms/lessons*', requiredPermissions: ['lessons.view'] },
+  { pattern: '/dashboard/lms/assignments*', requiredPermissions: ['assignments.view'] },
+  { pattern: '/dashboard/lms*', requiredPermissions: ['lms.view'] },
+  { pattern: '/dashboard/groups*', requiredPermissions: ['groups.view'] },
+  { pattern: '/dashboard/rooms*', requiredPermissions: ['groups.view'] },
+  { pattern: '/dashboard/sat*', requiredPermissions: ['quizzes.view'] },
+  { pattern: '/dashboard/schedule*', requiredPermissions: ['groups.view'] },
+  { pattern: '/dashboard/analytics*', requiredPermissions: ['analytics.view'] },
+  { pattern: '/dashboard/reports*', requiredPermissions: ['reports.view'] },
+  { pattern: '/dashboard/payments*', requiredPermissions: ['payments.view'] },
+  { pattern: '/dashboard/finance*', requiredPermissions: ['payments.view'] },
+  { pattern: '/dashboard/accounting*', requiredPermissions: ['payments.view'] },
+  { pattern: '/dashboard/expenses*', requiredPermissions: ['expenses.view'] },
+  { pattern: '/dashboard/hr*', requiredPermissions: ['hr.view'] },
+  { pattern: '/dashboard/subscriptions*', requiredPermissions: ['payments.view'] },
+  { pattern: '/dashboard/tasks*', requiredPermissions: ['tasks.view'] },
+  { pattern: '/dashboard/messaging*', requiredPermissions: ['messaging.view'] },
+  { pattern: '/dashboard/shop*', requiredPermissions: ['shop.view'] },
+  { pattern: '/dashboard/events*', requiredPermissions: ['events.view'] },
+  { pattern: '/dashboard/support*', requiredPermissions: ['support.view'] },
+  { pattern: '/dashboard/announcements*', requiredPermissions: ['announcements.view'] },
+  { pattern: '/dashboard/leaderboard*', requiredPermissions: ['analytics.view'] },
+  { pattern: '/dashboard/certificates*', requiredPermissions: ['certificates.view'] },
+  { pattern: '/dashboard/email*', requiredPermissions: ['email.view'] },
+  { pattern: '/dashboard/quizzes*', requiredPermissions: ['quizzes.view'] },
+  { pattern: '/dashboard/settings*', requiredPermissions: ['settings.view'] },
+  { pattern: '/dashboard', requiredPermissions: ['lms.view'] },
+];
+
+// Backward-compatible export for existing imports.
+export const PAGE_PERMISSIONS: Record<string, Permission[]> = PAGE_PERMISSION_RULES.reduce(
+  (acc, rule) => {
+    acc[rule.pattern] = rule.requiredPermissions;
+    return acc;
+  },
+  {} as Record<string, Permission[]>,
+);
+
+function isKnownRole(role: string): role is UserRole {
+  return (
+    role === 'superuser' ||
+    role === 'superadmin' ||
+    role === 'admin' ||
+    role === 'director' ||
+    role === 'manager' ||
+    role === 'crm_manager' ||
+    role === 'lms_manager' ||
+    role === 'staff' ||
+    role === 'teacher' ||
+    role === 'student' ||
+    role === 'parent' ||
+    role === 'guest'
+  );
+}
+
 export function getUserRole(user: {
+  role?: string | null;
   is_superuser: boolean;
   is_staff: boolean;
   is_teacher: boolean;
 }): UserRole {
-  if (user.is_superuser) return 'superuser';
-  if (user.is_staff) return 'staff';
+  const explicitRole = (user.role || '').toLowerCase();
+  if (isKnownRole(explicitRole)) {
+    return explicitRole;
+  }
+  if (user.is_superuser) return 'superadmin';
   if (user.is_teacher) return 'teacher';
+  if (user.is_staff) return 'staff';
   return 'student';
 }
 
-/**
- * Get all permissions for a user role
- */
 export function getRolePermissions(role: UserRole): Permission[] {
-  return ROLE_PERMISSIONS[role] || [];
+  if (role === 'guest') return [];
+  const source = ROLE_PERMISSION_SOURCE[role] || 'student';
+  return LEGACY_ROLE_PERMISSIONS[source] || [];
 }
 
-/**
- * Check if a role has a specific permission
- */
 export function hasPermission(role: UserRole, permission: Permission): boolean {
-  return ROLE_PERMISSIONS[role]?.includes(permission) || false;
+  return getRolePermissions(role).includes(permission);
 }
 
-/**
- * Check if a role has any of the specified permissions
- */
 export function hasAnyPermission(role: UserRole, permissions: Permission[]): boolean {
   return permissions.some((permission) => hasPermission(role, permission));
 }
 
-/**
- * Check if a role has all of the specified permissions
- */
 export function hasAllPermissions(role: UserRole, permissions: Permission[]): boolean {
   return permissions.every((permission) => hasPermission(role, permission));
 }
 
-/**
- * Check if a user can access a specific page
- */
-export function canAccessPage(role: UserRole, path: string): boolean {
-  const requiredPermissions = PAGE_PERMISSIONS[path];
+function normalizePath(path: string): string {
+  if (!path) return '/';
+  const withLeadingSlash = path.startsWith('/') ? path : `/${path}`;
+  if (withLeadingSlash.length > 1 && withLeadingSlash.endsWith('/')) {
+    return withLeadingSlash.slice(0, -1);
+  }
+  return withLeadingSlash;
+}
 
-  // If no permissions defined for the page, allow access (public page)
-  if (!requiredPermissions || requiredPermissions.length === 0) {
-    return true;
+function matchPattern(pathname: string, pattern: string): boolean {
+  const normalizedPath = normalizePath(pathname);
+  const normalizedPattern = normalizePath(pattern);
+  if (normalizedPattern.endsWith('*')) {
+    const prefix = normalizedPattern.slice(0, -1);
+    return normalizedPath.startsWith(prefix);
+  }
+  return normalizedPath === normalizedPattern;
+}
+
+export function canAccessPage(role: UserRole, path: string): boolean {
+  const pathname = normalizePath(path);
+  const matchedRule = PAGE_PERMISSION_RULES.find((rule) => matchPattern(pathname, rule.pattern));
+  if (matchedRule) {
+    return hasAnyPermission(role, matchedRule.requiredPermissions);
   }
 
-  // User needs at least one of the required permissions
-  return hasAnyPermission(role, requiredPermissions);
+  // Unknown dashboard pages default to staff-side only.
+  if (pathname.startsWith('/dashboard')) {
+    return STAFF_SIDE_ROLES.includes(role);
+  }
+  return true;
+}
+
+export function getRequiredPermissionsForPath(path: string): Permission[] {
+  const pathname = normalizePath(path);
+  const matchedRule = PAGE_PERMISSION_RULES.find((rule) => matchPattern(pathname, rule.pattern));
+  return matchedRule?.requiredPermissions || [];
+}
+
+export function getRoleLabel(role: UserRole): string {
+  const labels: Record<UserRole, string> = {
+    superuser: 'Superuser',
+    superadmin: 'Super Admin',
+    admin: 'Admin',
+    director: 'Director',
+    manager: 'Manager',
+    crm_manager: 'CRM Manager',
+    lms_manager: 'LMS Manager',
+    staff: 'Staff',
+    teacher: 'Teacher',
+    student: 'Student',
+    parent: 'Parent',
+    guest: 'Guest',
+  };
+  return labels[role] || 'User';
 }
 
 /**
@@ -357,27 +475,34 @@ export function getPermissionDeniedMessage(permission: Permission): string {
  * Permission hook for React components
  */
 export function usePermissions(user: {
+  role?: string | null;
   is_superuser: boolean;
   is_staff: boolean;
   is_teacher: boolean;
 } | null) {
   if (!user) {
     return {
-      role: 'student' as UserRole,
+      role: 'guest' as UserRole,
+      roleLabel: getRoleLabel('guest'),
       hasPermission: () => false,
       hasAnyPermission: () => false,
       hasAllPermissions: () => false,
       canAccessPage: () => false,
+      isStaffSideRole: false,
     };
   }
 
   const role = getUserRole(user);
+  const roleLabel = getRoleLabel(role);
+  const isStaffSideRole = STAFF_SIDE_ROLES.includes(role);
 
   return {
     role,
+    roleLabel,
     hasPermission: (permission: Permission) => hasPermission(role, permission),
     hasAnyPermission: (permissions: Permission[]) => hasAnyPermission(role, permissions),
     hasAllPermissions: (permissions: Permission[]) => hasAllPermissions(role, permissions),
     canAccessPage: (path: string) => canAccessPage(role, path),
+    isStaffSideRole,
   };
 }

@@ -6,13 +6,26 @@ export interface User {
   last_name: string;
   phone?: string;
   photo?: string;
+  role?: BackendRole | 'superuser' | null;
   is_teacher: boolean;
   is_staff: boolean;
   is_superuser: boolean;
   branch?: { id: number; name: string } | number | null;
 }
 
-export type UserRole = 'superuser' | 'staff' | 'teacher' | 'student' | 'guest';
+export type BackendRole =
+  | 'student'
+  | 'parent'
+  | 'teacher'
+  | 'staff'
+  | 'crm_manager'
+  | 'lms_manager'
+  | 'manager'
+  | 'director'
+  | 'admin'
+  | 'superadmin';
+
+export type UserRole = BackendRole | 'superuser' | 'guest';
 
 export type PermissionKey = 
   | 'VIEW_USERS'

@@ -40,13 +40,23 @@ export function AuthProvider({ children, apiService, appType }: SharedAuthProvid
   const [isLoading, setIsLoading] = useState(true);
 
   const checkAppAccess = (userData: User, currentAppType: 'web' | 'staff' | 'student'): boolean => {
+    const role = RBAC.getRole(userData);
     switch (currentAppType) {
       case 'web':
-        return RBAC.isStaff(userData) || RBAC.isSuperuser(userData) || RBAC.isTeacher(userData);
       case 'staff':
-        return RBAC.isStaff(userData) || RBAC.isSuperuser(userData) || RBAC.isTeacher(userData);
+        return [
+          'superuser',
+          'superadmin',
+          'admin',
+          'director',
+          'manager',
+          'crm_manager',
+          'lms_manager',
+          'staff',
+          'teacher',
+        ].includes(role);
       case 'student':
-        return RBAC.isStudent(userData);
+        return role === 'student' || role === 'parent';
       default:
         return false;
     }

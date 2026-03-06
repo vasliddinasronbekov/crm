@@ -64,86 +64,225 @@ const allPermissions = Object.keys({
   MANAGE_SETTINGS: null,
 }) as PermissionKey[];
 
-
-const ROLES_PERMISSIONS: Record<UserRole, PermissionKey[]> = {
-    superuser: allPermissions,
-    staff: [
-        'VIEW_USERS', 'CREATE_USERS', 'EDIT_USERS', 'DELETE_USERS',
-        'VIEW_STUDENTS', 'CREATE_STUDENTS', 'EDIT_STUDENTS', 'DELETE_STUDENTS',
-        'VIEW_TEACHERS', 'CREATE_TEACHERS', 'EDIT_TEACHERS', 'DELETE_TEACHERS',
-        'VIEW_GROUPS', 'CREATE_GROUPS', 'EDIT_GROUPS', 'DELETE_GROUPS',
-        'VIEW_COURSES', 'CREATE_COURSES', 'EDIT_COURSES', 'DELETE_COURSES',
-        'VIEW_ATTENDANCE', 'MARK_ATTENDANCE', 'EDIT_ATTENDANCE',
-        'VIEW_EXAM_SCORES', 'CREATE_EXAM_SCORES', 'EDIT_EXAM_SCORES', 'DELETE_EXAM_SCORES',
-        'VIEW_PAYMENTS', 'CREATE_PAYMENTS', 'EDIT_PAYMENTS', 'DELETE_PAYMENTS',
-        'VIEW_ACCOUNTING', 'MANAGE_ACCOUNTING',
-        'VIEW_ANALYTICS', 'VIEW_REPORTS', 'GENERATE_REPORTS',
-        'VIEW_CRM', 'MANAGE_LEADS', 'MANAGE_DEALS',
-        'VIEW_TASKS', 'CREATE_TASKS', 'EDIT_TASKS', 'DELETE_TASKS',
-        'VIEW_LMS', 'MANAGE_LMS_CONTENT', 'GRADE_ASSIGNMENTS',
-        'VIEW_EMAIL_CAMPAIGNS', 'MANAGE_EMAIL_CAMPAIGNS',
-        'VIEW_CERTIFICATES', 'GENERATE_CERTIFICATES',
-        'VIEW_SALARIES', 'MANAGE_SALARIES',
-        'VIEW_EXPENSES', 'MANAGE_EXPENSES',
-        'VIEW_SUPPORT', 'MANAGE_SUPPORT',
-        'VIEW_SHOP', 'MANAGE_SHOP', 'AWARD_COINS',
-        'VIEW_SETTINGS', 'MANAGE_SETTINGS'
-    ],
-    teacher: [
-        'VIEW_STUDENTS', 'VIEW_GROUPS', 'VIEW_COURSES', 'VIEW_ATTENDANCE',
-        'MARK_ATTENDANCE', 'EDIT_ATTENDANCE', 'VIEW_EXAM_SCORES', 'CREATE_EXAM_SCORES',
-        'EDIT_EXAM_SCORES', 'VIEW_TASKS', 'CREATE_TASKS', 'EDIT_TASKS',
-        'DELETE_TASKS', 'VIEW_LMS', 'MANAGE_LMS_CONTENT', 'GRADE_ASSIGNMENTS'
-    ],
-    student: [
-        'VIEW_COURSES', 'VIEW_ATTENDANCE', 'VIEW_EXAM_SCORES', 'VIEW_PAYMENTS', 'VIEW_TASKS',
-        'VIEW_LMS', 'VIEW_SUPPORT'
-    ],
-    guest: [],
+const baseRolePermissions: Record<'superuser' | 'staff' | 'teacher' | 'student', PermissionKey[]> = {
+  superuser: allPermissions,
+  staff: [
+    'VIEW_USERS',
+    'CREATE_USERS',
+    'EDIT_USERS',
+    'DELETE_USERS',
+    'VIEW_STUDENTS',
+    'CREATE_STUDENTS',
+    'EDIT_STUDENTS',
+    'DELETE_STUDENTS',
+    'VIEW_TEACHERS',
+    'CREATE_TEACHERS',
+    'EDIT_TEACHERS',
+    'DELETE_TEACHERS',
+    'VIEW_GROUPS',
+    'CREATE_GROUPS',
+    'EDIT_GROUPS',
+    'DELETE_GROUPS',
+    'VIEW_COURSES',
+    'CREATE_COURSES',
+    'EDIT_COURSES',
+    'DELETE_COURSES',
+    'VIEW_ATTENDANCE',
+    'MARK_ATTENDANCE',
+    'EDIT_ATTENDANCE',
+    'VIEW_EXAM_SCORES',
+    'CREATE_EXAM_SCORES',
+    'EDIT_EXAM_SCORES',
+    'DELETE_EXAM_SCORES',
+    'VIEW_PAYMENTS',
+    'CREATE_PAYMENTS',
+    'EDIT_PAYMENTS',
+    'DELETE_PAYMENTS',
+    'VIEW_ACCOUNTING',
+    'MANAGE_ACCOUNTING',
+    'VIEW_ANALYTICS',
+    'VIEW_REPORTS',
+    'GENERATE_REPORTS',
+    'VIEW_CRM',
+    'MANAGE_LEADS',
+    'MANAGE_DEALS',
+    'VIEW_TASKS',
+    'CREATE_TASKS',
+    'EDIT_TASKS',
+    'DELETE_TASKS',
+    'VIEW_LMS',
+    'MANAGE_LMS_CONTENT',
+    'GRADE_ASSIGNMENTS',
+    'VIEW_EMAIL_CAMPAIGNS',
+    'MANAGE_EMAIL_CAMPAIGNS',
+    'VIEW_CERTIFICATES',
+    'GENERATE_CERTIFICATES',
+    'VIEW_SALARIES',
+    'MANAGE_SALARIES',
+    'VIEW_EXPENSES',
+    'MANAGE_EXPENSES',
+    'VIEW_SUPPORT',
+    'MANAGE_SUPPORT',
+    'VIEW_SHOP',
+    'MANAGE_SHOP',
+    'AWARD_COINS',
+    'VIEW_SETTINGS',
+    'MANAGE_SETTINGS',
+  ],
+  teacher: [
+    'VIEW_STUDENTS',
+    'VIEW_GROUPS',
+    'VIEW_COURSES',
+    'VIEW_ATTENDANCE',
+    'MARK_ATTENDANCE',
+    'EDIT_ATTENDANCE',
+    'VIEW_EXAM_SCORES',
+    'CREATE_EXAM_SCORES',
+    'EDIT_EXAM_SCORES',
+    'VIEW_TASKS',
+    'CREATE_TASKS',
+    'EDIT_TASKS',
+    'DELETE_TASKS',
+    'VIEW_LMS',
+    'MANAGE_LMS_CONTENT',
+    'GRADE_ASSIGNMENTS',
+  ],
+  student: [
+    'VIEW_COURSES',
+    'VIEW_ATTENDANCE',
+    'VIEW_EXAM_SCORES',
+    'VIEW_PAYMENTS',
+    'VIEW_TASKS',
+    'VIEW_LMS',
+    'VIEW_SUPPORT',
+  ],
 };
 
+const rolePermissionSource: Record<UserRole, 'superuser' | 'staff' | 'teacher' | 'student'> = {
+  superuser: 'superuser',
+  superadmin: 'superuser',
+  admin: 'staff',
+  director: 'staff',
+  manager: 'staff',
+  crm_manager: 'staff',
+  lms_manager: 'staff',
+  staff: 'staff',
+  teacher: 'teacher',
+  student: 'student',
+  parent: 'student',
+  guest: 'student',
+};
+
+const knownRoles = new Set<UserRole>([
+  'superuser',
+  'superadmin',
+  'admin',
+  'director',
+  'manager',
+  'crm_manager',
+  'lms_manager',
+  'staff',
+  'teacher',
+  'student',
+  'parent',
+  'guest',
+]);
+
+const staffAdminRoles = new Set<UserRole>([
+  'superuser',
+  'superadmin',
+  'admin',
+  'director',
+  'manager',
+  'crm_manager',
+  'lms_manager',
+  'staff',
+]);
+
+function normalizeRole(rawRole: string | null | undefined): UserRole | null {
+  const role = (rawRole || '').toLowerCase();
+  if (knownRoles.has(role as UserRole)) {
+    return role as UserRole;
+  }
+  return null;
+}
+
+function resolveRole(user: User | null): UserRole {
+  if (!user) return 'guest';
+
+  const explicitRole = normalizeRole(user.role);
+  if (explicitRole) {
+    return explicitRole;
+  }
+
+  if (user.is_superuser) return 'superadmin';
+  if (user.is_teacher) return 'teacher';
+  if (user.is_staff) return 'staff';
+  return 'student';
+}
+
 export const RBAC = {
-    isSuperuser: (user: User | null): boolean => !!user && user.is_superuser,
-    isStaff: (user: User | null): boolean => !!user && user.is_staff,
-    isTeacher: (user: User | null): boolean => !!user && user.is_teacher,
-    isStudent: (user: User | null): boolean => !!user && !user.is_staff && !user.is_teacher,
-    isAdmin: (user: User | null): boolean => !!user && (user.is_superuser || user.is_staff),
-    getRole: (user: User | null): UserRole => {
-        if (!user) return 'guest';
-        if (user.is_superuser) return 'superuser';
-        if (user.is_staff) return 'staff';
-        if (user.is_teacher) return 'teacher';
-        return 'student';
-    },
-    getRoleLabel: (user: User | null): string => {
-        const role = RBAC.getRole(user);
-        return role.charAt(0).toUpperCase() + role.slice(1);
-    },
-    getDisplayName: (user: User | null): string => {
-        if (!user) return 'Guest';
-        if (user.first_name && user.last_name) return `${user.first_name} ${user.last_name}`;
-        return user.username;
-    },
+  isSuperuser: (user: User | null): boolean => {
+    const role = resolveRole(user);
+    return role === 'superadmin' || role === 'superuser';
+  },
+  isStaff: (user: User | null): boolean => {
+    const role = resolveRole(user);
+    return staffAdminRoles.has(role);
+  },
+  isTeacher: (user: User | null): boolean => resolveRole(user) === 'teacher',
+  isStudent: (user: User | null): boolean => {
+    const role = resolveRole(user);
+    return role === 'student' || role === 'parent';
+  },
+  isAdmin: (user: User | null): boolean => {
+    const role = resolveRole(user);
+    return staffAdminRoles.has(role);
+  },
+  getRole: (user: User | null): UserRole => resolveRole(user),
+  getRoleLabel: (user: User | null): string => {
+    const labels: Record<UserRole, string> = {
+      superuser: 'Superuser',
+      superadmin: 'Super Admin',
+      admin: 'Admin',
+      director: 'Director',
+      manager: 'Manager',
+      crm_manager: 'CRM Manager',
+      lms_manager: 'LMS Manager',
+      staff: 'Staff',
+      teacher: 'Teacher',
+      student: 'Student',
+      parent: 'Parent',
+      guest: 'Guest',
+    };
+    return labels[resolveRole(user)] || 'User';
+  },
+  getDisplayName: (user: User | null): string => {
+    if (!user) return 'Guest';
+    if (user.first_name && user.last_name) return `${user.first_name} ${user.last_name}`;
+    return user.username;
+  },
 };
 
 export function hasAnyRole(user: User | null, roles: UserRole[]): boolean {
   if (!user) return false;
-  const userRole = RBAC.getRole(user);
-  return roles.includes(userRole);
+  return roles.includes(resolveRole(user));
 }
 
 export function hasPermission(user: User | null, permission: PermissionKey): boolean {
-    if (!user) return false;
-    const userRole = RBAC.getRole(user);
-    const userPermissions = ROLES_PERMISSIONS[userRole] || [];
-    return userPermissions.includes(permission);
+  if (!user) return false;
+  const role = resolveRole(user);
+  const source = rolePermissionSource[role] || 'student';
+  const permissions = baseRolePermissions[source] || [];
+  return permissions.includes(permission);
 }
 
 export function hasAnyPermission(user: User | null, permissions: PermissionKey[]): boolean {
-    if (!user) return false;
-    const userRole = RBAC.getRole(user);
-    const userPermissions = ROLES_PERMISSIONS[userRole] || [];
-    return permissions.some(p => userPermissions.includes(p));
+  if (!user) return false;
+  const role = resolveRole(user);
+  const source = rolePermissionSource[role] || 'student';
+  const userPermissions = baseRolePermissions[source] || [];
+  return permissions.some((permission) => userPermissions.includes(permission));
 }
 
 export type { UserRole, PermissionKey };

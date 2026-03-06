@@ -5,6 +5,7 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useSettings, Language, Theme, Currency } from '@/contexts/SettingsContext'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
+import { usePermissions, getRolePermissions, type Permission } from '@/lib/permissions'
 import {
   User, Mail, Phone, Lock, Shield, Bell, Palette,
   Globe, Download, Trash2, Save, AlertTriangle,
@@ -14,6 +15,7 @@ import {
 
 export default function SettingsPage() {
   const { user } = useAuth()
+  const permissionState = usePermissions(user)
   const { language, theme, currency, setLanguage, setTheme, setCurrency, t } = useSettings()
   const [isLoading, setIsLoading] = useState(false)
   const [isSaving, setIsSaving] = useState(false)
@@ -54,6 +56,23 @@ export default function SettingsPage() {
   }
 
   const passwordStrength = getPasswordStrength(passwordData.new_password)
+  const grantedPermissions = getRolePermissions(permissionState.role)
+  const permissionDomainMatrix: Array<{ name: string; permissions: Permission[] }> = [
+    { name: 'Users', permissions: ['users.view', 'teachers.view', 'students.view'] },
+    { name: 'Academics', permissions: ['lms.view', 'courses.view', 'assignments.view'] },
+    { name: 'Operations', permissions: ['tasks.view', 'support.view', 'messaging.view'] },
+    { name: 'Finance', permissions: ['payments.view', 'expenses.view', 'hr.view'] },
+    { name: 'Growth', permissions: ['crm.view', 'analytics.view', 'email.view'] },
+  ]
+  const domainAccess = permissionDomainMatrix.map((domain) => {
+    const granted = domain.permissions.filter((permission) => grantedPermissions.includes(permission)).length
+    const percentage = Math.round((granted / domain.permissions.length) * 100)
+    return {
+      ...domain,
+      granted,
+      percentage,
+    }
+  })
 
   useEffect(() => {
     if (user) {
@@ -119,9 +138,15 @@ export default function SettingsPage() {
   }
 
   const getRoleBadge = () => {
-    if (user?.is_superuser) return { label: 'Administrator', icon: '🛡️', color: 'from-red-500/20 to-orange-500/20 text-red-500 border-red-500/30' }
-    if (user?.is_staff) return { label: 'Staff', icon: '⚙️', color: 'from-warning/20 to-orange-500/20 text-warning border-warning/30' }
-    if (user?.is_teacher) return { label: 'Teacher', icon: '👨‍🏫', color: 'from-primary/20 to-cyan-500/20 text-primary border-primary/30' }
+    if (permissionState.role === 'superadmin' || permissionState.role === 'superuser') {
+      return { label: permissionState.roleLabel, icon: '🛡️', color: 'from-red-500/20 to-orange-500/20 text-red-500 border-red-500/30' }
+    }
+    if (['admin', 'director', 'manager', 'crm_manager', 'lms_manager', 'staff'].includes(permissionState.role)) {
+      return { label: permissionState.roleLabel, icon: '⚙️', color: 'from-warning/20 to-orange-500/20 text-warning border-warning/30' }
+    }
+    if (permissionState.role === 'teacher') {
+      return { label: permissionState.roleLabel, icon: '👨‍🏫', color: 'from-primary/20 to-cyan-500/20 text-primary border-primary/30' }
+    }
     return { label: 'User', icon: '👤', color: 'from-gray-500/20 to-gray-600/20 text-gray-500 border-gray-500/30' }
   }
 
@@ -380,6 +405,37 @@ export default function SettingsPage() {
 
         {/* Quick Actions Sidebar */}
         <div className="space-y-6">
+          {/* Access Profile */}
+          <div className="bg-surface rounded-2xl border border-border p-6 hover:border-primary/50 transition-all">
+            <div className="flex items-center gap-3 mb-4">
+              <Shield className="h-5 w-5 text-primary" />
+              <h2 className="text-lg font-bold">Access Profile</h2>
+            </div>
+            <div className="mb-4 p-3 rounded-xl bg-primary/10 border border-primary/20">
+              <p className="text-xs text-text-secondary">Role</p>
+              <p className="font-semibold text-primary">{permissionState.roleLabel}</p>
+              <p className="text-xs text-text-secondary mt-1">
+                {grantedPermissions.length} effective permissions
+              </p>
+            </div>
+            <div className="space-y-3">
+              {domainAccess.map((domain) => (
+                <div key={domain.name}>
+                  <div className="flex items-center justify-between text-xs mb-1">
+                    <span className="text-text-secondary">{domain.name}</span>
+                    <span className="font-semibold">{domain.granted}/{domain.permissions.length}</span>
+                  </div>
+                  <div className="h-2 rounded-full bg-border">
+                    <div
+                      className="h-2 rounded-full bg-gradient-to-r from-primary to-cyan-500"
+                      style={{ width: `${domain.percentage}%` }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
           {/* Language Settings */}
           <div className="bg-surface rounded-2xl border border-border p-6 hover:border-primary/50 transition-all">
             <div className="flex items-center gap-3 mb-4">
