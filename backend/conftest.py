@@ -68,6 +68,12 @@ def auth_client(api_client, user):
 
 
 @pytest.fixture
+def authenticated_client(auth_client):
+    """Backward-compatible alias used across older test files."""
+    return auth_client
+
+
+@pytest.fixture
 def admin_client(api_client, superuser):
     """Provides an authenticated API client with admin user."""
     from rest_framework_simplejwt.tokens import RefreshToken

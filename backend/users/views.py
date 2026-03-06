@@ -6,19 +6,22 @@ from rest_framework import status
 from .serializers import StaffTokenObtainPairSerializer, StudentTokenObtainPairSerializer
 
 # --- YANGI KODLAR ---
-from rest_framework import viewsets, permissions
+from rest_framework import permissions, viewsets
 from rest_framework.views import APIView
-from rest_framework.decorators import api_view, permission_classes, action
+from rest_framework.decorators import action
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from django.contrib.auth import update_session_auth_hash
-from .models import User
+from .models import User, UserRoleEnum
 from .serializers import (
     UserSerializer,
     UserProfileSerializer,
     ChangePasswordSerializer,
+    StudentWriteSerializer,
     TeacherWriteSerializer,
+    UserRoleUpdateSerializer,
 )
+from .permissions import HasRoleCapability
 from edu_project.middleware.login_attempt import (
     record_login_attempt,
     is_locked_out,
@@ -30,27 +33,53 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
     Barcha foydalanuvchilar ro'yxati (faqat adminlar uchun).
     URL: /api/task/users/
     """
-    queryset = User.objects.all()
+    queryset = User.objects.all().order_by('id')
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'users.read_all',
+        'retrieve': 'users.read_all',
+        'set_role': 'users.manage',
+    }
+
+    @action(detail=True, methods=['post'])
+    def set_role(self, request, pk=None):
+        user = self.get_object()
+        serializer = UserRoleUpdateSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+        user.role = serializer.validated_data['role']
+        user.save()
+        return Response(UserSerializer(user).data)
 
 class StudentViewSet(viewsets.ModelViewSet):
     """
     Students list with full CRUD operations.
     URL: /api/users/students/
     """
-    queryset = User.objects.filter(is_teacher=False, is_staff=False)
+    queryset = User.objects.filter(role=UserRoleEnum.STUDENT.value)
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'students.read',
+        'retrieve': 'students.read',
+        'create': 'students.manage',
+        'update': 'students.manage',
+        'partial_update': 'students.manage',
+        'destroy': 'students.manage',
+        'deactivate': 'students.manage',
+        'reactivate': 'students.manage',
+        'detail_view': 'students.read',
+        'reactivate_account': 'students.reactivate',
+        'me': 'students.self',
+    }
 
-    def get_permissions(self):
-        """Only staff can create, update, or delete students"""
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAdminUser()]
-        return [permissions.IsAuthenticated()]
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return StudentWriteSerializer
+        return UserSerializer
 
     def get_queryset(self):
-        queryset = User.objects.filter(is_teacher=False, is_staff=False)
+        queryset = User.objects.filter(role=UserRoleEnum.STUDENT.value)
 
         # Date filtering - filter by date_joined
         date_param = self.request.query_params.get('date', None)
@@ -59,7 +88,7 @@ class StudentViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by('-date_joined')
 
-    @action(detail=False, methods=['get', 'patch', 'put'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=False, methods=['get', 'patch', 'put'])
     def me(self, request):
         """
         Get or update current student's profile.
@@ -77,7 +106,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 return Response(serializer.data)
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-    @action(detail=True, methods=['get'], permission_classes=[permissions.IsAuthenticated])
+    @action(detail=True, methods=['get'])
     def detail_view(self, request, pk=None):
         """
         Get comprehensive student details including:
@@ -422,10 +451,10 @@ class StudentViewSet(viewsets.ModelViewSet):
 
         return Response(student_data)
 
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    @action(detail=True, methods=['post'])
     def reactivate_account(self, request, pk=None):
         """
-        Admin-only manual reactivation for deactivated/frozen students.
+        Management-level manual reactivation for deactivated/frozen students.
         Optional payload:
           - group: group id to (re)assign after reactivation
         """
@@ -465,23 +494,25 @@ class TeacherViewSet(viewsets.ModelViewSet):
     Teachers list with full CRUD operations.
     URL: /api/users/teachers/
     """
-    queryset = User.objects.filter(is_teacher=True)
+    queryset = User.objects.filter(role=UserRoleEnum.TEACHER.value)
     serializer_class = UserSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'teachers.read',
+        'retrieve': 'teachers.read',
+        'create': 'teachers.manage',
+        'update': 'teachers.manage',
+        'partial_update': 'teachers.manage',
+        'destroy': 'teachers.manage',
+    }
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
             return TeacherWriteSerializer
         return UserSerializer
 
-    def get_permissions(self):
-        """Only admins can create, update, or delete teachers"""
-        if self.action in ['create', 'update', 'partial_update', 'destroy']:
-            return [permissions.IsAdminUser()]
-        return [permissions.IsAuthenticated()]
-
     def get_queryset(self):
-        queryset = User.objects.filter(is_teacher=True)
+        queryset = User.objects.filter(role=UserRoleEnum.TEACHER.value)
 
         # Date filtering - filter by date_joined
         date_param = self.request.query_params.get('date', None)
@@ -548,7 +579,8 @@ class UserProfileView(APIView):
     GET /api/auth/profile/ - Get current user profile
     PATCH /api/auth/profile/ - Update current user profile
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    required_capability = 'profile.self'
     serializer_class = UserProfileSerializer
 
     def get(self, request):
@@ -571,7 +603,8 @@ class ChangePasswordView(APIView):
     Change user password.
     POST /api/auth/change-password/
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    required_capability = 'profile.self'
 
     def post(self, request):
         serializer = ChangePasswordSerializer(data=request.data, context={'request': request})
@@ -596,7 +629,8 @@ class LogoutView(APIView):
     Logout user (blacklist refresh token).
     POST /api/auth/logout/
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    required_capability = 'profile.self'
 
     def post(self, request):
         try:
