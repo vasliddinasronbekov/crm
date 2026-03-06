@@ -204,13 +204,11 @@ CORS_ALLOW_HEADERS = list(default_headers) + [
 # The wildcards 'https://*' and 'http://*' allow all origins
 # For production: Remove wildcards and specify exact domains
 CSRF_TRUSTED_ORIGINS = [
-    'https://*',  # Allow all HTTPS origins (development)
-    'http://*',   # Allow all HTTP origins (development)
-    'http://localhost:3000',
-    'https://localhost:3000',
-    'http://127.0.0.1',
-    'https://127.0.0.1',
+    "https://api.crmai.uz",
+    "https://www.crmai.uz",
+    "https://crmai.uz",
 ]
+
 
 # -----------------------
 # Django Rest Framework
