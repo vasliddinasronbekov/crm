@@ -269,7 +269,8 @@ export function useRealtimeAccountingDashboard(limit: number = 20) {
       const data = await apiService.getAccountingRealtimeDashboard({ limit })
       return data
     },
-    staleTime: 5 * 1000,
-    refetchInterval: 10 * 1000,
+    staleTime: 20 * 1000,
+    refetchInterval: 30 * 1000,
+    refetchOnWindowFocus: false,
   })
 }

@@ -3,6 +3,7 @@ import jwt
 from django.conf import settings
 from channels.db import database_sync_to_async
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
 from urllib.parse import parse_qs
 
 User = get_user_model()
@@ -21,24 +22,19 @@ class TokenAuthMiddleware:
     Token auth middleware for Channels 3
     Usage: Token in query param ?token=... or in Sec-WebSocket-Protocol header handled in frontend.
     """
-    def __init__(self, inner):
-        self.inner = inner
+    def __init__(self, app):
+        self.app = app
 
-    def __call__(self, scope):
-        return TokenAuthMiddlewareInstance(scope, self)
-
-class TokenAuthMiddlewareInstance:
-    def __init__(self, scope, middleware):
-        self.scope = dict(scope)
-        self.inner = middleware.inner
-
-    async def __call__(self, receive, send):
-        query_string = self.scope.get("query_string", b"").decode()
+    async def __call__(self, scope, receive, send):
+        ws_scope = dict(scope)
+        query_string = ws_scope.get("query_string", b"").decode()
         qs = parse_qs(query_string)
         token = qs.get("token", [None])[0]
+
+        ws_scope["user"] = AnonymousUser()
         if token:
             user = await get_user_from_token(token)
             if user:
-                self.scope["user"] = user
-        inner = self.inner(self.scope)
-        return await inner(receive, send)
+                ws_scope["user"] = user
+
+        return await self.app(ws_scope, receive, send)
