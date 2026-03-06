@@ -529,7 +529,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-text-secondary mt-1">40% pro-rated payout obligation</p>
               </div>
 
-              <div className="bg-surface rounded-2xl border border-border p-4 h-[220px] flex flex-col">
+              <div className="bg-surface rounded-2xl border border-border p-4 h-[100px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm font-semibold">Live Activity Feed</p>
                   {isRealtimeLoading && <span className="text-xs text-text-secondary">syncing...</span>}
