@@ -180,8 +180,8 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 # Development: Allow all origins (controlled by CORS_ALLOW_ALL_ORIGINS below)
 # For production: Set CORS_ALLOW_ALL_ORIGINS=False in .env and uncomment specific origins
 CORS_ALLOWED_ORIGINS = [
-    'https://*',
-    'http://*',
+    'https://crmai.uz',
+    'https://www.crmai.uz',
     'http://localhost:3000',
     'https://localhost:3000',
     'https://api.crmai.uz',
@@ -207,6 +207,7 @@ CSRF_TRUSTED_ORIGINS = [
     "https://api.crmai.uz",
     "https://www.crmai.uz",
     "https://crmai.uz",
+    "http://localhost",
 ]
 
 
