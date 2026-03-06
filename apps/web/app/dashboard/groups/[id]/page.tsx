@@ -506,6 +506,24 @@ export default function GroupDetailPage() {
     )
   }, [fetchAllPages, groupIdNumber])
 
+  const verifyAttendancePersisted = useCallback(
+    async (studentId: number) => {
+      const payload = await apiService.getAttendance({
+        group: groupIdNumber,
+        student: studentId,
+        date: selectedDate,
+        page: 1,
+      })
+      const records = parseListPayload<any>(payload)
+      return records.some((record) => {
+        const recordStudentId = extractId(record?.student)
+        const recordDate = normalizeAttendanceDate(record?.date || record?.created_at)
+        return recordStudentId === studentId && recordDate === selectedDate
+      })
+    },
+    [groupIdNumber, selectedDate],
+  )
+
   const loadStudentBalances = useCallback(async () => {
     const rows = await fetchAllPages<any>((page) =>
       apiService.getStudentBalances({ group: groupIdNumber, page }),
@@ -719,6 +737,16 @@ export default function GroupDetailPage() {
       await loadAttendance()
     } catch (error: any) {
       console.error('Failed to mark attendance:', error)
+      try {
+        const persisted = await verifyAttendancePersisted(studentId)
+        if (persisted) {
+          toast.success('Attendance saved successfully. Server returned an automation error.')
+          await loadAttendance()
+          return
+        }
+      } catch (verificationError) {
+        console.error('Failed to verify attendance after error:', verificationError)
+      }
       toast.error(error?.response?.data?.detail || 'Failed to mark attendance.')
     } finally {
       setMarkingAttendance(null)

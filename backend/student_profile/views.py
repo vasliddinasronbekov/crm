@@ -28,6 +28,7 @@ from drf_spectacular.utils import extend_schema
 from weasyprint import HTML
 import qrcode
 import io
+logger = logging.getLogger(__name__)
 # --- 2. Modellarni import qilamiz ---
 from .models import (
     ShopProduct, StudentCoins, ShopOrder,
@@ -143,13 +144,44 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     serializer_class = AttendanceSerializer
     permission_classes = [permissions.IsAuthenticated, IsTeacherOrReadOnly]
 
+    def _apply_attendance_policies_safely(self, attendance: Attendance) -> None:
+        try:
+            apply_attendance_policies(attendance, actor=self.request.user)
+        except Exception:
+            logger.exception(
+                "Attendance policies failed after attendance save: attendance_id=%s student_id=%s group_id=%s date=%s",
+                attendance.id,
+                attendance.student_id,
+                attendance.group_id,
+                attendance.date,
+            )
+
+    def create(self, request, *args, **kwargs):
+        serializer = self.get_serializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        validated = serializer.validated_data
+        attendance_status = validated.get('attendance_status', Attendance.STATUS_PRESENT)
+        attendance_obj, created = Attendance.objects.update_or_create(
+            student=validated['student'],
+            group=validated['group'],
+            date=validated['date'],
+            defaults={'attendance_status': attendance_status},
+        )
+
+        self._apply_attendance_policies_safely(attendance_obj)
+
+        output_serializer = self.get_serializer(attendance_obj)
+        response_status = status.HTTP_201_CREATED if created else status.HTTP_200_OK
+        return Response(output_serializer.data, status=response_status)
+
     def perform_create(self, serializer):
         attendance = serializer.save()
-        apply_attendance_policies(attendance, actor=self.request.user)
+        self._apply_attendance_policies_safely(attendance)
 
     def perform_update(self, serializer):
         attendance = serializer.save()
-        apply_attendance_policies(attendance, actor=self.request.user)
+        self._apply_attendance_policies_safely(attendance)
 
     @action(detail=False, methods=['post'])
     def bulk_create(self, request):
@@ -225,7 +257,17 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                     )
                     created_count += 1
 
-                apply_attendance_policies(attendance_obj, actor=request.user)
+                try:
+                    apply_attendance_policies(attendance_obj, actor=request.user)
+                except Exception as exc:
+                    logger.exception(
+                        "Attendance policies failed during bulk_create: attendance_id=%s student_id=%s group_id=%s date=%s",
+                        attendance_obj.id,
+                        attendance_obj.student_id,
+                        attendance_obj.group_id,
+                        attendance_obj.date,
+                    )
+                    errors.append({'index': index, 'errors': {'automation': str(exc)}})
 
                 processed_records.append(attendance_obj)
 
