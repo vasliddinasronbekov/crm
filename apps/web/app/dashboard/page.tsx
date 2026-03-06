@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -48,6 +48,11 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const realtimeRefetchRef = useRef(refetchRealtimeDashboard)
+
+  useEffect(() => {
+    realtimeRefetchRef.current = refetchRealtimeDashboard
+  }, [refetchRealtimeDashboard])
 
   useEffect(() => {
     loadDashboardData()
@@ -64,28 +69,60 @@ export default function DashboardPage() {
     const socketUrl = `${wsBase}/ws/accounting/logs/?token=${encodeURIComponent(token)}`
 
     let websocket: WebSocket | null = null
-    try {
-      websocket = new WebSocket(socketUrl)
+    let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+    let cancelled = false
+    let reconnectAttempts = 0
+
+    const connect = () => {
+      if (cancelled) return
+
+      try {
+        websocket = new WebSocket(socketUrl)
+      } catch (error) {
+        console.debug('Accounting websocket init failed', error)
+        return
+      }
+
+      websocket.onopen = () => {
+        reconnectAttempts = 0
+      }
+
       websocket.onmessage = (event) => {
         try {
           const parsed = JSON.parse(event.data || '{}')
           if (parsed?.type === 'accounting_log') {
-            refetchRealtimeDashboard()
+            void realtimeRefetchRef.current()
           }
         } catch (error) {
-          console.debug('Accounting log websocket parse failed', error)
+          console.debug('Accounting websocket payload parse failed', error)
         }
       }
-    } catch (error) {
-      console.debug('Accounting log websocket connection failed', error)
-    }
 
-    return () => {
-      if (websocket && websocket.readyState <= WebSocket.OPEN) {
-        websocket.close()
+      websocket.onclose = (event) => {
+        if (cancelled) return
+        if (event.code === 1000) return
+
+        if (reconnectAttempts >= 6) {
+          return
+        }
+        reconnectAttempts = Math.min(reconnectAttempts + 1, 6)
+        const delayMs = Math.min(1000 * 2 ** reconnectAttempts, 30000)
+        reconnectTimer = setTimeout(connect, delayMs)
       }
     }
-  }, [refetchRealtimeDashboard])
+
+    connect()
+
+    return () => {
+      cancelled = true
+      if (reconnectTimer) {
+        clearTimeout(reconnectTimer)
+      }
+      if (websocket && websocket.readyState <= WebSocket.OPEN) {
+        websocket.close(1000, 'dashboard-unmount')
+      }
+    }
+  }, [user?.id])
 
   const loadDashboardData = async () => {
     try {

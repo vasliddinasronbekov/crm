@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 
@@ -12,19 +12,11 @@ export default function InboxNotificationButton() {
   const router = useRouter()
   const [unreadCount, setUnreadCount] = useState(0)
   const [loading, setLoading] = useState(true)
+  const requestInFlight = useRef(false)
 
-  // Fetch unread count on mount and every 30 seconds
-  useEffect(() => {
-    fetchUnreadCount()
-
-    const interval = setInterval(() => {
-      fetchUnreadCount()
-    }, 30000) // Refresh every 30 seconds
-
-    return () => clearInterval(interval)
-  }, [])
-
-  const fetchUnreadCount = async () => {
+  const fetchUnreadCount = useCallback(async () => {
+    if (requestInFlight.current) return
+    requestInFlight.current = true
     try {
       const data = await api.getUnreadNotificationCount()
       setUnreadCount(data.count || 0)
@@ -32,8 +24,22 @@ export default function InboxNotificationButton() {
     } catch (error) {
       console.error('Failed to fetch unread notification count:', error)
       setLoading(false)
+    } finally {
+      requestInFlight.current = false
     }
-  }
+  }, [])
+
+  // Fetch unread count on mount and every 30 seconds
+  useEffect(() => {
+    void fetchUnreadCount()
+
+    const interval = setInterval(() => {
+      if (typeof document !== 'undefined' && document.hidden) return
+      void fetchUnreadCount()
+    }, 30000) // Refresh every 30 seconds
+
+    return () => clearInterval(interval)
+  }, [fetchUnreadCount])
 
   const handleClick = () => {
     router.push('/dashboard/inbox')

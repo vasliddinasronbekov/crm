@@ -264,6 +264,7 @@ export default function SettingsPage() {
                 <div className="relative">
                   <input
                     type={showOldPassword ? "text" : "password"}
+                    autoComplete="current-password"
                     placeholder="Enter current password"
                     value={passwordData.old_password}
                     onChange={(e) =>
@@ -286,6 +287,7 @@ export default function SettingsPage() {
                 <div className="relative">
                   <input
                     type={showNewPassword ? "text" : "password"}
+                    autoComplete="new-password"
                     placeholder="Enter new password (min 8 characters)"
                     value={passwordData.new_password}
                     onChange={(e) =>
@@ -331,6 +333,7 @@ export default function SettingsPage() {
                 <div className="relative">
                   <input
                     type={showConfirmPassword ? "text" : "password"}
+                    autoComplete="new-password"
                     placeholder="Confirm new password"
                     value={passwordData.confirm_password}
                     onChange={(e) =>
