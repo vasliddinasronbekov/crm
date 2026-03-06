@@ -484,7 +484,7 @@ export default function DashboardPage() {
           {/* Real-time accounting cards + feed */}
           {canViewFinanceOverview ? (
             <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-8">
-              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-success/50 transition-all h-[220px] flex flex-col">
+              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-success/50 transition-all h-[250px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-text-secondary">Total Income</p>
                   <TrendingUp className="h-5 w-5 text-success" />
