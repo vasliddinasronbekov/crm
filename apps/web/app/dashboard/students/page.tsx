@@ -7,7 +7,8 @@ import {
   Users, Plus, Edit, Trash2, X, Search, Mail, Phone,
   Calendar, Download, Upload, Eye, MoreVertical, Activity, CheckCircle
 } from 'lucide-react'
-import { ProtectedRoute, RequirePermission } from '@/components/ProtectedRoute'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { useAuth } from '@/contexts/AuthContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import {
   useStudents,
@@ -17,12 +18,18 @@ import {
   type Student,
   type StudentFormData
 } from '@/lib/hooks/useStudents'
+import { usePermissions } from '@/lib/permissions'
 import LoadingScreen from '@/components/LoadingScreen'
 
 type ViewMode = 'grid' | 'table'
 
 export default function StudentsPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
+  const canCreateStudent = permissionState.hasPermission('students.create')
+  const canEditStudent = permissionState.hasPermission('students.edit')
+  const canDeleteStudent = permissionState.hasPermission('students.delete')
 
   // React Query hooks
   const [page, setPage] = useState(1)
@@ -87,6 +94,11 @@ export default function StudentsPage() {
   }, [page, limit, filterStatus, debouncedSearchQuery, recentOnly])
 
   const handleDelete = async (student: Student) => {
+    if (!canDeleteStudent) {
+      toast.error('You do not have permission to delete students')
+      return
+    }
+
     if (!confirm(`Are you sure you want to delete ${student.first_name} ${student.last_name}?`)) return
 
     deleteStudent.mutate(student.id)
@@ -94,6 +106,11 @@ export default function StudentsPage() {
 
   const handleAddStudent = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (!canCreateStudent) {
+      toast.error('You do not have permission to create students')
+      return
+    }
 
     if (!studentForm.username || !studentForm.password || !studentForm.first_name || !studentForm.last_name) {
       toast.error('Please fill in all required fields')
@@ -110,6 +127,10 @@ export default function StudentsPage() {
 
   const handleUpdateStudent = async (e: React.FormEvent) => {
     e.preventDefault()
+    if (!canEditStudent) {
+      toast.error('You do not have permission to edit students')
+      return
+    }
     if (!selectedStudent) return
 
     updateStudent.mutate(
@@ -125,6 +146,11 @@ export default function StudentsPage() {
   }
 
   const openEditModal = (student: Student) => {
+    if (!canEditStudent) {
+      toast.error('You do not have permission to edit students')
+      return
+    }
+
     setSelectedStudent(student)
     setStudentForm({
       username: student.username,
@@ -293,15 +319,19 @@ export default function StudentsPage() {
               <Upload className="h-4 w-4" />
               Import CSV
             </button>
-            <RequirePermission permission="students.create">
-              <button
-                onClick={() => setShowAddModal(true)}
-                className="px-4 py-2 bg-primary text-background rounded-xl hover:bg-primary/90 transition-colors flex items-center gap-2 font-medium"
-              >
-                <Plus className="h-5 w-5" />
-                Add Student
-              </button>
-            </RequirePermission>
+            <button
+              onClick={() => setShowAddModal(true)}
+              disabled={!canCreateStudent}
+              title={!canCreateStudent ? 'You do not have permission to create students' : undefined}
+              className={`px-4 py-2 rounded-xl transition-colors flex items-center gap-2 font-medium ${
+                canCreateStudent
+                  ? 'bg-primary text-background hover:bg-primary/90'
+                  : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+              }`}
+            >
+              <Plus className="h-5 w-5" />
+              Add Student
+            </button>
           </div>
         </div>
 
@@ -444,18 +474,26 @@ export default function StudentsPage() {
                 >
                   Export Selected
                 </button>
-                <RequirePermission permission="students.delete">
-                  <button
-                    onClick={() => {
-                      if (!confirm(`Delete ${selectedIds.length} students? This cannot be undone.`)) return
-                      selectedIds.forEach((id) => deleteStudent.mutate(id))
-                      setSelectedIds([])
-                    }}
-                    className="px-3 py-2 bg-error/10 text-error rounded-lg hover:bg-error/20 text-sm"
-                  >
-                    Delete Selected
-                  </button>
-                </RequirePermission>
+                <button
+                  onClick={() => {
+                    if (!canDeleteStudent) {
+                      toast.error('You do not have permission to delete students')
+                      return
+                    }
+                    if (!confirm(`Delete ${selectedIds.length} students? This cannot be undone.`)) return
+                    selectedIds.forEach((id) => deleteStudent.mutate(id))
+                    setSelectedIds([])
+                  }}
+                  disabled={!canDeleteStudent}
+                  title={!canDeleteStudent ? 'You do not have permission to delete students' : undefined}
+                  className={`px-3 py-2 rounded-lg text-sm ${
+                    canDeleteStudent
+                      ? 'bg-error/10 text-error hover:bg-error/20'
+                      : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                  }`}
+                >
+                  Delete Selected
+                </button>
                 <button
                   onClick={() => setSelectedIds([])}
                   className="px-3 py-2 bg-background border border-border rounded-lg hover:bg-border/50 text-sm"
@@ -553,29 +591,37 @@ export default function StudentsPage() {
                       <Eye className="h-4 w-4" />
                       View
                     </button>
-                    <RequirePermission permission="students.edit">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          openEditModal(student)
-                        }}
-                        className="flex-1 px-3 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors flex items-center justify-center gap-2 text-sm font-medium"
-                      >
-                        <Edit className="h-4 w-4" />
-                        Edit
-                      </button>
-                    </RequirePermission>
-                    <RequirePermission permission="students.delete">
-                      <button
-                        onClick={(e) => {
-                          e.stopPropagation()
-                          handleDelete(student)
-                        }}
-                        className="px-3 py-2 bg-error/10 text-error rounded-xl hover:bg-error/20 transition-colors"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </button>
-                    </RequirePermission>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        openEditModal(student)
+                      }}
+                      disabled={!canEditStudent}
+                      title={!canEditStudent ? 'You do not have permission to edit students' : undefined}
+                      className={`flex-1 px-3 py-2 rounded-xl transition-colors flex items-center justify-center gap-2 text-sm font-medium ${
+                        canEditStudent
+                          ? 'bg-primary/10 text-primary hover:bg-primary/20'
+                          : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                      }`}
+                    >
+                      <Edit className="h-4 w-4" />
+                      Edit
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleDelete(student)
+                      }}
+                      disabled={!canDeleteStudent}
+                      title={!canDeleteStudent ? 'You do not have permission to delete students' : undefined}
+                      className={`px-3 py-2 rounded-xl transition-colors ${
+                        canDeleteStudent
+                          ? 'bg-error/10 text-error hover:bg-error/20'
+                          : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                      }`}
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
                   </div>
                 </div>
               </div>
@@ -681,22 +727,30 @@ export default function StudentsPage() {
                           >
                             <Eye className="h-4 w-4" />
                           </button>
-                          <RequirePermission permission="students.edit">
-                            <button
-                              onClick={() => openEditModal(student)}
-                              className="p-2 hover:bg-primary/20 text-primary rounded-lg transition-colors"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </button>
-                          </RequirePermission>
-                          <RequirePermission permission="students.delete">
-                            <button
-                              onClick={() => handleDelete(student)}
-                              className="p-2 hover:bg-error/20 text-error rounded-lg transition-colors"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </button>
-                          </RequirePermission>
+                          <button
+                            onClick={() => openEditModal(student)}
+                            disabled={!canEditStudent}
+                            title={!canEditStudent ? 'You do not have permission to edit students' : undefined}
+                            className={`p-2 rounded-lg transition-colors ${
+                              canEditStudent
+                                ? 'hover:bg-primary/20 text-primary'
+                                : 'text-text-secondary/60 cursor-not-allowed'
+                            }`}
+                          >
+                            <Edit className="h-4 w-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(student)}
+                            disabled={!canDeleteStudent}
+                            title={!canDeleteStudent ? 'You do not have permission to delete students' : undefined}
+                            className={`p-2 rounded-lg transition-colors ${
+                              canDeleteStudent
+                                ? 'hover:bg-error/20 text-error'
+                                : 'text-text-secondary/60 cursor-not-allowed'
+                            }`}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -729,7 +783,7 @@ export default function StudentsPage() {
       </div>
 
       {/* Add Student Modal */}
-      {showAddModal && (
+      {showAddModal && canCreateStudent && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-surface rounded-2xl border border-border w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-border flex items-center justify-between sticky top-0 bg-surface z-10">
@@ -807,7 +861,15 @@ export default function StudentsPage() {
                 <button type="button" onClick={() => { setShowAddModal(false); resetForm() }} className="flex-1 px-6 py-3 bg-background border border-border rounded-xl hover:bg-border/50 font-medium">
                   Cancel
                 </button>
-                <button type="submit" className="flex-1 px-6 py-3 bg-primary text-background rounded-xl hover:bg-primary/90 font-medium">
+                <button
+                  type="submit"
+                  disabled={!canCreateStudent || createStudent.isPending}
+                  className={`flex-1 px-6 py-3 rounded-xl font-medium ${
+                    canCreateStudent && !createStudent.isPending
+                      ? 'bg-primary text-background hover:bg-primary/90'
+                      : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                  }`}
+                >
                   Create Student
                 </button>
               </div>
@@ -817,7 +879,7 @@ export default function StudentsPage() {
       )}
 
       {/* Edit Student Modal */}
-      {showEditModal && selectedStudent && (
+      {showEditModal && selectedStudent && canEditStudent && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center p-4 z-50">
           <div className="bg-surface rounded-2xl border border-border w-full max-w-2xl max-h-[90vh] overflow-y-auto">
             <div className="p-6 border-b border-border flex items-center justify-between sticky top-0 bg-surface z-10">
@@ -871,7 +933,15 @@ export default function StudentsPage() {
                 <button type="button" onClick={() => { setShowEditModal(false); setSelectedStudent(null); resetForm() }} className="flex-1 px-6 py-3 bg-background border border-border rounded-xl hover:bg-border/50 font-medium">
                   Cancel
                 </button>
-                <button type="submit" className="flex-1 px-6 py-3 bg-primary text-background rounded-xl hover:bg-primary/90 font-medium">
+                <button
+                  type="submit"
+                  disabled={!canEditStudent || updateStudent.isPending}
+                  className={`flex-1 px-6 py-3 rounded-xl font-medium ${
+                    canEditStudent && !updateStudent.isPending
+                      ? 'bg-primary text-background hover:bg-primary/90'
+                      : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                  }`}
+                >
                   Update Student
                 </button>
               </div>
@@ -935,7 +1005,13 @@ export default function StudentsPage() {
                     setShowDetailModal(false)
                     openEditModal(selectedStudent)
                   }}
-                  className="flex-1 px-6 py-3 bg-primary text-background rounded-xl hover:bg-primary/90 font-medium flex items-center justify-center gap-2"
+                  disabled={!canEditStudent}
+                  title={!canEditStudent ? 'You do not have permission to edit students' : undefined}
+                  className={`flex-1 px-6 py-3 rounded-xl font-medium flex items-center justify-center gap-2 ${
+                    canEditStudent
+                      ? 'bg-primary text-background hover:bg-primary/90'
+                      : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                  }`}
                 >
                   <Edit className="h-5 w-5" />
                   Edit Student

@@ -1,18 +1,25 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Plus, Edit, Trash2, Users, Shield, Mail, Phone, Eye, Grid, List, UserCircle2, Filter, TrendingUp } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Users, Shield, Mail, Phone, Eye, Grid, List, TrendingUp } from 'lucide-react'
 import toast from '@/lib/toast'
 import { useTeachers, useCreateTeacher, useUpdateTeacher, useDeleteTeacher, Teacher } from '@/lib/hooks/useTeachers'
-import { ProtectedRoute, RequirePermission } from '@/components/ProtectedRoute'
-import { ActionButton } from '@/components/PermissionButton'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { useAuth } from '@/contexts/AuthContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
+import { usePermissions } from '@/lib/permissions'
 import LoadingScreen from '@/components/LoadingScreen'
 
 type ViewMode = 'grid' | 'table'
 type FilterType = 'all' | 'admin' | 'teacher' | 'withEmail' | 'withPhone'
 
 export default function TeachersPage() {
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
+  const canCreateTeacher = permissionState.hasPermission('teachers.create')
+  const canEditTeacher = permissionState.hasPermission('teachers.edit')
+  const canDeleteTeacher = permissionState.hasPermission('teachers.delete')
+
   // React Query hooks
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(9)
@@ -78,6 +85,11 @@ export default function TeachersPage() {
   }
 
   const handleDelete = async (teacher: Teacher) => {
+    if (!canDeleteTeacher) {
+      toast.error('You do not have permission to delete teachers')
+      return
+    }
+
     if (!confirm(`Are you sure you want to delete ${getFullName(teacher)}? Note: Teachers cannot be permanently deleted, only deactivated.`)) {
       return
     }
@@ -85,10 +97,20 @@ export default function TeachersPage() {
   }
 
   const handleEdit = (teacher: Teacher) => {
+    if (!canEditTeacher) {
+      toast.error('You do not have permission to edit teachers')
+      return
+    }
+
     setEditingTeacher(teacher)
   }
 
   const handleSaveEdit = async () => {
+    if (!canEditTeacher) {
+      toast.error('You do not have permission to edit teachers')
+      return
+    }
+
     if (!editingTeacher) return
 
     updateTeacher.mutate(
@@ -110,6 +132,11 @@ export default function TeachersPage() {
   }
 
   const handleAddTeacher = async () => {
+    if (!canCreateTeacher) {
+      toast.error('You do not have permission to create teachers')
+      return
+    }
+
     if (!newTeacher.username || !newTeacher.password || !newTeacher.first_name || !newTeacher.last_name) {
       toast.warning('Please fill in all required fields')
       return
@@ -313,16 +340,20 @@ export default function TeachersPage() {
             </div>
 
             {/* Add Button */}
-            <RequirePermission permission="teachers.create">
-              <button
-                onClick={() => setIsAddingTeacher(true)}
-                className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-primary to-cyan-500 text-white rounded-xl hover:shadow-xl hover:shadow-primary/30 transition-all hover:scale-105 font-semibold"
-              >
-                <Plus className="h-5 w-5" />
-                <span className="hidden sm:inline">Add Teacher</span>
-                <span className="sm:hidden">Add</span>
-              </button>
-            </RequirePermission>
+            <button
+              onClick={() => setIsAddingTeacher(true)}
+              disabled={!canCreateTeacher}
+              title={!canCreateTeacher ? 'You do not have permission to create teachers' : undefined}
+              className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all font-semibold ${
+                canCreateTeacher
+                  ? 'bg-gradient-to-r from-primary to-cyan-500 text-white hover:shadow-xl hover:shadow-primary/30 hover:scale-105'
+                  : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+              }`}
+            >
+              <Plus className="h-5 w-5" />
+              <span className="hidden sm:inline">Add Teacher</span>
+              <span className="sm:hidden">Add</span>
+            </button>
           </div>
         </div>
 
@@ -380,23 +411,30 @@ export default function TeachersPage() {
                     <Eye className="h-4 w-4" />
                     View
                   </button>
-                  <RequirePermission permission="teachers.edit">
-                    <button
-                      onClick={() => handleEdit(teacher)}
-                      className="px-4 py-2 bg-primary/10 hover:bg-primary/20 rounded-xl transition-all"
-                    >
-                      <Edit className="h-4 w-4 text-primary" />
-                    </button>
-                  </RequirePermission>
-                  <RequirePermission permission="teachers.delete">
-                    <button
-                      onClick={() => handleDelete(teacher)}
-                      disabled={deleteTeacher.isPending}
-                      className="px-4 py-2 bg-error/10 hover:bg-error/20 rounded-xl transition-all disabled:opacity-50"
-                    >
-                      <Trash2 className="h-4 w-4 text-error" />
-                    </button>
-                  </RequirePermission>
+                  <button
+                    onClick={() => handleEdit(teacher)}
+                    disabled={!canEditTeacher}
+                    title={!canEditTeacher ? 'You do not have permission to edit teachers' : undefined}
+                    className={`px-4 py-2 rounded-xl transition-all ${
+                      canEditTeacher
+                        ? 'bg-primary/10 hover:bg-primary/20'
+                        : 'bg-background border border-border text-text-secondary/60 cursor-not-allowed'
+                    }`}
+                  >
+                    <Edit className={`h-4 w-4 ${canEditTeacher ? 'text-primary' : 'text-text-secondary/60'}`} />
+                  </button>
+                  <button
+                    onClick={() => handleDelete(teacher)}
+                    disabled={!canDeleteTeacher || deleteTeacher.isPending}
+                    title={!canDeleteTeacher ? 'You do not have permission to delete teachers' : undefined}
+                    className={`px-4 py-2 rounded-xl transition-all ${
+                      canDeleteTeacher
+                        ? 'bg-error/10 hover:bg-error/20'
+                        : 'bg-background border border-border text-text-secondary/60 cursor-not-allowed'
+                    } disabled:opacity-50`}
+                  >
+                    <Trash2 className={`h-4 w-4 ${canDeleteTeacher ? 'text-error' : 'text-text-secondary/60'}`} />
+                  </button>
                 </div>
               </div>
             ))}
@@ -455,23 +493,30 @@ export default function TeachersPage() {
                           >
                             <Eye className="h-4 w-4 text-cyan-500" />
                           </button>
-                          <RequirePermission permission="teachers.edit">
-                            <button
-                              onClick={() => handleEdit(teacher)}
-                              className="p-2 hover:bg-background rounded-lg transition-colors"
-                            >
-                              <Edit className="h-4 w-4 text-primary" />
-                            </button>
-                          </RequirePermission>
-                          <RequirePermission permission="teachers.delete">
-                            <button
-                              onClick={() => handleDelete(teacher)}
-                              disabled={deleteTeacher.isPending}
-                              className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
-                            >
-                              <Trash2 className="h-4 w-4 text-error" />
-                            </button>
-                          </RequirePermission>
+                          <button
+                            onClick={() => handleEdit(teacher)}
+                            disabled={!canEditTeacher}
+                            title={!canEditTeacher ? 'You do not have permission to edit teachers' : undefined}
+                            className={`p-2 rounded-lg transition-colors ${
+                              canEditTeacher
+                                ? 'hover:bg-background'
+                                : 'text-text-secondary/60 cursor-not-allowed'
+                            }`}
+                          >
+                            <Edit className={`h-4 w-4 ${canEditTeacher ? 'text-primary' : 'text-text-secondary/60'}`} />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(teacher)}
+                            disabled={!canDeleteTeacher || deleteTeacher.isPending}
+                            title={!canDeleteTeacher ? 'You do not have permission to delete teachers' : undefined}
+                            className={`p-2 rounded-lg transition-colors ${
+                              canDeleteTeacher
+                                ? 'hover:bg-background'
+                                : 'text-text-secondary/60 cursor-not-allowed'
+                            } disabled:opacity-50`}
+                          >
+                            <Trash2 className={`h-4 w-4 ${canDeleteTeacher ? 'text-error' : 'text-text-secondary/60'}`} />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -499,7 +544,7 @@ export default function TeachersPage() {
         {totalPages > 1 && <PaginationControls />}
 
         {/* Add Teacher Modal */}
-        {isAddingTeacher && (
+        {isAddingTeacher && canCreateTeacher && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-surface rounded-2xl p-6 max-w-md w-full border border-border shadow-2xl">
               <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent">
@@ -581,9 +626,14 @@ export default function TeachersPage() {
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={handleAddTeacher}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-primary to-cyan-500 text-white rounded-xl hover:shadow-xl hover:shadow-primary/30 transition-all font-semibold"
+                    disabled={!canCreateTeacher || createTeacher.isPending}
+                    className={`flex-1 px-6 py-3 rounded-xl transition-all font-semibold ${
+                      canCreateTeacher && !createTeacher.isPending
+                        ? 'bg-gradient-to-r from-primary to-cyan-500 text-white hover:shadow-xl hover:shadow-primary/30'
+                        : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                    }`}
                   >
-                    Create Teacher
+                    {createTeacher.isPending ? 'Creating...' : 'Create Teacher'}
                   </button>
                   <button
                     onClick={() => {
@@ -609,7 +659,7 @@ export default function TeachersPage() {
         )}
 
         {/* Edit Modal */}
-        {editingTeacher && (
+        {editingTeacher && canEditTeacher && (
           <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-surface rounded-2xl p-6 max-w-md w-full border border-border shadow-2xl">
               <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent">
@@ -665,9 +715,14 @@ export default function TeachersPage() {
                 <div className="flex gap-3 pt-4">
                   <button
                     onClick={handleSaveEdit}
-                    className="flex-1 px-6 py-3 bg-gradient-to-r from-primary to-cyan-500 text-white rounded-xl hover:shadow-xl hover:shadow-primary/30 transition-all font-semibold"
+                    disabled={!canEditTeacher || updateTeacher.isPending}
+                    className={`flex-1 px-6 py-3 rounded-xl transition-all font-semibold ${
+                      canEditTeacher && !updateTeacher.isPending
+                        ? 'bg-gradient-to-r from-primary to-cyan-500 text-white hover:shadow-xl hover:shadow-primary/30'
+                        : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                    }`}
                   >
-                    Save Changes
+                    {updateTeacher.isPending ? 'Saving...' : 'Save Changes'}
                   </button>
                   <button
                     onClick={() => setEditingTeacher(null)}

@@ -23,6 +23,7 @@ import {
 } from 'lucide-react'
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   useCreateExpense,
   useCreatePayment,
@@ -35,7 +36,9 @@ import {
 } from '@/lib/hooks/useFinance'
 import { usePaymentStudents, usePaymentTypes } from '@/lib/hooks/usePayments'
 import { useExpenseTypes } from '@/lib/hooks/useExpenses'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
 import LoadingScreen from '@/components/LoadingScreen'
+import { usePermissions } from '@/lib/permissions'
 
 type FinanceTab = 'overview' | 'receivables' | 'operations'
 type PaymentStatus = 'paid' | 'pending' | 'failed'
@@ -166,6 +169,10 @@ const todayDate = new Date().toISOString().split('T')[0]
 export default function FinanceDashboard() {
   const router = useRouter()
   const { currency, formatCurrencyFromMinor, fromSelectedCurrency } = useSettings()
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
+  const canCreatePayment = permissionState.hasPermission('payments.create')
+  const canCreateExpense = permissionState.hasPermission('expenses.create')
 
   const [activeTab, setActiveTab] = useState<FinanceTab>('overview')
   const [refreshing, setRefreshing] = useState(false)
@@ -425,6 +432,11 @@ export default function FinanceDashboard() {
   const handlePaymentSubmit = (event: React.FormEvent) => {
     event.preventDefault()
 
+    if (!canCreatePayment) {
+      toast.error('You do not have permission to create payments')
+      return
+    }
+
     if (!paymentForm.by_user) {
       toast.error('Please select a student')
       return
@@ -468,6 +480,11 @@ export default function FinanceDashboard() {
   const handleExpenseSubmit = (event: React.FormEvent) => {
     event.preventDefault()
 
+    if (!canCreateExpense) {
+      toast.error('You do not have permission to create expenses')
+      return
+    }
+
     if (!expenseForm.expense_type) {
       toast.error('Please select an expense type')
       return
@@ -499,13 +516,13 @@ export default function FinanceDashboard() {
     )
   }
 
-  if (loading) {
-    return <LoadingScreen message="Loading finance intelligence..." />
-  }
-
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <ProtectedRoute>
+      {loading ? (
+        <LoadingScreen message="Loading finance intelligence..." />
+      ) : (
+        <div className="min-h-screen bg-background p-8">
+          <div className="max-w-7xl mx-auto space-y-6">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -525,14 +542,26 @@ export default function FinanceDashboard() {
           <div className="flex flex-wrap gap-2">
             <button
               onClick={() => setShowPaymentModal(true)}
-              className="px-4 py-2 bg-success text-success-foreground rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
+              disabled={!canCreatePayment}
+              title={!canCreatePayment ? 'You do not have permission to create payments' : undefined}
+              className={`px-4 py-2 rounded-xl transition-opacity flex items-center gap-2 ${
+                canCreatePayment
+                  ? 'bg-success text-success-foreground hover:opacity-90'
+                  : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+              }`}
             >
               <DollarSign className="h-4 w-4" />
               Add Payment
             </button>
             <button
               onClick={() => setShowExpenseModal(true)}
-              className="px-4 py-2 bg-error text-error-foreground rounded-xl hover:opacity-90 transition-opacity flex items-center gap-2"
+              disabled={!canCreateExpense}
+              title={!canCreateExpense ? 'You do not have permission to create expenses' : undefined}
+              className={`px-4 py-2 rounded-xl transition-opacity flex items-center gap-2 ${
+                canCreateExpense
+                  ? 'bg-error text-error-foreground hover:opacity-90'
+                  : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+              }`}
             >
               <TrendingDown className="h-4 w-4" />
               Add Expense
@@ -1016,7 +1045,7 @@ export default function FinanceDashboard() {
         )}
       </div>
 
-      {showPaymentModal && (
+      {showPaymentModal && canCreatePayment && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-xl bg-surface border border-border rounded-2xl p-6 shadow-2xl">
             <h2 className="text-2xl font-bold mb-5">Record Payment</h2>
@@ -1134,7 +1163,11 @@ export default function FinanceDashboard() {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" disabled={createPayment.isPending}>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={!canCreatePayment || createPayment.isPending}
+                >
                   {createPayment.isPending ? 'Saving...' : 'Save Payment'}
                 </button>
               </div>
@@ -1143,7 +1176,7 @@ export default function FinanceDashboard() {
         </div>
       )}
 
-      {showExpenseModal && (
+      {showExpenseModal && canCreateExpense && (
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="w-full max-w-xl bg-surface border border-border rounded-2xl p-6 shadow-2xl">
             <h2 className="text-2xl font-bold mb-5">Record Expense</h2>
@@ -1215,7 +1248,11 @@ export default function FinanceDashboard() {
                 >
                   Cancel
                 </button>
-                <button type="submit" className="btn-primary" disabled={createExpense.isPending}>
+                <button
+                  type="submit"
+                  className="btn-primary"
+                  disabled={!canCreateExpense || createExpense.isPending}
+                >
                   {createExpense.isPending ? 'Saving...' : 'Save Expense'}
                 </button>
               </div>
@@ -1223,6 +1260,8 @@ export default function FinanceDashboard() {
           </div>
         </div>
       )}
-    </div>
+        </div>
+      )}
+    </ProtectedRoute>
   )
 }
