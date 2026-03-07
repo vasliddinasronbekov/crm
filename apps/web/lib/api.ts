@@ -1107,6 +1107,16 @@ class ApiService {
     return response.data;
   }
 
+  async getCashReceipt(paymentId: number) {
+    const response = await this.api.get(`/v1/payment/${paymentId}/cash-receipt/`);
+    return response.data;
+  }
+
+  async getCashReceiptByToken(token: string) {
+    const response = await this.api.get(`/v1/payment/cash-receipt-by-token/${token}/`);
+    return response.data;
+  }
+
   async saveAutoReminderSettings(settings: any) {
     const payload = {
       enabled: settings?.enabled,

@@ -1,8 +1,8 @@
 'use client'
 
 import type { ReactNode } from 'react'
-import { useEffect, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useEffect, useMemo, useState } from 'react'
+import { usePathname, useRouter } from 'next/navigation'
 import { Sidebar } from '@/components/Sidebar'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -12,6 +12,7 @@ import DateCalendar from '@/components/DateCalendar'
 import AIModeButton from '@/components/AIModeButton'
 import InboxNotificationButton from '@/components/InboxNotificationButton'
 import LoadingScreen from '@/components/LoadingScreen'
+import { getDashboardRouteAccess, usePermissions } from '@/lib/permissions'
 
 export default function DashboardLayout({
   children,
@@ -19,16 +20,27 @@ export default function DashboardLayout({
   children: unknown
 }) {
   const router = useRouter()
-  const { isAuthenticated, isLoading } = useAuth()
+  const pathname = usePathname() || '/dashboard'
+  const { user, isAuthenticated, isLoading } = useAuth()
+  const permissions = usePermissions(user)
   const { currency, language, theme, translateText } = useSettings()
   const [aiModeEnabled, setAiModeEnabled] = useState(false)
   const content = children as ReactNode
+  const routeAccess = useMemo(
+    () => getDashboardRouteAccess(permissions.role, pathname),
+    [pathname, permissions.role],
+  )
 
   useEffect(() => {
     if (!isLoading && !isAuthenticated) {
-      router.push('/login')
+      router.replace('/login')
+      return
     }
-  }, [isAuthenticated, isLoading, router])
+
+    if (!isLoading && isAuthenticated && !routeAccess.allowed && routeAccess.fallbackPath && routeAccess.fallbackPath !== pathname) {
+      router.replace(routeAccess.fallbackPath)
+    }
+  }, [isAuthenticated, isLoading, pathname, routeAccess.allowed, routeAccess.fallbackPath, router])
 
   const handleAIModeToggle = (enabled: boolean) => {
     setAiModeEnabled(enabled)
@@ -56,6 +68,21 @@ export default function DashboardLayout({
 
   if (!isAuthenticated) {
     return null
+  }
+
+  if (!routeAccess.allowed) {
+    if (routeAccess.fallbackPath && routeAccess.fallbackPath !== pathname) {
+      return null
+    }
+
+    return (
+      <div className="flex h-screen items-center justify-center bg-background p-6 text-center">
+        <div>
+          <p className="text-lg font-semibold text-foreground">Access denied</p>
+          <p className="mt-2 text-sm text-text-secondary">Your role cannot open this dashboard route.</p>
+        </div>
+      </div>
+    )
   }
 
   return (

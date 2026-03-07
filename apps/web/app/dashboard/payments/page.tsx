@@ -1,10 +1,11 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Plus, Edit, Trash2, DollarSign, Calendar, User, CreditCard, Download, X, CheckCircle, XCircle, Clock, Bell, Send, Settings } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, DollarSign, Calendar, User, CreditCard, Download, X, CheckCircle, XCircle, Clock, Bell, Send, Settings, Printer } from 'lucide-react'
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
+import apiService from '@/lib/api'
 import {
   usePaymentsList,
   usePaymentStudents,
@@ -19,9 +20,12 @@ import {
   useSaveAutoReminderSettings,
   usePaymentStats,
   usePaymentTrends,
+  isCashPaymentTypeName,
+  type CashReceiptPayload,
   type Payment,
 } from '@/lib/hooks/usePayments'
 import LoadingScreen from '@/components/LoadingScreen'
+import CashReceiptPreviewModal from '@/components/CashReceiptPreviewModal'
 
 export default function PaymentsPage() {
   const { currency, formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency } = useSettings()
@@ -90,21 +94,48 @@ export default function PaymentsPage() {
     payment_type: '',
     teacher: '',
   })
+  const [cashReceiptPreview, setCashReceiptPreview] = useState<CashReceiptPayload | null>(null)
+  const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
+  const [receiptLoadingId, setReceiptLoadingId] = useState<number | null>(null)
+  const [receiptAutoPrintKey, setReceiptAutoPrintKey] = useState(0)
 
   const isLoading = paymentsLoading
 
-  const handleAddPayment = async () => {
+  const fetchAndShowReceipt = async (paymentId: number, autoPrint = false) => {
+    try {
+      setReceiptLoadingId(paymentId)
+      const receipt = await apiService.getCashReceipt(paymentId)
+      setCashReceiptPreview(receipt)
+      setIsReceiptModalOpen(true)
+      if (autoPrint) {
+        setReceiptAutoPrintKey((prev) => prev + 1)
+      }
+    } catch (error: any) {
+      const message = error?.response?.data?.detail || 'Failed to load receipt'
+      toast.error(message)
+    } finally {
+      setReceiptLoadingId(null)
+    }
+  }
+
+  const handleAddPayment = async (options?: { autoPrint?: boolean }) => {
     if (!newPayment.by_user || !newPayment.amount) {
       toast.warning('Please fill in all required fields')
       return
     }
+
+    const selectedPaymentType = paymentTypes.find(
+      (paymentType: any) => String(paymentType.id) === String(newPayment.payment_type),
+    )
+    const isCashType = isCashPaymentTypeName(selectedPaymentType?.name)
+    const shouldAutoPrint = Boolean(options?.autoPrint)
 
     createPayment.mutate({
       ...newPayment,
       amount: fromSelectedCurrency(newPayment.amount),
       course_price: fromSelectedCurrency(newPayment.course_price),
     }, {
-      onSuccess: () => {
+      onSuccess: (createdPayment) => {
         setIsAddingPayment(false)
         setNewPayment({
           by_user: '',
@@ -117,6 +148,9 @@ export default function PaymentsPage() {
           payment_type: '',
           teacher: '',
         })
+        if (isCashType && createdPayment?.id) {
+          fetchAndShowReceipt(createdPayment.id, shouldAutoPrint)
+        }
       },
     })
   }
@@ -541,6 +575,16 @@ export default function PaymentsPage() {
                   </td>
                   <td className="py-4 px-6">
                     <div className="flex items-center justify-end gap-2">
+                      {(payment.has_cash_receipt || payment.is_cash_payment) && (
+                        <button
+                          onClick={() => fetchAndShowReceipt(payment.id)}
+                          disabled={receiptLoadingId === payment.id}
+                          className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
+                          title="Preview / Reprint receipt"
+                        >
+                          <Printer className="h-4 w-4 text-info" />
+                        </button>
+                      )}
                       <button
                         onClick={() => handleEdit(payment)}
                         className="p-2 hover:bg-background rounded-lg transition-colors"
@@ -669,9 +713,20 @@ export default function PaymentsPage() {
                 />
               </div>
               <div className="flex gap-3 pt-4">
-                <button onClick={handleAddPayment} className="btn-primary flex-1">
-                  Create Payment
+                <button onClick={() => handleAddPayment()} className="btn-primary flex-1">
+                  Save Payment
                 </button>
+                {isCashPaymentTypeName(
+                  paymentTypes.find((paymentType: any) => String(paymentType.id) === String(newPayment.payment_type))?.name,
+                ) && (
+                  <button
+                    onClick={() => handleAddPayment({ autoPrint: true })}
+                    className="btn-secondary flex-1 flex items-center justify-center gap-2"
+                  >
+                    <Printer className="h-4 w-4" />
+                    Save & Print
+                  </button>
+                )}
                 <button
                   onClick={() => {
                     setIsAddingPayment(false)
@@ -939,6 +994,17 @@ export default function PaymentsPage() {
           </div>
         </div>
       )}
+
+      <CashReceiptPreviewModal
+        isOpen={isReceiptModalOpen}
+        receipt={cashReceiptPreview}
+        autoPrintKey={receiptAutoPrintKey}
+        onAutoPrintHandled={() => setReceiptAutoPrintKey(0)}
+        onClose={() => {
+          setIsReceiptModalOpen(false)
+          setCashReceiptPreview(null)
+        }}
+      />
     </div>
   )
 }

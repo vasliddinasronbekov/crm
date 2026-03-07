@@ -31,6 +31,23 @@ export interface Payment {
   detail?: string
   course_price: number
   transaction_id?: string
+  student_full_name?: string
+  payment_type_name?: string
+  group_name?: string
+  branch_name?: string
+  course_service_name?: string
+  is_cash_payment?: boolean
+  has_cash_receipt?: boolean
+  cash_receipt?: {
+    id: number
+    receipt_number: string
+    receipt_token: string
+    issued_at: string
+    payment_method: string
+    paid_amount: number
+    remaining_balance: number
+    note?: string
+  }
 }
 
 export interface PaymentFormData {
@@ -55,6 +72,34 @@ export interface PaymentStats {
 export interface PaymentTrend {
   month: string
   amount: number
+}
+
+export interface CashReceiptPayload {
+  id: number
+  payment_id: number
+  transaction_id: string
+  receipt_number: string
+  receipt_token: string
+  issued_at: string
+  issued_at_display: string
+  education_center_name: string
+  branch: string
+  cashier_full_name: string
+  student_full_name: string
+  group_name: string
+  course_service_name: string
+  payment_method: string
+  paid_amount: number
+  remaining_balance: number
+  note?: string
+  verification_url: string
+  qr_payload_json: string
+  qr_code_image: string
+}
+
+export const isCashPaymentTypeName = (name?: string | null): boolean => {
+  const normalized = (name || '').trim().toLowerCase()
+  return ['cash', 'naqd', 'наличные', 'нал'].includes(normalized)
 }
 
 const parseListPayload = <T,>(payload: any): T[] => {

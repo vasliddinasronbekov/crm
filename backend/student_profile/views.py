@@ -33,7 +33,7 @@ logger = logging.getLogger(__name__)
 from .models import (
     ShopProduct, StudentCoins, ShopOrder,
     Branch, Group, Attendance, Event, ExamScore, ShopProduct, ShopOrder,
-    Payment, Story, StudentCoins, Ticket, TicketChat, Course, Room,
+    CashPaymentReceipt, Payment, Story, StudentCoins, Ticket, TicketChat, Course, Room,
     ExpenseType, Expense, LeaveReason, Information, PaymentType, AutomaticFine,
     AssistantSlot, Booking
 )
@@ -73,6 +73,11 @@ from .services.financial_automation import (
     apply_attendance_policies,
     apply_payment_to_student_account,
     rollback_paid_payment,
+)
+from .receipt_service import (
+    build_cash_receipt_payload,
+    ensure_cash_receipt,
+    is_cash_payment,
 )
 
 
@@ -617,6 +622,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
     action_capabilities = {
         'list': 'payments.read',
         'retrieve': 'payments.read',
+        'cash_receipt': 'payments.read',
+        'cash_receipt_by_token': 'payments.read',
         'create': 'payments.manage',
         'update': 'payments.manage',
         'partial_update': 'payments.manage',
@@ -626,8 +633,10 @@ class PaymentViewSet(viewsets.ModelViewSet):
     }
 
     def perform_create(self, serializer):
-        payment = serializer.save()
-        apply_payment_to_student_account(payment, actor=self.request.user)
+        with transaction.atomic():
+            payment = serializer.save()
+            apply_payment_to_student_account(payment, actor=self.request.user)
+            ensure_cash_receipt(payment, actor=self.request.user)
 
     def perform_update(self, serializer):
         previous = self.get_object()
@@ -657,6 +666,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
             )
         if payment.status == Payment.PaymentStatus.PAID and paid_state_changed:
             apply_payment_to_student_account(payment, actor=self.request.user)
+
+        ensure_cash_receipt(payment, actor=self.request.user)
 
     def perform_destroy(self, instance):
         if instance.status == Payment.PaymentStatus.PAID:
@@ -726,7 +737,52 @@ class PaymentViewSet(viewsets.ModelViewSet):
                 | Q(detail__icontains=search)
             )
 
-        return queryset.select_related('by_user', 'group', 'payment_type', 'teacher').order_by('-date', '-id')
+        return queryset.select_related(
+            'by_user',
+            'group',
+            'group__branch',
+            'group__course',
+            'payment_type',
+            'teacher',
+            'cash_receipt',
+        ).order_by('-date', '-id')
+
+    @action(detail=True, methods=['get'], url_path='cash-receipt')
+    def cash_receipt(self, request, pk=None):
+        payment = self.get_object()
+        receipt = ensure_cash_receipt(payment, actor=request.user)
+        if not receipt:
+            return Response(
+                {'detail': 'Cash receipt is available only for cash payments.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        return Response(build_cash_receipt_payload(receipt, request=request))
+
+    @action(detail=False, methods=['get'], url_path=r'cash-receipt-by-token/(?P<token>[^/.]+)')
+    def cash_receipt_by_token(self, request, token=None):
+        receipt = (
+            CashPaymentReceipt.objects
+            .select_related(
+                'payment',
+                'payment__by_user',
+                'payment__group',
+                'payment__group__branch',
+                'payment__group__course',
+                'payment__payment_type',
+            )
+            .filter(receipt_token=token)
+            .first()
+        )
+        if not receipt:
+            return Response({'detail': 'Receipt not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not self.get_queryset().filter(id=receipt.payment_id).exists():
+            return Response({'detail': 'Receipt not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not is_cash_payment(receipt.payment):
+            return Response({'detail': 'Receipt is not available for this payment.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        return Response(build_cash_receipt_payload(receipt, request=request))
 
     @action(detail=True, methods=['post'])
     def send_reminder(self, request, pk=None):

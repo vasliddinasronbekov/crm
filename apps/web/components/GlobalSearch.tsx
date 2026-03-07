@@ -33,6 +33,7 @@ import { SEARCH_INDEX, SearchAction, searchIndex, IndexSearchScope } from '@/lib
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { canAccessPage, isDashboardRoute, usePermissions } from '@/lib/permissions'
 
 type SearchSectionKey =
   | 'recent'
@@ -541,6 +542,22 @@ const shouldSearchEntities = (scope: SearchScope): boolean => scope === 'all' ||
 const shouldSearchFrontendIndex = (scope: SearchScope): boolean =>
   scope === 'all' || FRONTEND_SECTIONS.includes(scope)
 
+const filterSectionsByRouteAccess = (
+  sections: SearchSections,
+  canAccessUrl: (url: string) => boolean,
+): SearchSections => {
+  const filtered = createEmptySections()
+
+  SECTION_ORDER.forEach((section) => {
+    filtered[section] = sections[section].filter((item) => {
+      if (!item.url || item.url === '#') return true
+      return canAccessUrl(item.url)
+    })
+  })
+
+  return filtered
+}
+
 const escapeRegExp = (text: string): string => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
 
 const highlightMatches = (text: string, tokens: string[]): ReactNode => {
@@ -662,7 +679,8 @@ const fetchFallbackEntityResults = async (
 
 export default function GlobalSearch() {
   const router = useRouter()
-  const { logout } = useAuth()
+  const { logout, user } = useAuth()
+  const permissions = usePermissions(user)
   const { translateText } = useSettings()
 
   const [isOpen, setIsOpen] = useState(false)
@@ -795,15 +813,28 @@ export default function GlobalSearch() {
     [parsedInput.query, sections, suggestionSections],
   )
 
+  const canAccessResultUrl = useCallback(
+    (url: string) => {
+      if (!isDashboardRoute(url)) return true
+      return canAccessPage(permissions.role, url)
+    },
+    [permissions.role],
+  )
+
+  const visibleSections = useMemo(
+    () => filterSectionsByRouteAccess(activeSections, canAccessResultUrl),
+    [activeSections, canAccessResultUrl],
+  )
+
   const flatResults = useMemo(() => {
     const flattened: SearchResult[] = []
     SECTION_ORDER.forEach((section) => {
-      activeSections[section].forEach((item) => {
+      visibleSections[section].forEach((item) => {
         flattened.push(item)
       })
     })
     return flattened
-  }, [activeSections])
+  }, [visibleSections])
 
   useEffect(() => {
     if (selectedIndex < 0) {
@@ -841,11 +872,6 @@ export default function GlobalSearch() {
   }, [])
 
   const handleResultClick = useCallback(async (result: SearchResult) => {
-    const searchTerm = parsedInput.query.trim()
-    if (searchTerm) {
-      pushRecentResult(result, searchTerm)
-    }
-
     if (result.id === 'action-logout') {
       await logout()
       router.push('/login')
@@ -853,12 +879,21 @@ export default function GlobalSearch() {
       return
     }
 
+    if (result.url && result.url !== '#' && !canAccessResultUrl(result.url)) {
+      return
+    }
+
+    const searchTerm = parsedInput.query.trim()
+    if (searchTerm) {
+      pushRecentResult(result, searchTerm)
+    }
+
     if (result.url && result.url !== '#') {
       router.push(result.url)
     }
 
     closeSearch()
-  }, [closeSearch, logout, parsedInput.query, pushRecentResult, router])
+  }, [canAccessResultUrl, closeSearch, logout, parsedInput.query, pushRecentResult, router])
 
   useEffect(() => {
     const handleKeyboardNavigation = (event: KeyboardEvent) => {
@@ -1015,7 +1050,7 @@ export default function GlobalSearch() {
             {hasResults && (
               <div className="max-h-[480px] overflow-y-auto">
                 {SECTION_ORDER.map((section) => {
-                  const items = activeSections[section]
+                  const items = visibleSections[section]
                   if (!items.length) return null
 
                   return (

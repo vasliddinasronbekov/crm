@@ -297,6 +297,32 @@ class Payment(models.Model):
         user_info = self.by_user.username if self.by_user else "Noma'lum"
         return f"Payment of {self.amount / 100} UZS by {user_info}"
 
+
+class CashPaymentReceipt(models.Model):
+    payment = models.OneToOneField(Payment, on_delete=models.CASCADE, related_name='cash_receipt')
+    receipt_number = models.CharField(max_length=64, unique=True, db_index=True)
+    receipt_token = models.CharField(max_length=64, unique=True, db_index=True)
+    issued_at = models.DateTimeField(auto_now_add=True)
+
+    education_center_name = models.CharField(max_length=255)
+    branch_name = models.CharField(max_length=255, blank=True)
+    cashier_full_name = models.CharField(max_length=255, blank=True)
+    student_full_name = models.CharField(max_length=255)
+    group_name = models.CharField(max_length=255, blank=True)
+    course_service_name = models.CharField(max_length=255, blank=True)
+
+    payment_method = models.CharField(max_length=32, default='cash')
+    paid_amount = models.BigIntegerField(help_text="To'langan summa tiyinlarda")
+    remaining_balance = models.BigIntegerField(help_text="Qolgan balans tiyinlarda", default=0)
+    note = models.TextField(blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    class Meta:
+        ordering = ['-issued_at']
+
+    def __str__(self):
+        return f"{self.receipt_number} - payment#{self.payment_id}"
+
 class Story(models.Model):
     student = models.ForeignKey(User, on_delete=models.CASCADE, related_name='stories')
     caption = models.CharField(max_length=255, blank=True, null=True)

@@ -6,9 +6,10 @@ from rest_framework import serializers
 from django.db.models import Q
 from .models import (
     Branch, Group, Attendance, Event, ExamScore, ShopProduct,
-    ShopOrder, Payment, Story, StudentCoins, Ticket, TicketChat,
+    ShopOrder, CashPaymentReceipt, Payment, Story, StudentCoins, Ticket, TicketChat,
     Course, Room, ExpenseType, Expense, User, LeaveReason, Information # Barcha modellar import qilinganiga amin bo'ling
 )
+from .receipt_service import is_cash_payment
 from users.serializers import UserBasicSerializer, UserSerializer
 
 
@@ -396,11 +397,55 @@ class ShopOrderSerializer(serializers.ModelSerializer):
     def get_status(self, obj) -> Any:
         return 'completed'
 
+
+class CashPaymentReceiptSerializer(serializers.ModelSerializer):
+    class Meta:
+        model = CashPaymentReceipt
+        fields = [
+            'id',
+            'receipt_number',
+            'receipt_token',
+            'issued_at',
+            'education_center_name',
+            'branch_name',
+            'cashier_full_name',
+            'student_full_name',
+            'group_name',
+            'course_service_name',
+            'payment_method',
+            'paid_amount',
+            'remaining_balance',
+            'note',
+        ]
+        read_only_fields = fields
+
+
 class PaymentSerializer(serializers.ModelSerializer):
+    cash_receipt = CashPaymentReceiptSerializer(read_only=True)
+    is_cash_payment = serializers.SerializerMethodField()
+    has_cash_receipt = serializers.SerializerMethodField()
+    student_full_name = serializers.SerializerMethodField()
+    payment_type_name = serializers.CharField(source='payment_type.name', read_only=True)
+    group_name = serializers.CharField(source='group.name', read_only=True)
+    branch_name = serializers.CharField(source='group.branch.name', read_only=True)
+    course_service_name = serializers.CharField(source='group.course.name', read_only=True)
+
     class Meta:
         model = Payment
         ref_name = 'StudentProfilePayment'
         fields = '__all__'
+
+    def get_is_cash_payment(self, obj) -> bool:
+        return is_cash_payment(obj)
+
+    def get_has_cash_receipt(self, obj) -> bool:
+        return hasattr(obj, 'cash_receipt')
+
+    def get_student_full_name(self, obj) -> str:
+        if not obj.by_user:
+            return ''
+        full_name = obj.by_user.get_full_name().strip()
+        return full_name or obj.by_user.username
 class StorySerializer(serializers.ModelSerializer):
     student = UserSerializer(read_only=True)
     class Meta:

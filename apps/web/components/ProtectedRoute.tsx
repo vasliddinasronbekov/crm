@@ -9,6 +9,7 @@ import {
   type Permission,
   type UserRole,
   usePermissions,
+  getDashboardRouteAccess,
   getRequiredPermissionsForPath,
 } from '@/lib/permissions';
 
@@ -22,22 +23,24 @@ interface ProtectedRouteProps {
 export function ProtectedRoute({
   children,
   fallback,
-  redirectTo = '/dashboard',
+  redirectTo,
   showError = true,
 }: ProtectedRouteProps) {
   const { user, isLoading } = useAuth();
   const router = useRouter();
   const pathname = usePathname();
   const permissions = usePermissions(user);
+  const routeAccess = getDashboardRouteAccess(permissions.role, pathname);
 
-  const canAccess = permissions.canAccessPage(pathname);
+  const canAccess = routeAccess.allowed;
+  const redirectTarget = redirectTo || routeAccess.fallbackPath || '/dashboard';
   const requiredPermissions = getRequiredPermissionsForPath(pathname);
 
   useEffect(() => {
-    if (!isLoading && user && !canAccess && redirectTo && redirectTo !== pathname) {
-      router.push(redirectTo);
+    if (!isLoading && user && !canAccess && redirectTarget && redirectTarget !== pathname) {
+      router.replace(redirectTarget);
     }
-  }, [canAccess, isLoading, pathname, redirectTo, router, user]);
+  }, [canAccess, isLoading, pathname, redirectTarget, router, user]);
 
   if (isLoading) {
     return <LoadingScreen message="Checking access..." />;
@@ -99,7 +102,7 @@ export function ProtectedRoute({
           </div>
 
           <button
-            onClick={() => router.push('/dashboard')}
+            onClick={() => router.push(redirectTarget)}
             className="px-6 py-3 bg-gradient-to-r from-primary to-cyan-500 hover:from-cyan-500 hover:to-primary text-white rounded-xl font-medium transition-all duration-300 shadow-lg hover:shadow-xl"
           >
             Go to Dashboard
