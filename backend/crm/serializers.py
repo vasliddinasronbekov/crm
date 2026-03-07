@@ -98,3 +98,33 @@ class LeadSerializer(serializers.ModelSerializer):
         validated_data.pop('last_name', None)
 
         return super().update(instance, validated_data)
+
+
+class LeadStageTransitionSerializer(serializers.Serializer):
+    """Validate explicit lead status transitions for kanban progression."""
+
+    status = serializers.ChoiceField(choices=[choice[0] for choice in Lead.STATUS_CHOICES])
+    note = serializers.CharField(required=False, allow_blank=True, trim_whitespace=True)
+
+    TRANSITION_MAP = {
+        'new': {'in_progress', 'rejected'},
+        'in_progress': {'new', 'converted', 'rejected'},
+        'converted': {'in_progress'},
+        'rejected': {'new', 'in_progress'},
+    }
+
+    def validate_status(self, value):
+        lead = self.context.get('lead')
+        if not lead:
+            return value
+
+        current_status = lead.status
+        if value == current_status:
+            return value
+
+        allowed_targets = self.TRANSITION_MAP.get(current_status, set())
+        if value not in allowed_targets:
+            raise serializers.ValidationError(
+                f'Invalid transition from "{current_status}" to "{value}".'
+            )
+        return value

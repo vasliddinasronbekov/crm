@@ -40,6 +40,18 @@ PAYMENT_MANAGEMENT_ROLES = {
     UserRoleEnum.SUPERADMIN.value,
 }
 
+CRM_VIEW_ROLES = {
+    UserRoleEnum.STAFF.value,
+    UserRoleEnum.CRM_MANAGER.value,
+    UserRoleEnum.LMS_MANAGER.value,
+    UserRoleEnum.MANAGER.value,
+    UserRoleEnum.DIRECTOR.value,
+    UserRoleEnum.ADMIN.value,
+    UserRoleEnum.SUPERADMIN.value,
+}
+
+CRM_MANAGEMENT_ROLES = set(CRM_VIEW_ROLES)
+
 ADMIN_SIDE_ROLES = {
     UserRoleEnum.ADMIN.value,
     UserRoleEnum.DIRECTOR.value,
@@ -95,6 +107,10 @@ CAPABILITY_MATRIX: dict[str, set[str]] = {
         UserRoleEnum.STUDENT.value,
         UserRoleEnum.PARENT.value,
     },
+    # CRM domain
+    'crm.read': set(CRM_VIEW_ROLES),
+    'crm.manage': set(CRM_MANAGEMENT_ROLES),
+    'crm.stage_transition': set(CRM_MANAGEMENT_ROLES),
     # Teacher domain
     'teachers.read': set(STAFF_SIDE_ROLES),
     'teachers.manage': {

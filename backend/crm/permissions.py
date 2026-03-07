@@ -12,6 +12,9 @@ class IsAdminOrResponsiblePerson(permissions.BasePermission):
         if request.method in permissions.SAFE_METHODS:
             return True
 
-        # Yozish uchun (PUT, PATCH, DELETE) so'rovlarga faqat mas'ul shaxs
-        # yoki superuserga ruxsat beriladi.
-        return obj.responsible_person == request.user or request.user.is_superuser
+        # Yozish uchun:
+        # - superuser/staff global boshqaradi
+        # - qolganlar faqat o'ziga biriktirilgan leadni o'zgartira oladi.
+        if request.user.is_superuser or request.user.is_staff:
+            return True
+        return obj.responsible_person == request.user

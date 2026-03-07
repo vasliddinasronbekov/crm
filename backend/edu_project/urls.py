@@ -40,7 +40,7 @@ from student_profile.quiz_views import (
 # `crm` app'idan
 from crm.views import (
     SourceViewSet, LeadDepartmentViewSet,
-    SubDepartmentViewSet, LeadViewSet
+    SubDepartmentViewSet, LeadViewSet, CRMInsightsView
 )
 from crm.activity_views import (
     ActivityViewSet, PipelineViewSet, PipelineStageViewSet, DealViewSet
@@ -194,6 +194,7 @@ urlpatterns = [
     path('api/analytics/reports/', ReportListView.as_view(), name='reports-list'),
     path('api/analytics/reports/generate/', ReportListView.as_view(), name='reports-generate'),
     path('api/v1/ranking/leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
+    path('api/crm/insights/', CRMInsightsView.as_view(), name='crm-insights'),
 
     path('shop/purchase/', PurchaseWithCoinsView.as_view(), name='shop-purchase'),
     # API Hujjatlari uchun URL'lar

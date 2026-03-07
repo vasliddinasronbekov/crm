@@ -208,6 +208,11 @@ class ApiService {
   }
 
   // CRM
+  async getCRMInsights(params?: { period_days?: number }) {
+    const response = await this.api.get("/crm/insights/", { params });
+    return response.data;
+  }
+
   async getLeads(params?: {
     page?: number;
     limit?: number;
@@ -229,6 +234,17 @@ class ApiService {
 
   async updateLead(id: number, data: any) {
     const response = await this.api.patch(`/crm/leads/${id}/`, data);
+    return response.data;
+  }
+
+  async transitionLeadStage(
+    id: number,
+    data: { status: string; note?: string },
+  ) {
+    const response = await this.api.post(
+      `/crm/leads/${id}/transition-stage/`,
+      data,
+    );
     return response.data;
   }
 
