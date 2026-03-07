@@ -867,6 +867,47 @@ class PaymentViewSet(viewsets.ModelViewSet):
         serializer.save(created_by=request.user)
         return Response(serializer.data, status=status.HTTP_200_OK)
 
+
+@extend_schema(responses=OpenApiTypes.OBJECT)
+class CashReceiptVerifyView(APIView):
+    """
+    Public verification endpoint for QR scans.
+    Returns compact receipt summary without requiring authentication.
+    """
+    permission_classes = [permissions.AllowAny]
+    authentication_classes = []
+
+    def get(self, request, token, *args, **kwargs):
+        receipt = (
+            CashPaymentReceipt.objects
+            .select_related('payment', 'payment__payment_type')
+            .filter(receipt_token=token)
+            .first()
+        )
+        if not receipt:
+            return Response({'valid': False, 'detail': 'Receipt not found.'}, status=status.HTTP_404_NOT_FOUND)
+
+        if not is_cash_payment(receipt.payment):
+            return Response(
+                {'valid': False, 'detail': 'Receipt is not a cash receipt.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        payload = build_cash_receipt_payload(receipt, request=request)
+        return Response(
+            {
+                'valid': True,
+                'receipt_number': payload['receipt_number'],
+                'issued_at': payload['issued_at'],
+                'education_center_name': payload['education_center_name'],
+                'student_full_name': payload['student_full_name'],
+                'paid_amount': payload['paid_amount'],
+                'payment_method': payload['payment_method'],
+                'transaction_id': payload['transaction_id'],
+            },
+            status=status.HTTP_200_OK,
+        )
+
 class ShopProductViewSet(viewsets.ModelViewSet):
     queryset = ShopProduct.objects.all()
     serializer_class = ShopProductSerializer

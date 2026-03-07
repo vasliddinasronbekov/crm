@@ -27,6 +27,38 @@ import {
 import LoadingScreen from '@/components/LoadingScreen'
 import CashReceiptPreviewModal from '@/components/CashReceiptPreviewModal'
 
+const resolvePaymentTypeName = (payment: Payment): string => {
+  if (payment.payment_type_name) return payment.payment_type_name
+  if (payment.payment_type && typeof payment.payment_type === 'object') {
+    return payment.payment_type.name || ''
+  }
+  return ''
+}
+
+const resolveGroupName = (payment: Payment): string => {
+  if (payment.group_name) return payment.group_name
+  if (payment.group && typeof payment.group === 'object') {
+    return payment.group.name || '-'
+  }
+  return '-'
+}
+
+const resolveStudentName = (payment: Payment): string => {
+  if (payment.student_full_name) return payment.student_full_name
+  if (payment.by_user?.first_name && payment.by_user?.last_name) {
+    return `${payment.by_user.first_name} ${payment.by_user.last_name}`
+  }
+  if (payment.by_user?.username) return payment.by_user.username
+  return 'Unknown'
+}
+
+const isCashPaymentRecord = (payment: Payment): boolean => {
+  if (typeof payment.is_cash_payment === 'boolean') {
+    return payment.is_cash_payment
+  }
+  return isCashPaymentTypeName(resolvePaymentTypeName(payment))
+}
+
 export default function PaymentsPage() {
   const { currency, formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency } = useSettings()
   // UI state
@@ -38,6 +70,7 @@ export default function PaymentsPage() {
   const [dateFrom, setDateFrom] = useState('')
   const [dateTo, setDateTo] = useState('')
   const [selectedGroup, setSelectedGroup] = useState<string>('')
+  const [receiptFilter, setReceiptFilter] = useState<'all' | 'cash' | 'with_receipt'>('all')
 
   // React Query hooks for data fetching
   const { data: paymentsData, isLoading: paymentsLoading } = usePaymentsList({
@@ -63,6 +96,11 @@ export default function PaymentsPage() {
   const saveAutoReminders = useSaveAutoReminderSettings()
 
   const payments: Payment[] = paymentsData?.results || []
+  const displayPayments = payments.filter((payment) => {
+    if (receiptFilter === 'cash') return isCashPaymentRecord(payment)
+    if (receiptFilter === 'with_receipt') return Boolean(payment.has_cash_receipt || payment.cash_receipt)
+    return true
+  })
   const totalPayments = paymentsData?.count || 0
   const totalPages = Math.ceil(totalPayments / limit)
 
@@ -121,6 +159,10 @@ export default function PaymentsPage() {
   const handleAddPayment = async (options?: { autoPrint?: boolean }) => {
     if (!newPayment.by_user || !newPayment.amount) {
       toast.warning('Please fill in all required fields')
+      return
+    }
+    if (!newPayment.payment_type) {
+      toast.warning('Please select a payment method')
       return
     }
 
@@ -193,13 +235,13 @@ export default function PaymentsPage() {
 
   const exportToCSV = () => {
     const headers = ['Date', 'Student', 'Group', 'Amount', 'Status', 'Type', 'Detail']
-    const rows = payments.map((p: Payment) => [
+    const rows = displayPayments.map((p: Payment) => [
       p.date,
-      p.by_user?.first_name && p.by_user?.last_name ? `${p.by_user.first_name} ${p.by_user.last_name}` : p.by_user?.username,
-      p.group?.name || 'N/A',
+      resolveStudentName(p),
+      resolveGroupName(p),
       (p.amount / 100).toFixed(2),
       p.status,
-      p.payment_type?.name || 'Other',
+      resolvePaymentTypeName(p) || 'Other',
       p.detail || ''
     ])
 
@@ -492,23 +534,44 @@ export default function PaymentsPage() {
 
       {/* Filter Buttons */}
       <div className="mb-6">
-        <div className="flex gap-2">
-          {['all', 'pending', 'paid', 'failed'].map((filter) => (
-            <button
-              key={filter}
-              onClick={() => {
-                setStatusFilter(filter)
-                setPage(1)
-              }}
-              className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
-                statusFilter === filter
-                  ? 'bg-primary text-background'
-                  : 'bg-surface text-text-secondary hover:bg-border'
-              }`}
-            >
-              {filter.charAt(0).toUpperCase() + filter.slice(1)}
-            </button>
-          ))}
+        <div className="flex flex-wrap gap-3">
+          <div className="flex gap-2">
+            {['all', 'pending', 'paid', 'failed'].map((filter) => (
+              <button
+                key={filter}
+                onClick={() => {
+                  setStatusFilter(filter)
+                  setPage(1)
+                }}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  statusFilter === filter
+                    ? 'bg-primary text-background'
+                    : 'bg-surface text-text-secondary hover:bg-border'
+                }`}
+              >
+                {filter.charAt(0).toUpperCase() + filter.slice(1)}
+              </button>
+            ))}
+          </div>
+          <div className="flex gap-2">
+            {[
+              { value: 'all', label: 'All Payments' },
+              { value: 'cash', label: 'Cash Only' },
+              { value: 'with_receipt', label: 'With Receipt' },
+            ].map((item) => (
+              <button
+                key={item.value}
+                onClick={() => setReceiptFilter(item.value as 'all' | 'cash' | 'with_receipt')}
+                className={`px-4 py-2 rounded-lg text-sm font-medium transition-colors ${
+                  receiptFilter === item.value
+                    ? 'bg-info/20 text-info border border-info/40'
+                    : 'bg-surface text-text-secondary hover:bg-border'
+                }`}
+              >
+                {item.label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
@@ -522,19 +585,20 @@ export default function PaymentsPage() {
                 <th className="text-left py-4 px-6 text-sm font-semibold">Date</th>
                 <th className="text-left py-4 px-6 text-sm font-semibold">Amount</th>
                 <th className="text-left py-4 px-6 text-sm font-semibold">Status</th>
+                <th className="text-left py-4 px-6 text-sm font-semibold">Method</th>
                 <th className="text-left py-4 px-6 text-sm font-semibold">Group</th>
+                <th className="text-left py-4 px-6 text-sm font-semibold">Receipt #</th>
                 <th className="text-right py-4 px-6 text-sm font-semibold">Actions</th>
               </tr>
             </thead>
             <tbody>
-              {payments.map((payment) => {
-                const studentName =
-                  payment.student_full_name ||
-                  (payment.by_user?.first_name && payment.by_user?.last_name
-                    ? `${payment.by_user.first_name} ${payment.by_user.last_name}`
-                    : payment.by_user?.username) ||
-                  'Unknown'
+              {displayPayments.map((payment) => {
+                const studentName = resolveStudentName(payment)
                 const studentInitial = studentName?.trim()?.[0]?.toUpperCase() || 'U'
+                const paymentTypeName = resolvePaymentTypeName(payment) || 'N/A'
+                const groupName = resolveGroupName(payment)
+                const receiptNumber = payment.cash_receipt?.receipt_number || '—'
+                const canOpenReceipt = Boolean(payment.has_cash_receipt || isCashPaymentRecord(payment))
 
                 return (
                 <tr
@@ -576,11 +640,17 @@ export default function PaymentsPage() {
                     </span>
                   </td>
                   <td className="py-4 px-6 text-text-secondary">
-                    {payment.group?.name || '-'}
+                    {paymentTypeName}
+                  </td>
+                  <td className="py-4 px-6 text-text-secondary">
+                    {groupName}
+                  </td>
+                  <td className="py-4 px-6 text-text-secondary font-mono text-xs">
+                    {receiptNumber}
                   </td>
                   <td className="py-4 px-6">
                     <div className="flex items-center justify-end gap-2">
-                      {(payment.has_cash_receipt || payment.is_cash_payment) && (
+                      {canOpenReceipt && (
                         <button
                           onClick={() => fetchAndShowReceipt(payment.id)}
                           disabled={receiptLoadingId === payment.id}
@@ -611,11 +681,11 @@ export default function PaymentsPage() {
             </tbody>
           </table>
 
-          {payments.length === 0 && (
+          {displayPayments.length === 0 && (
             <div className="text-center py-12">
               <p className="text-text-secondary text-lg mb-2">No payments found</p>
               <p className="text-text-secondary text-sm">
-                {searchQuery || statusFilter !== 'all'
+                {searchQuery || statusFilter !== 'all' || receiptFilter !== 'all'
                   ? 'Try adjusting your filters'
                   : 'Add your first payment to get started'}
               </p>
@@ -683,6 +753,21 @@ export default function PaymentsPage() {
                   {groups.map((group: any) => (
                     <option key={group.id} value={group.id}>
                       {group.name}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Payment Method *</label>
+                <select
+                  value={newPayment.payment_type}
+                  onChange={(e) => setNewPayment({ ...newPayment, payment_type: e.target.value })}
+                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
+                >
+                  <option value="">Select payment method</option>
+                  {paymentTypes.map((paymentType: any) => (
+                    <option key={paymentType.id} value={paymentType.id}>
+                      {paymentType.name}
                     </option>
                   ))}
                 </select>

@@ -63,6 +63,7 @@ export default function CashReceiptPreviewModal({
             body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #ffffff; }
             .paper { width: 80mm; min-height: 100vh; margin: 0 auto; padding: 8px 6px 12px; color: #0f172a; }
             .header { text-align: center; margin-bottom: 10px; }
+            .logo { width: 34px; height: 34px; border-radius: 999px; object-fit: cover; margin: 0 auto 6px; display: block; }
             .title { font-size: 14px; font-weight: 700; line-height: 1.3; }
             .subtitle { font-size: 11px; color: #334155; }
             .line { border-top: 1px dashed #94a3b8; margin: 8px 0; }
@@ -84,6 +85,7 @@ export default function CashReceiptPreviewModal({
         <body>
           <div class="paper">
             <div class="header">
+              ${receipt.logo_url ? `<img class="logo" src="${escapeHtml(receipt.logo_url)}" alt="Logo" />` : ''}
               <div class="title">${escapeHtml(receipt.education_center_name)}</div>
               <div class="subtitle">${escapeHtml(receipt.branch || 'Main branch')}</div>
             </div>
@@ -141,6 +143,18 @@ export default function CashReceiptPreviewModal({
         <div className="max-h-[75vh] overflow-y-auto p-5">
           <div className="mx-auto w-[320px] rounded-xl border border-border bg-background p-4">
             <div className="text-center mb-3">
+              {receipt.logo_url ? (
+                <div className="mb-2 flex justify-center">
+                  <Image
+                    src={receipt.logo_url}
+                    alt="Center logo"
+                    width={44}
+                    height={44}
+                    unoptimized
+                    className="h-11 w-11 rounded-full object-cover border border-border"
+                  />
+                </div>
+              ) : null}
               <p className="text-sm font-semibold">{receipt.education_center_name}</p>
               <p className="text-xs text-text-secondary">{receipt.branch || 'Main branch'}</p>
             </div>

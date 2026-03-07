@@ -40,17 +40,18 @@ def _resolve_education_center_name() -> str:
     return getattr(settings, 'EDUCATION_CENTER_NAME', 'EduVoice Education Center')
 
 
+def _resolve_education_center_logo_url() -> str:
+    return getattr(settings, 'EDUCATION_CENTER_LOGO_URL', '')
+
+
 def _generate_receipt_number() -> str:
     today_prefix = timezone.localtime().strftime('RC-%Y%m%d')
-    for _ in range(1000):
-        existing_count = CashPaymentReceipt.objects.filter(
-            receipt_number__startswith=today_prefix
-        ).count()
-        candidate = f"{today_prefix}-{existing_count + 1:05d}"
+    for _ in range(200):
+        stamp = timezone.localtime().strftime('%H%M%S')
+        candidate = f"{today_prefix}-{stamp}-{secrets.randbelow(10000):04d}"
         if not CashPaymentReceipt.objects.filter(receipt_number=candidate).exists():
             return candidate
-    # Fallback with random suffix in extreme collision cases.
-    return f"{today_prefix}-{secrets.token_hex(3).upper()}"
+    return f"{today_prefix}-{secrets.token_hex(4).upper()}"
 
 
 def _generate_receipt_token() -> str:
@@ -132,7 +133,7 @@ def _generate_qr_data_url(qr_data: str) -> str:
 def build_cash_receipt_payload(receipt: CashPaymentReceipt, request=None) -> dict[str, Any]:
     payment = receipt.payment
     issued_at_local = timezone.localtime(receipt.issued_at)
-    verification_path = f"/api/v1/payment/{payment.id}/cash-receipt-by-token/{receipt.receipt_token}/"
+    verification_path = f"/api/v1/payment/receipt/verify/{receipt.receipt_token}/"
     verification_url = (
         request.build_absolute_uri(verification_path) if request else verification_path
     )
@@ -156,6 +157,7 @@ def build_cash_receipt_payload(receipt: CashPaymentReceipt, request=None) -> dic
         'issued_at': receipt.issued_at.isoformat(),
         'issued_at_display': issued_at_local.strftime('%Y-%m-%d %H:%M'),
         'education_center_name': receipt.education_center_name,
+        'logo_url': _resolve_education_center_logo_url(),
         'branch': receipt.branch_name,
         'cashier_full_name': receipt.cashier_full_name,
         'student_full_name': receipt.student_full_name,
@@ -170,4 +172,3 @@ def build_cash_receipt_payload(receipt: CashPaymentReceipt, request=None) -> dic
         'qr_payload_json': json.dumps(qr_payload, separators=(',', ':')),
         'qr_code_image': _generate_qr_data_url(qr_content),
     }
-

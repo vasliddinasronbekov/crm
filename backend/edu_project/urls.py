@@ -26,7 +26,7 @@ from student_profile.views import (
     TicketViewSet, TicketChatViewSet, CourseViewSet, RoomViewSet,
     ExpenseTypeViewSet, ExpenseViewSet, LeaveReasonViewSet, InformationViewSet,
     StudentStatisticsView, StudentUpdateView, CreatePaymentView, PaymentCallbackView,
-    PaymentTypeViewSet, AutomaticFineViewSet, AssistantSlotViewSet, BookingViewSet,
+    PaymentTypeViewSet, AutomaticFineViewSet, AssistantSlotViewSet, BookingViewSet, CashReceiptVerifyView,
 )
 from student_profile.content_views import (
     CourseModuleViewSet, LessonViewSet, StudentProgressViewSet,
@@ -185,6 +185,7 @@ urlpatterns = [
     path('api/v1/student-profile/student/update/', StudentUpdateView.as_view(), name='student-update'),
     path('api/v1/student-profile/payment/create/', CreatePaymentView.as_view(), name='payment-create'),
     path('api/v1/payment/callback/', PaymentCallbackView.as_view(), name='payment-callback'),
+    path('api/v1/payment/receipt/verify/<str:token>/', CashReceiptVerifyView.as_view(), name='payment-receipt-verify'),
     path('api/v1/send-message/', SendMessageView.as_view(), name='send-message'),
 
     # --- ANALYTICS ENDPOINTS ---

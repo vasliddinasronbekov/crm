@@ -1117,6 +1117,11 @@ class ApiService {
     return response.data;
   }
 
+  async verifyCashReceiptToken(token: string) {
+    const response = await this.api.get(`/v1/payment/receipt/verify/${token}/`);
+    return response.data;
+  }
+
   async saveAutoReminderSettings(settings: any) {
     const payload = {
       enabled: settings?.enabled,

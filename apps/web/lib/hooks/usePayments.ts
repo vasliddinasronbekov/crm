@@ -83,6 +83,7 @@ export interface CashReceiptPayload {
   issued_at: string
   issued_at_display: string
   education_center_name: string
+  logo_url?: string
   branch: string
   cashier_full_name: string
   student_full_name: string
