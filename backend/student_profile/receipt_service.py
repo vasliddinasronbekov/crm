@@ -12,12 +12,7 @@ from django.utils import timezone
 from .models import CashPaymentReceipt, Payment
 
 
-CASH_PAYMENT_METHOD_NAMES = {
-    'cash',
-    'naqd',
-    'наличные',
-    'нал',
-}
+CASH_PAYMENT_METHOD_NAMES = {'cash', 'naqd', 'наличные', 'нал'}
 
 
 def _normalize_payment_method_name(name: str | None) -> str:
@@ -25,6 +20,10 @@ def _normalize_payment_method_name(name: str | None) -> str:
 
 
 def is_cash_payment(payment: Payment) -> bool:
+    payment_type_code = _normalize_payment_method_name(getattr(payment.payment_type, 'code', None))
+    if payment_type_code == 'cash':
+        return True
+
     payment_type_name = _normalize_payment_method_name(getattr(payment.payment_type, 'name', None))
     return payment_type_name in CASH_PAYMENT_METHOD_NAMES
 

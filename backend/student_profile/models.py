@@ -268,10 +268,13 @@ class ShopOrder(models.Model):
     updated_at = models.DateTimeField(auto_now=True)
 
 class PaymentType(models.Model):
+    code = models.CharField(max_length=64, unique=True, null=True, blank=True, db_index=True)
     name = models.CharField(max_length=100, unique=True)
+    is_active = models.BooleanField(default=True)
+    display_order = models.PositiveIntegerField(default=0)
 
     class Meta:
-        ordering = ['name']
+        ordering = ['display_order', 'name']
 
     def __str__(self):
         return self.name

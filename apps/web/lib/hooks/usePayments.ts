@@ -98,9 +98,26 @@ export interface CashReceiptPayload {
   qr_code_image: string
 }
 
+export interface PaymentTypeOption {
+  id: number
+  name: string
+  code?: string | null
+  is_active?: boolean
+  display_order?: number
+}
+
+const normalizePaymentMethod = (value?: string | null): string =>
+  (value || '').trim().toLowerCase()
+
 export const isCashPaymentTypeName = (name?: string | null): boolean => {
-  const normalized = (name || '').trim().toLowerCase()
+  const normalized = normalizePaymentMethod(name)
   return ['cash', 'naqd', 'наличные', 'нал'].includes(normalized)
+}
+
+export const isCashPaymentType = (paymentType?: PaymentTypeOption | null): boolean => {
+  if (!paymentType) return false
+  if (normalizePaymentMethod(paymentType.code) === 'cash') return true
+  return isCashPaymentTypeName(paymentType.name)
 }
 
 const parseListPayload = <T,>(payload: any): T[] => {

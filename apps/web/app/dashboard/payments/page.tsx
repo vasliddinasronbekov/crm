@@ -20,7 +20,9 @@ import {
   useSaveAutoReminderSettings,
   usePaymentStats,
   usePaymentTrends,
+  isCashPaymentType,
   isCashPaymentTypeName,
+  type PaymentTypeOption,
   type CashReceiptPayload,
   type Payment,
 } from '@/lib/hooks/usePayments'
@@ -56,6 +58,11 @@ const isCashPaymentRecord = (payment: Payment): boolean => {
   if (typeof payment.is_cash_payment === 'boolean') {
     return payment.is_cash_payment
   }
+  if (payment.payment_type && typeof payment.payment_type === 'object') {
+    if (isCashPaymentType(payment.payment_type as PaymentTypeOption)) {
+      return true
+    }
+  }
   return isCashPaymentTypeName(resolvePaymentTypeName(payment))
 }
 
@@ -86,6 +93,7 @@ export default function PaymentsPage() {
   const { data: groups = [] } = usePaymentGroups()
   const { data: paymentTypes = [] } = usePaymentTypes()
   const { data: teachers = [] } = usePaymentTeachers()
+  const paymentTypeOptions = paymentTypes as PaymentTypeOption[]
 
   // React Query mutations
   const createPayment = useCreatePayment()
@@ -166,10 +174,10 @@ export default function PaymentsPage() {
       return
     }
 
-    const selectedPaymentType = paymentTypes.find(
+    const selectedPaymentType = paymentTypeOptions.find(
       (paymentType: any) => String(paymentType.id) === String(newPayment.payment_type),
     )
-    const isCashType = isCashPaymentTypeName(selectedPaymentType?.name)
+    const isCashType = isCashPaymentType(selectedPaymentType)
     const shouldAutoPrint = Boolean(options?.autoPrint)
 
     createPayment.mutate({
@@ -807,8 +815,8 @@ export default function PaymentsPage() {
                 <button onClick={() => handleAddPayment()} className="btn-primary flex-1">
                   Save Payment
                 </button>
-                {isCashPaymentTypeName(
-                  paymentTypes.find((paymentType: any) => String(paymentType.id) === String(newPayment.payment_type))?.name,
+                {isCashPaymentType(
+                  paymentTypeOptions.find((paymentType: any) => String(paymentType.id) === String(newPayment.payment_type)),
                 ) && (
                   <button
                     onClick={() => handleAddPayment({ autoPrint: true })}

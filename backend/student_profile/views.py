@@ -1042,7 +1042,19 @@ class InformationViewSet(viewsets.ModelViewSet):
 class PaymentTypeViewSet(viewsets.ModelViewSet):
     queryset = PaymentType.objects.all()
     serializer_class = PaymentTypeSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
+
+    def get_permissions(self):
+        if self.action in {'create', 'update', 'partial_update', 'destroy'}:
+            return [permissions.IsAdminUser()]
+        return [permission() for permission in self.permission_classes]
+
+    def get_queryset(self):
+        queryset = PaymentType.objects.all().order_by('display_order', 'name')
+        user = self.request.user
+        if user.is_superuser or user.is_staff:
+            return queryset
+        return queryset.filter(is_active=True)
 
 class AutomaticFineViewSet(viewsets.ModelViewSet):
     queryset = AutomaticFine.objects.all()
