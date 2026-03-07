@@ -78,6 +78,7 @@ from .services.financial_automation import (
 
 # --- 4. Ruxsatnomalarni (Permissions) import qilamiz ---
 from .permissions import IsTeacherOrReadOnly, IsAdminOrGroupOwnerOrReadOnly, IsAdminOrReadOnly
+from users.permissions import HasRoleCapability
 
 
 # --- 5. Barcha ViewSet va View'larni tartib bilan e'lon qilamiz ---
@@ -89,11 +90,193 @@ class BranchViewSet(viewsets.ModelViewSet):
 
 class GroupViewSet(viewsets.ModelViewSet):
     queryset = Group.objects.all()
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrGroupOwnerOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability, IsAdminOrGroupOwnerOrReadOnly]
+    action_capabilities = {
+        'list': 'groups.read',
+        'retrieve': 'groups.read',
+        'schedule_health': 'groups.read',
+        'create': 'groups.manage',
+        'update': 'groups.manage',
+        'partial_update': 'groups.manage',
+        'destroy': 'groups.manage',
+    }
+
+    DAY_ALIASES = {
+        'mon': 'monday',
+        'monday': 'monday',
+        'dush': 'monday',
+        'dushanba': 'monday',
+        'tue': 'tuesday',
+        'tues': 'tuesday',
+        'tuesday': 'tuesday',
+        'sesh': 'tuesday',
+        'seshanba': 'tuesday',
+        'wed': 'wednesday',
+        'wednesday': 'wednesday',
+        'chor': 'wednesday',
+        'chorshanba': 'wednesday',
+        'thu': 'thursday',
+        'thur': 'thursday',
+        'thurs': 'thursday',
+        'thursday': 'thursday',
+        'pay': 'thursday',
+        'payshanba': 'thursday',
+        'fri': 'friday',
+        'friday': 'friday',
+        'jum': 'friday',
+        'juma': 'friday',
+        'sat': 'saturday',
+        'saturday': 'saturday',
+        'shan': 'saturday',
+        'shanba': 'saturday',
+        'sun': 'sunday',
+        'sunday': 'sunday',
+        'yak': 'sunday',
+        'yakshanba': 'sunday',
+    }
+
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
             return GroupReadSerializer
         return GroupCreateSerializer
+
+    @classmethod
+    def _normalize_days(cls, days_value):
+        if not days_value:
+            return set()
+
+        normalized = set()
+        for raw_token in str(days_value).split(','):
+            token = ''.join(ch for ch in raw_token.strip().lower() if ch.isalpha())
+            if not token:
+                continue
+            canonical = cls.DAY_ALIASES.get(token)
+            if canonical:
+                normalized.add(canonical)
+        return normalized
+
+    @staticmethod
+    def _time_ranges_overlap(start_a, end_a, start_b, end_b):
+        return bool(start_a and end_a and start_b and end_b and start_a < end_b and start_b < end_a)
+
+    @staticmethod
+    def _date_ranges_overlap(start_a, end_a, start_b, end_b):
+        return bool(start_a and end_a and start_b and end_b and start_a <= end_b and start_b <= end_a)
+
+    def _calculate_schedule_health(self, groups_queryset):
+        groups = list(
+            groups_queryset.select_related('room', 'main_teacher', 'assistant_teacher')
+            .prefetch_related('students')
+        )
+
+        scheduled_groups = []
+        unscheduled_count = 0
+        near_capacity_count = 0
+        over_capacity_count = 0
+
+        for group in groups:
+            day_set = self._normalize_days(group.days)
+            if day_set and group.start_time and group.end_time:
+                scheduled_groups.append((group, day_set))
+            else:
+                unscheduled_count += 1
+
+            room_capacity = group.room.capacity if group.room and group.room.capacity else 0
+            if room_capacity > 0:
+                student_count = getattr(group, 'student_total', None)
+                if student_count is None:
+                    student_count = group.students.count()
+                if student_count > room_capacity:
+                    over_capacity_count += 1
+                elif (student_count / room_capacity) >= 0.9:
+                    near_capacity_count += 1
+
+        teacher_conflicts = set()
+        room_conflicts = set()
+        top_conflicts = []
+
+        for index, (group_a, days_a) in enumerate(scheduled_groups):
+            teacher_ids_a = {
+                teacher_id for teacher_id in [group_a.main_teacher_id, group_a.assistant_teacher_id]
+                if teacher_id
+            }
+            for group_b, days_b in scheduled_groups[index + 1:]:
+                if not self._date_ranges_overlap(group_a.start_day, group_a.end_day, group_b.start_day, group_b.end_day):
+                    continue
+                if not self._time_ranges_overlap(group_a.start_time, group_a.end_time, group_b.start_time, group_b.end_time):
+                    continue
+
+                common_days = sorted(days_a & days_b)
+                if not common_days:
+                    continue
+
+                pair_key = tuple(sorted([group_a.id, group_b.id]))
+                time_window = f"{group_a.start_time.strftime('%H:%M')} - {group_a.end_time.strftime('%H:%M')}"
+
+                if group_a.room_id and group_b.room_id and group_a.room_id == group_b.room_id:
+                    for day in common_days:
+                        key = ('room',) + pair_key + (day,)
+                        room_conflicts.add(key)
+                        if len(top_conflicts) < 20:
+                            top_conflicts.append({
+                                'type': 'room',
+                                'day': day,
+                                'time': time_window,
+                                'resource': group_a.room.name if group_a.room else None,
+                                'groups': [
+                                    {'id': group_a.id, 'name': group_a.name},
+                                    {'id': group_b.id, 'name': group_b.name},
+                                ],
+                            })
+
+                teacher_ids_b = {
+                    teacher_id for teacher_id in [group_b.main_teacher_id, group_b.assistant_teacher_id]
+                    if teacher_id
+                }
+                common_teacher_ids = teacher_ids_a & teacher_ids_b
+                if common_teacher_ids:
+                    teacher_name = None
+                    teacher_id = sorted(common_teacher_ids)[0]
+                    if group_a.main_teacher_id == teacher_id and group_a.main_teacher:
+                        teacher_name = group_a.main_teacher.get_full_name() or group_a.main_teacher.username
+                    elif group_a.assistant_teacher_id == teacher_id and group_a.assistant_teacher:
+                        teacher_name = group_a.assistant_teacher.get_full_name() or group_a.assistant_teacher.username
+                    elif group_b.main_teacher_id == teacher_id and group_b.main_teacher:
+                        teacher_name = group_b.main_teacher.get_full_name() or group_b.main_teacher.username
+                    elif group_b.assistant_teacher_id == teacher_id and group_b.assistant_teacher:
+                        teacher_name = group_b.assistant_teacher.get_full_name() or group_b.assistant_teacher.username
+
+                    for day in common_days:
+                        key = ('teacher',) + pair_key + (day, teacher_id)
+                        teacher_conflicts.add(key)
+                        if len(top_conflicts) < 20:
+                            top_conflicts.append({
+                                'type': 'teacher',
+                                'day': day,
+                                'time': time_window,
+                                'resource': teacher_name,
+                                'groups': [
+                                    {'id': group_a.id, 'name': group_a.name},
+                                    {'id': group_b.id, 'name': group_b.name},
+                                ],
+                            })
+
+        return {
+            'total_groups': len(groups),
+            'scheduled_groups': len(scheduled_groups),
+            'unscheduled_groups': unscheduled_count,
+            'teacher_conflicts': len(teacher_conflicts),
+            'room_conflicts': len(room_conflicts),
+            'capacity_near_full_groups': near_capacity_count,
+            'capacity_overflow_groups': over_capacity_count,
+            'top_conflicts': top_conflicts,
+        }
+
+    @action(detail=False, methods=['get'], url_path='schedule-health')
+    def schedule_health(self, request):
+        queryset = self.filter_queryset(self.get_queryset()).annotate(student_total=Count('students'))
+        payload = self._calculate_schedule_health(queryset)
+        return Response(payload)
 
     def get_queryset(self):
         user = self.request.user
@@ -131,18 +314,47 @@ class GroupViewSet(viewsets.ModelViewSet):
         elif date_to:
             queryset = queryset.filter(start_day__lte=date_to)
 
+        search = (self.request.query_params.get('search') or '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(name__icontains=search)
+                | Q(course__name__icontains=search)
+                | Q(main_teacher__username__icontains=search)
+                | Q(main_teacher__first_name__icontains=search)
+                | Q(main_teacher__last_name__icontains=search)
+                | Q(assistant_teacher__username__icontains=search)
+                | Q(assistant_teacher__first_name__icontains=search)
+                | Q(assistant_teacher__last_name__icontains=search)
+                | Q(room__name__icontains=search)
+            )
+
+        scheduled_filter = (self.request.query_params.get('scheduled') or '').strip().lower()
+        if scheduled_filter in {'true', '1', 'yes', 'scheduled'}:
+            queryset = queryset.exclude(days__isnull=True).exclude(days__exact='')
+        elif scheduled_filter in {'false', '0', 'no', 'unscheduled'}:
+            queryset = queryset.filter(Q(days__isnull=True) | Q(days__exact=''))
+
         return queryset.select_related(
             'branch',
             'course',
             'room',
             'main_teacher',
             'assistant_teacher'
-        ).order_by('-start_day')
+        ).order_by('-start_day', 'name')
 
 class AttendanceViewSet(viewsets.ModelViewSet):
     queryset = Attendance.objects.all()
     serializer_class = AttendanceSerializer
-    permission_classes = [permissions.IsAuthenticated, IsTeacherOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability, IsTeacherOrReadOnly]
+    action_capabilities = {
+        'list': 'attendance.read',
+        'retrieve': 'attendance.read',
+        'create': 'attendance.manage',
+        'update': 'attendance.manage',
+        'partial_update': 'attendance.manage',
+        'destroy': 'attendance.manage',
+        'bulk_create': 'attendance.manage',
+    }
 
     def _apply_attendance_policies_safely(self, attendance: Attendance) -> None:
         try:
@@ -401,7 +613,17 @@ class ExamScoreViewSet(viewsets.ModelViewSet):
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
-    permission_classes = [permissions.IsAuthenticated, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability, IsAdminOrReadOnly]
+    action_capabilities = {
+        'list': 'payments.read',
+        'retrieve': 'payments.read',
+        'create': 'payments.manage',
+        'update': 'payments.manage',
+        'partial_update': 'payments.manage',
+        'destroy': 'payments.manage',
+        'send_reminder': 'payments.manage',
+        'bulk_send_reminders': 'payments.manage',
+    }
 
     def perform_create(self, serializer):
         payment = serializer.save()

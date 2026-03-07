@@ -23,8 +23,10 @@ import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/lib/permissions'
 import { WEEK_DAYS } from '@/lib/utils/schedule'
 import LoadingScreen from '@/components/LoadingScreen'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
 
 interface Student {
   id: number
@@ -277,8 +279,13 @@ export default function GroupDetailPage() {
   const groupIdNumber = Number(params.id)
 
   const { formatCurrency, fromSelectedCurrency, currency } = useSettings()
-  const { isStaff, isSuperuser, isTeacher } = useAuth()
-  const canConfigure = isStaff || isSuperuser || isTeacher
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
+  const canConfigureGroup = permissionState.hasPermission('groups.edit')
+  const canRecordPayment = permissionState.hasPermission('payments.create')
+  const canViewPayments = permissionState.hasPermission('payments.view')
+  const canMarkAttendance = permissionState.hasAnyPermission(['attendance.create', 'attendance.edit'])
+  const canViewAttendance = permissionState.hasPermission('attendance.view')
 
   const [rawGroup, setRawGroup] = useState<any | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -683,7 +690,10 @@ export default function GroupDetailPage() {
   }
 
   const handleSaveConfiguration = async () => {
-    if (!group || !canConfigure) return
+    if (!group || !canConfigureGroup) {
+      toast.error('You do not have permission to update group configuration.')
+      return
+    }
 
     if (!configForm.name.trim() || !configForm.course_id) {
       toast.error('Group name and course are required.')
@@ -719,6 +729,10 @@ export default function GroupDetailPage() {
   }
 
   const markAttendance = async (studentId: number, status: AttendanceStatus) => {
+    if (!canMarkAttendance) {
+      toast.error('You do not have permission to mark attendance.')
+      return
+    }
     setMarkingAttendance(studentId)
     try {
       await apiService.markAttendance({
@@ -754,6 +768,10 @@ export default function GroupDetailPage() {
   }
 
   const handleRecordPayment = async () => {
+    if (!canRecordPayment) {
+      toast.error('You do not have permission to record payments.')
+      return
+    }
     if (!group || !newPayment.by_user) {
       toast.error('Select a student first.')
       return
@@ -801,35 +819,66 @@ export default function GroupDetailPage() {
   const debtStudentsCount = studentsInGroup.filter((student) => (student.balance || 0) > 0).length
   const totalBalance = studentsInGroup.reduce((sum, student) => sum + (student.balance || 0), 0)
 
+  const visibleTabs = useMemo(() => {
+    const tabs: Array<{ id: Tab; label: string; icon: typeof Users }> = [
+      { id: 'students', label: 'Students', icon: Users },
+      { id: 'schedule', label: 'Schedule', icon: Calendar },
+    ]
+
+    if (canViewPayments) {
+      tabs.push({ id: 'payments', label: 'Payments', icon: DollarSign })
+    }
+    if (canViewAttendance) {
+      tabs.push({ id: 'attendance', label: 'Attendance', icon: CheckCircle })
+    }
+
+    return tabs
+  }, [canViewAttendance, canViewPayments])
+
+  useEffect(() => {
+    if (!visibleTabs.some((tab) => tab.id === activeTab)) {
+      setActiveTab('students')
+    }
+  }, [activeTab, visibleTabs])
+
   if (!groupIdNumber || Number.isNaN(groupIdNumber)) {
     return (
-      <div className="p-8">
-        <div className="card text-center py-12">
-          <p className="text-text-secondary">Invalid group id.</p>
+      <ProtectedRoute>
+        <div className="p-8">
+          <div className="card text-center py-12">
+            <p className="text-text-secondary">Invalid group id.</p>
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     )
   }
 
   if (isLoading) {
-    return <LoadingScreen message="Loading group details..." />
+    return (
+      <ProtectedRoute>
+        <LoadingScreen message="Loading group details..." />
+      </ProtectedRoute>
+    )
   }
 
-if (!group) {
+  if (!group) {
     return (
-      <div className="p-8">
-        <div className="card text-center py-12">
-          <p className="text-text-secondary text-lg mb-4">Group not found.</p>
-          <button onClick={() => router.push('/dashboard/groups')} className="btn-primary">
-            Back to Groups
-          </button>
+      <ProtectedRoute>
+        <div className="p-8">
+          <div className="card text-center py-12">
+            <p className="text-text-secondary text-lg mb-4">Group not found.</p>
+            <button onClick={() => router.push('/dashboard/groups')} className="btn-primary">
+              Back to Groups
+            </button>
+          </div>
         </div>
-      </div>
+      </ProtectedRoute>
     )
   }
 
   return (
-    <div className="p-8">
+    <ProtectedRoute>
+      <div className="p-8">
       <div className="mb-6">
         <button
           onClick={() => router.push('/dashboard/groups')}
@@ -846,9 +895,15 @@ if (!group) {
             {group.branch_name && (
               <p className="text-sm text-text-secondary mt-1">Branch: {group.branch_name}</p>
             )}
+            {!canConfigureGroup && (
+              <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                <AlertCircle className="h-4 w-4" />
+                Read-only mode for this group configuration.
+              </div>
+            )}
           </div>
 
-          {canConfigure && (
+          {canConfigureGroup && (
             <div className="flex items-center gap-2">
               {!isConfigMode ? (
                 <button
@@ -917,12 +972,7 @@ if (!group) {
 
       <div className="border-b border-border mb-6">
         <div className="flex gap-6">
-          {[
-            { id: 'students' as Tab, label: 'Students', icon: Users },
-            { id: 'schedule' as Tab, label: 'Schedule', icon: Calendar },
-            { id: 'payments' as Tab, label: 'Payments', icon: DollarSign },
-            { id: 'attendance' as Tab, label: 'Attendance', icon: CheckCircle },
-          ].map((tab) => (
+          {visibleTabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
@@ -946,7 +996,7 @@ if (!group) {
               <h2 className="text-2xl font-semibold">Students ({studentsInGroup.length})</h2>
             </div>
 
-            {isConfigMode && canConfigure && (
+            {isConfigMode && canConfigureGroup && (
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
                 <div className="card">
                   <h3 className="text-lg font-semibold mb-4">Current Students ({configuredStudents.length})</h3>
@@ -1048,7 +1098,7 @@ if (!group) {
           <div>
             <h2 className="text-2xl font-semibold mb-6">Schedule & Configuration</h2>
 
-            {isConfigMode && canConfigure ? (
+            {isConfigMode && canConfigureGroup ? (
               <div className="card">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
@@ -1306,8 +1356,13 @@ if (!group) {
         {activeTab === 'payments' && (
           <div>
             <h2 className="text-2xl font-semibold mb-6">Group Payments</h2>
+            {!canRecordPayment && (
+              <div className="mb-4 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                You can view balances, but only finance-enabled roles can record payments.
+              </div>
+            )}
 
-            {canConfigure && (
+            {canRecordPayment && (
               <div className="card mb-6">
                 <h3 className="text-lg font-semibold mb-4">Record Payment</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -1524,6 +1579,11 @@ if (!group) {
                 />
               </div>
             </div>
+            {!canMarkAttendance && (
+              <div className="mb-4 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                Read-only attendance mode. You can review records but cannot mark attendance.
+              </div>
+            )}
 
             {studentsInGroup.length > 0 ? (
               <div className="card mb-6">
@@ -1570,17 +1630,17 @@ if (!group) {
                                   <div className="inline-flex items-center gap-1 p-1 bg-surface border border-border rounded-xl">
                                     <AttendanceActionButton
                                       status="present"
-                                      disabled={markingAttendance === student.id}
+                                      disabled={markingAttendance === student.id || !canMarkAttendance}
                                       onClick={() => void markAttendance(student.id, 'present')}
                                     />
                                     <AttendanceActionButton
                                       status="absence"
-                                      disabled={markingAttendance === student.id}
+                                      disabled={markingAttendance === student.id || !canMarkAttendance}
                                       onClick={() => void markAttendance(student.id, 'absence')}
                                     />
                                     <AttendanceActionButton
                                       status="absent"
-                                      disabled={markingAttendance === student.id}
+                                      disabled={markingAttendance === student.id || !canMarkAttendance}
                                       onClick={() => void markAttendance(student.id, 'absent')}
                                     />
                                   </div>
@@ -1663,6 +1723,7 @@ if (!group) {
           </div>
         )}
       </div>
-    </div>
+      </div>
+    </ProtectedRoute>
   )
 }

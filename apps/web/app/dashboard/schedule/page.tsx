@@ -2,8 +2,10 @@
 
 import { useState, useCallback, useEffect, useMemo } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Plus, Users, Undo2, Redo2, FileSpreadsheet, FileText } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Search, Plus, Users, Undo2, Redo2, FileSpreadsheet, FileText, AlertTriangle } from 'lucide-react'
 import toast from '@/lib/toast'
+import apiService from '@/lib/api'
 import { useGroups, useCreateGroup, useUpdateGroup, Group } from '@/lib/hooks/useGroups'
 import { useCourses, Course } from '@/lib/hooks/useCourses'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
@@ -12,6 +14,9 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import * as XLSX from 'xlsx'
 import { saveAs } from 'file-saver'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/lib/permissions'
 
 import ScheduleView from '@/components/dashboard/schedule/ScheduleView'
 import UnscheduledGroupsPanel from '@/components/dashboard/schedule/UnscheduledGroupsPanel'
@@ -37,6 +42,23 @@ interface ParsedScheduleSearch {
   room: string
   day: WeekDay | null
   status: SearchStatus
+}
+
+interface GroupScheduleHealth {
+  total_groups: number
+  scheduled_groups: number
+  unscheduled_groups: number
+  teacher_conflicts: number
+  room_conflicts: number
+  capacity_near_full_groups: number
+  capacity_overflow_groups: number
+  top_conflicts: Array<{
+    type: 'room' | 'teacher'
+    day: string
+    time: string
+    resource?: string | null
+    groups: Array<{ id: number; name: string }>
+  }>
 }
 
 const DAY_ORDER_SHORT = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
@@ -166,6 +188,11 @@ const getDateForWeekDay = (weekStart: Date, day: WeekDay): Date => {
 
 export default function SchedulePage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
+  const canCreateGroup = permissionState.hasPermission('groups.create')
+  const canEditSchedule = permissionState.hasPermission('groups.edit')
+  const canManageSchedule = canCreateGroup || canEditSchedule
 
   const { data, isLoading } = useGroups({ limit: 1000 })
   const groups = useMemo(() => data?.results || [], [data?.results])
@@ -199,6 +226,13 @@ export default function SchedulePage() {
   const [colorByCategory, setColorByCategory] = useState<'course' | 'teacher' | 'none'>('course')
   const [swimlaneBy, setSwimlaneBy] = useState<'none' | 'teacher' | 'room'>('none')
 
+  const { data: scheduleHealthData, isLoading: isScheduleHealthLoading } = useQuery<GroupScheduleHealth>({
+    queryKey: ['groups', 'schedule-health'],
+    queryFn: () => apiService.getGroupScheduleHealth(),
+    staleTime: 60 * 1000,
+    enabled: Boolean(user),
+  })
+
   const activeWeekRange = useMemo(() => getWeekRange(currentWeekOffset), [currentWeekOffset])
 
   const allTeachers = useMemo(
@@ -220,6 +254,10 @@ export default function SchedulePage() {
 
   const handleAddDaysToGroup = useCallback(
     async (group: Group, targetDays: string[]) => {
+      if (!canEditSchedule) {
+        toast.error('You do not have permission to update schedule.')
+        return
+      }
       const currentDays = parseGroupDays(group.days)
       const normalizedTargetDays = targetDays
         .map((day) => normalizeDayToken(day))
@@ -244,7 +282,7 @@ export default function SchedulePage() {
         },
       )
     },
-    [updateGroup],
+    [canEditSchedule, updateGroup],
   )
 
   const stringToColor = (value: string): string => {
@@ -372,6 +410,10 @@ export default function SchedulePage() {
   }, [groups, parsedSearch, selectedTeacher, selectedCourse, selectedRoom])
 
   const handleCreateGroup = async () => {
+    if (!canCreateGroup) {
+      toast.error('You do not have permission to create groups.')
+      return
+    }
     if (!newGroup.name || !newGroup.course) {
       toast.warning('Please fill in all required fields')
       return
@@ -386,6 +428,10 @@ export default function SchedulePage() {
   }
 
   const handleUndo = useCallback(() => {
+    if (!canEditSchedule) {
+      toast.error('You do not have permission to update schedule.')
+      return
+    }
     if (undoStack.length === 0) {
       toast.warning('Nothing to undo')
       return
@@ -417,9 +463,13 @@ export default function SchedulePage() {
         onError: () => toast.error('Failed to undo'),
       },
     )
-  }, [undoStack, groups, updateGroup])
+  }, [canEditSchedule, undoStack, groups, updateGroup])
 
   const handleRedo = useCallback(() => {
+    if (!canEditSchedule) {
+      toast.error('You do not have permission to update schedule.')
+      return
+    }
     if (redoStack.length === 0) {
       toast.warning('Nothing to redo')
       return
@@ -451,9 +501,11 @@ export default function SchedulePage() {
         onError: () => toast.error('Failed to redo'),
       },
     )
-  }, [redoStack, groups, updateGroup])
+  }, [canEditSchedule, redoStack, groups, updateGroup])
 
   useEffect(() => {
+    if (!canEditSchedule) return
+
     const handleKeyDown = (event: KeyboardEvent) => {
       if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement) return
 
@@ -470,10 +522,14 @@ export default function SchedulePage() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [handleUndo, handleRedo])
+  }, [canEditSchedule, handleUndo, handleRedo])
 
   const handleRescheduleGroup = useCallback(
     async (groupId: number, newDay: string, newStartTime: string) => {
+      if (!canEditSchedule) {
+        toast.error('You do not have permission to update schedule.')
+        return
+      }
       const group = groups.find((item: Group) => item.id === groupId)
       if (!group) return
       if (!group.course?.id) {
@@ -521,7 +577,7 @@ export default function SchedulePage() {
         },
       )
     },
-    [groups, updateGroup],
+    [canEditSchedule, groups, updateGroup],
   )
 
   const buildExportRows = useCallback(() => {
@@ -627,15 +683,33 @@ export default function SchedulePage() {
     toast.success('Schedule exported to PDF')
   }, [activeWeekRange.start, buildExportRows, currentWeekOffset])
 
+  const scheduledGroups = scheduleHealthData?.scheduled_groups ?? groups.filter((group) => parseGroupDays(group.days).length > 0).length
+  const unscheduledGroups = scheduleHealthData?.unscheduled_groups ?? Math.max(0, groups.length - scheduledGroups)
+  const activeConflicts = (scheduleHealthData?.teacher_conflicts || 0) + (scheduleHealthData?.room_conflicts || 0)
+  const capacityRiskGroups =
+    (scheduleHealthData?.capacity_near_full_groups || 0) + (scheduleHealthData?.capacity_overflow_groups || 0)
+  const topConflicts = (scheduleHealthData?.top_conflicts || []).slice(0, 4)
+
   if (isLoading) {
-    return <LoadingScreen message="Loading schedule..." />
+    return (
+      <ProtectedRoute>
+        <LoadingScreen message="Loading schedule..." />
+      </ProtectedRoute>
+    )
   }
 
   return (
-    <div className="p-8">
+    <ProtectedRoute>
+      <div className="p-8">
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">Schedule Board 🗓️</h1>
         <p className="text-text-secondary">Manage group schedules with an interactive board</p>
+        {!canManageSchedule && (
+          <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+            <AlertTriangle className="h-4 w-4" />
+            Read-only mode: you can view schedule but cannot change it.
+          </div>
+        )}
       </div>
 
       <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
@@ -658,9 +732,9 @@ export default function SchedulePage() {
         <div className="flex items-center gap-2 bg-surface border border-border rounded-xl p-1">
           <button
             onClick={handleUndo}
-            disabled={undoStack.length === 0}
+            disabled={undoStack.length === 0 || !canEditSchedule}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              undoStack.length === 0
+              undoStack.length === 0 || !canEditSchedule
                 ? 'text-text-secondary/50 cursor-not-allowed'
                 : 'text-text-secondary hover:text-text hover:bg-background'
             }`}
@@ -671,9 +745,9 @@ export default function SchedulePage() {
           </button>
           <button
             onClick={handleRedo}
-            disabled={redoStack.length === 0}
+            disabled={redoStack.length === 0 || !canEditSchedule}
             className={`flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
-              redoStack.length === 0
+              redoStack.length === 0 || !canEditSchedule
                 ? 'text-text-secondary/50 cursor-not-allowed'
                 : 'text-text-secondary hover:text-text hover:bg-background'
             }`}
@@ -689,12 +763,70 @@ export default function SchedulePage() {
             <Users className="h-5 w-5" />
             Manage Groups
           </button>
-          <button onClick={() => setIsCreatingGroup(true)} className="btn-primary flex items-center gap-2">
+          <button
+            onClick={() => setIsCreatingGroup(true)}
+            disabled={!canCreateGroup}
+            title={!canCreateGroup ? 'You do not have permission to create groups' : undefined}
+            className={`flex items-center gap-2 ${canCreateGroup ? 'btn-primary' : 'btn-secondary opacity-70 cursor-not-allowed'}`}
+          >
             <Plus className="h-5 w-5" />
             Create Group
           </button>
         </div>
       </div>
+
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 mb-6">
+        <div className="stat-card">
+          <div className="stat-value">{groups.length}</div>
+          <div className="stat-label">Total Groups</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{scheduledGroups}</div>
+          <div className="stat-label">Scheduled</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{unscheduledGroups}</div>
+          <div className="stat-label">Unscheduled</div>
+        </div>
+        <div className="stat-card">
+          <div className={`stat-value ${activeConflicts > 0 ? 'text-warning' : ''}`}>{activeConflicts}</div>
+          <div className="stat-label">Active Conflicts</div>
+        </div>
+        <div className="stat-card">
+          <div className={`stat-value ${capacityRiskGroups > 0 ? 'text-warning' : ''}`}>{capacityRiskGroups}</div>
+          <div className="stat-label">Capacity Risk</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{filteredGroups.length}</div>
+          <div className="stat-label">Filtered View</div>
+        </div>
+      </div>
+
+      {topConflicts.length > 0 && (
+        <div className="card mb-6 p-4">
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="text-lg font-semibold">Conflict Radar</h3>
+            <span className="text-xs text-text-secondary">
+              {isScheduleHealthLoading ? 'Updating...' : 'Live from backend checks'}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-3">
+            {topConflicts.map((conflict, index) => (
+              <div key={`${conflict.type}-${conflict.day}-${conflict.time}-${index}`} className="rounded-xl border border-border bg-surface/60 p-3">
+                <div className="flex items-center justify-between gap-2">
+                  <span className={`text-xs font-semibold uppercase ${conflict.type === 'room' ? 'text-warning' : 'text-error'}`}>
+                    {conflict.type} conflict
+                  </span>
+                  <span className="text-xs text-text-secondary">{conflict.day} • {conflict.time}</span>
+                </div>
+                <p className="mt-1 text-sm text-text-secondary">
+                  {conflict.resource || 'Shared resource'} — {conflict.groups.map((group) => group.name).join(' vs ')}
+                </p>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
 
       <div className="card mb-4 p-4">
         <div className="flex items-center justify-between flex-wrap gap-4">
@@ -935,6 +1067,7 @@ export default function SchedulePage() {
             showConflicts={showConflicts}
             startHour={startHour}
             endHour={endHour}
+            canEditSchedule={canEditSchedule}
             currentWeekOffset={currentWeekOffset}
             weekRange={activeWeekRange}
             swimlaneBy={swimlaneBy}
@@ -949,6 +1082,7 @@ export default function SchedulePage() {
             <UnscheduledGroupsPanel
               groups={filteredGroups.filter((group) => !group.days || group.days.trim() === '')}
               onGroupClick={(group) => router.push(`/dashboard/groups/${group.id}`)}
+              canDrag={canEditSchedule}
             />
           </div>
         </div>
@@ -1040,7 +1174,11 @@ export default function SchedulePage() {
               </div>
 
               <div className="flex gap-3 pt-4">
-                <button onClick={handleCreateGroup} className="btn-primary flex-1">
+                <button
+                  onClick={handleCreateGroup}
+                  disabled={!canCreateGroup || createGroup.isPending}
+                  className="btn-primary flex-1 disabled:opacity-50"
+                >
                   Create Group
                 </button>
                 <button
@@ -1057,6 +1195,7 @@ export default function SchedulePage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ProtectedRoute>
   )
 }

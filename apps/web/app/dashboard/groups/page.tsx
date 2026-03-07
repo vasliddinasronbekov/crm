@@ -2,13 +2,18 @@
 
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Plus, Edit, Trash2, Users, Calendar, Clock, CalendarDays } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
+import { Search, Plus, Edit, Trash2, Users, Calendar, Clock, CalendarDays, AlertTriangle } from 'lucide-react'
 import toast from '@/lib/toast'
+import apiService from '@/lib/api'
 import { useGroups, useCreateGroup, useUpdateGroup, useDeleteGroup, Group } from '@/lib/hooks/useGroups'
 import { useCourses, Course } from '@/lib/hooks/useCourses'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { normalizeDayToken, parseGroupDays, type WeekDay } from '@/lib/utils/schedule'
 import LoadingScreen from '@/components/LoadingScreen'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/lib/permissions'
 
 type SearchStatus = 'all' | 'scheduled' | 'unscheduled'
 
@@ -19,6 +24,16 @@ interface ParsedGroupSearch {
   room: string
   day: WeekDay | null
   status: SearchStatus
+}
+
+interface GroupScheduleHealth {
+  total_groups: number
+  scheduled_groups: number
+  unscheduled_groups: number
+  teacher_conflicts: number
+  room_conflicts: number
+  capacity_near_full_groups: number
+  capacity_overflow_groups: number
 }
 
 const PAGE_SIZE = 9
@@ -96,6 +111,12 @@ const parseStructuredGroupSearch = (rawQuery: string): ParsedGroupSearch => {
 
 export default function GroupsPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
+  const canCreateGroup = permissionState.hasPermission('groups.create')
+  const canEditGroup = permissionState.hasPermission('groups.edit')
+  const canDeleteGroup = permissionState.hasPermission('groups.delete')
+  const canManageGroups = canCreateGroup || canEditGroup || canDeleteGroup
 
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300)
@@ -132,6 +153,13 @@ export default function GroupsPage() {
 
   const { data: groupsData, isLoading } = useGroups(groupsQueryParams)
   const rawGroups = useMemo(() => groupsData?.results || [], [groupsData?.results])
+
+  const { data: scheduleHealthData } = useQuery<GroupScheduleHealth>({
+    queryKey: ['groups', 'schedule-health'],
+    queryFn: () => apiService.getGroupScheduleHealth(),
+    staleTime: 60 * 1000,
+    enabled: Boolean(user),
+  })
 
   const { data: coursesData } = useCourses()
   const courses = useMemo(() => coursesData?.results || [], [coursesData?.results])
@@ -181,6 +209,10 @@ export default function GroupsPage() {
   }, [page, totalPages])
 
   const handleDelete = async (group: Group) => {
+    if (!canDeleteGroup) {
+      toast.error('You do not have permission to delete groups')
+      return
+    }
     if (!confirm(`Are you sure you want to delete group "${group.name}"?`)) {
       return
     }
@@ -188,6 +220,10 @@ export default function GroupsPage() {
   }
 
   const handleSaveEdit = async () => {
+    if (!canEditGroup) {
+      toast.error('You do not have permission to edit groups')
+      return
+    }
     if (!editingGroup) return
     if (!editingGroup.course?.id) {
       toast.error('Cannot update group without course')
@@ -212,6 +248,10 @@ export default function GroupsPage() {
   }
 
   const handleCreateGroup = async () => {
+    if (!canCreateGroup) {
+      toast.error('You do not have permission to create groups')
+      return
+    }
     if (!newGroup.name || !newGroup.course) {
       toast.warning('Please fill in all required fields')
       return
@@ -231,7 +271,16 @@ export default function GroupsPage() {
   )
   const averageStudents =
     visibleGroups.length > 0 ? Math.round(studentsOnPage / visibleGroups.length) : 0
-  const coursesOnPage = new Set(visibleGroups.map((group: Group) => group.course?.id).filter(Boolean)).size
+  const scheduledGroups =
+    scheduleHealthData?.scheduled_groups ||
+    rawGroups.filter((group: Group) => parseGroupDays(group.days).length > 0).length
+  const unscheduledGroups =
+    scheduleHealthData?.unscheduled_groups ?? Math.max(0, totalGroups - scheduledGroups)
+  const activeConflicts =
+    (scheduleHealthData?.teacher_conflicts || 0) + (scheduleHealthData?.room_conflicts || 0)
+  const capacityRiskGroups =
+    (scheduleHealthData?.capacity_near_full_groups || 0) +
+    (scheduleHealthData?.capacity_overflow_groups || 0)
 
   const PaginationControls = () => (
     <div className="flex justify-center items-center gap-4 mt-8">
@@ -256,64 +305,92 @@ export default function GroupsPage() {
   )
 
   if (isLoading && !groupsData) {
-    return <LoadingScreen message="Loading groups..." />
+    return (
+      <ProtectedRoute>
+        <LoadingScreen message="Loading groups..." />
+      </ProtectedRoute>
+    )
   }
 
   return (
-    <div className="p-8">
-      <div className="mb-8">
-        <h1 className="text-4xl font-bold mb-2">Groups Management 👥</h1>
-        <p className="text-text-secondary">Create, view, and manage all student groups</p>
-      </div>
+    <ProtectedRoute>
+      <div className="p-8">
+        <div className="mb-8">
+          <h1 className="text-4xl font-bold mb-2">Groups Management 👥</h1>
+          <p className="text-text-secondary">Create, view, and manage all student groups</p>
+          {!canManageGroups && (
+            <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+              <AlertTriangle className="h-4 w-4" />
+              Read-only mode: you can view groups but cannot create or modify them.
+            </div>
+          )}
+        </div>
 
-      <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
-        <div className="flex-1 max-w-md min-w-[280px]">
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-text-secondary" />
-            <input
-              type="text"
-              placeholder="Search... e.g. group-a course:ielts day:mon status:scheduled"
-              value={searchQuery}
-              onChange={(event) => {
-                setSearchQuery(event.target.value)
-                setPage(1)
-              }}
-              className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:border-primary transition-colors"
-            />
+        <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
+          <div className="flex-1 max-w-md min-w-[280px]">
+            <div className="relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-text-secondary" />
+              <input
+                type="text"
+                placeholder="Search... e.g. group-a course:ielts day:mon status:scheduled"
+                value={searchQuery}
+                onChange={(event) => {
+                  setSearchQuery(event.target.value)
+                  setPage(1)
+                }}
+                className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:border-primary transition-colors"
+              />
+            </div>
+            <p className="text-xs text-text-secondary mt-2">
+              Inline filters: <code>course:</code> <code>teacher:</code> <code>room:</code> <code>day:</code> <code>status:</code>
+            </p>
           </div>
-          <p className="text-xs text-text-secondary mt-2">
-            Inline filters: <code>course:</code> <code>teacher:</code> <code>room:</code> <code>day:</code> <code>status:</code>
-          </p>
+
+          <div className="flex items-center gap-2">
+            <button onClick={() => router.push('/dashboard/schedule')} className="btn-secondary flex items-center gap-2">
+              <CalendarDays className="h-5 w-5" />
+              View Schedule
+            </button>
+            <button
+              onClick={() => setIsCreatingGroup(true)}
+              disabled={!canCreateGroup}
+              title={!canCreateGroup ? 'You do not have permission to create groups' : undefined}
+              className={`flex items-center gap-2 ${
+                canCreateGroup
+                  ? 'btn-primary'
+                  : 'btn-secondary opacity-70 cursor-not-allowed'
+              }`}
+            >
+              <Plus className="h-5 w-5" />
+              Create Group
+            </button>
+          </div>
         </div>
 
-        <div className="flex items-center gap-2">
-          <button onClick={() => router.push('/dashboard/schedule')} className="btn-secondary flex items-center gap-2">
-            <CalendarDays className="h-5 w-5" />
-            View Schedule
-          </button>
-          <button onClick={() => setIsCreatingGroup(true)} className="btn-primary flex items-center gap-2">
-            <Plus className="h-5 w-5" />
-            Create Group
-          </button>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 mb-8">
         <div className="stat-card">
           <div className="stat-value">{totalGroups}</div>
           <div className="stat-label">{hasStructuredFilters ? 'Matched Groups' : 'Total Groups'}</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{studentsOnPage}</div>
-          <div className="stat-label">Students on this Page</div>
+          <div className="stat-value">{scheduledGroups}</div>
+          <div className="stat-label">Scheduled Groups</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{unscheduledGroups}</div>
+          <div className="stat-label">Unscheduled Groups</div>
+        </div>
+        <div className="stat-card">
+          <div className={`stat-value ${activeConflicts > 0 ? 'text-warning' : ''}`}>{activeConflicts}</div>
+          <div className="stat-label">Active Conflicts</div>
+        </div>
+        <div className="stat-card">
+          <div className={`stat-value ${capacityRiskGroups > 0 ? 'text-warning' : ''}`}>{capacityRiskGroups}</div>
+          <div className="stat-label">Capacity Risk</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{averageStudents}</div>
           <div className="stat-label">Avg Students/Group</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{coursesOnPage}</div>
-          <div className="stat-label">Courses on this Page</div>
         </div>
       </div>
 
@@ -328,13 +405,16 @@ export default function GroupsPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={() => setEditingGroup(group)}
-                  className="p-2 hover:bg-background rounded-lg transition-colors"
+                  disabled={!canEditGroup}
+                  title={!canEditGroup ? 'You do not have permission to edit groups' : undefined}
+                  className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Edit className="h-4 w-4 text-primary" />
                 </button>
                 <button
                   onClick={() => handleDelete(group)}
-                  disabled={deleteGroup.isPending}
+                  disabled={deleteGroup.isPending || !canDeleteGroup}
+                  title={!canDeleteGroup ? 'You do not have permission to delete groups' : undefined}
                   className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
                 >
                   <Trash2 className="h-4 w-4 text-error" />
@@ -469,8 +549,12 @@ export default function GroupsPage() {
                 </div>
               </div>
               <div className="flex gap-3 pt-4">
-                <button onClick={handleCreateGroup} className="btn-primary flex-1">
-                  Create Group
+                <button
+                  onClick={handleCreateGroup}
+                  disabled={!canCreateGroup || createGroup.isPending}
+                  className="btn-primary flex-1 disabled:opacity-50"
+                >
+                  {createGroup.isPending ? 'Creating...' : 'Create Group'}
                 </button>
                 <button
                   onClick={() => {
@@ -541,8 +625,12 @@ export default function GroupsPage() {
                 </div>
               </div>
               <div className="flex gap-3 pt-4">
-                <button onClick={handleSaveEdit} className="btn-primary flex-1">
-                  Save Changes
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={!canEditGroup || updateGroup.isPending}
+                  className="btn-primary flex-1 disabled:opacity-50"
+                >
+                  {updateGroup.isPending ? 'Saving...' : 'Save Changes'}
                 </button>
                 <button onClick={() => setEditingGroup(null)} className="btn-secondary flex-1">
                   Cancel
@@ -552,6 +640,7 @@ export default function GroupsPage() {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </ProtectedRoute>
   )
 }

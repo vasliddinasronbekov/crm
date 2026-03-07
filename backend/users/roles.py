@@ -19,6 +19,27 @@ STAFF_SIDE_ROLES = {
     UserRoleEnum.SUPERADMIN.value,
 }
 
+GROUP_MANAGEMENT_ROLES = {
+    UserRoleEnum.STAFF.value,
+    UserRoleEnum.CRM_MANAGER.value,
+    UserRoleEnum.LMS_MANAGER.value,
+    UserRoleEnum.MANAGER.value,
+    UserRoleEnum.DIRECTOR.value,
+    UserRoleEnum.ADMIN.value,
+    UserRoleEnum.SUPERADMIN.value,
+}
+
+ATTENDANCE_MANAGEMENT_ROLES = set(STAFF_SIDE_ROLES)
+
+PAYMENT_MANAGEMENT_ROLES = {
+    UserRoleEnum.STAFF.value,
+    UserRoleEnum.CRM_MANAGER.value,
+    UserRoleEnum.MANAGER.value,
+    UserRoleEnum.DIRECTOR.value,
+    UserRoleEnum.ADMIN.value,
+    UserRoleEnum.SUPERADMIN.value,
+}
+
 ADMIN_SIDE_ROLES = {
     UserRoleEnum.ADMIN.value,
     UserRoleEnum.DIRECTOR.value,
@@ -44,6 +65,15 @@ CAPABILITY_MATRIX: dict[str, set[str]] = {
     'users.manage': set(ADMIN_SIDE_ROLES),
     # Profile
     'profile.self': set(ALL_ROLES),
+    # Group & schedule domain
+    'groups.read': set(ALL_ROLES),
+    'groups.manage': set(GROUP_MANAGEMENT_ROLES),
+    'schedule.read': set(ALL_ROLES),
+    'schedule.manage': set(GROUP_MANAGEMENT_ROLES),
+    'attendance.read': set(ALL_ROLES),
+    'attendance.manage': set(ATTENDANCE_MANAGEMENT_ROLES),
+    'payments.read': set(ALL_ROLES),
+    'payments.manage': set(PAYMENT_MANAGEMENT_ROLES),
     # Student domain
     'students.read': set(STAFF_SIDE_ROLES),
     'students.manage': {

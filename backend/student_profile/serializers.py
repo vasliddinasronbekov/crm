@@ -1,13 +1,85 @@
+from datetime import date, time
 from typing import Any
 # /mnt/usb/edu-api-project/student_profile/serializers.py
 from .models import PaymentType, AutomaticFine, AssistantSlot, Booking # Importlarga qo'shing
 from rest_framework import serializers
+from django.db.models import Q
 from .models import (
     Branch, Group, Attendance, Event, ExamScore, ShopProduct,
     ShopOrder, Payment, Story, StudentCoins, Ticket, TicketChat,
     Course, Room, ExpenseType, Expense, User, LeaveReason, Information # Barcha modellar import qilinganiga amin bo'ling
 )
 from users.serializers import UserBasicSerializer, UserSerializer
+
+
+WEEKDAY_ALIASES = {
+    'mon': 'monday',
+    'monday': 'monday',
+    'dush': 'monday',
+    'dushanba': 'monday',
+    'tue': 'tuesday',
+    'tues': 'tuesday',
+    'tuesday': 'tuesday',
+    'sesh': 'tuesday',
+    'seshanba': 'tuesday',
+    'wed': 'wednesday',
+    'wednesday': 'wednesday',
+    'chor': 'wednesday',
+    'chorshanba': 'wednesday',
+    'thu': 'thursday',
+    'thur': 'thursday',
+    'thurs': 'thursday',
+    'thursday': 'thursday',
+    'pay': 'thursday',
+    'payshanba': 'thursday',
+    'fri': 'friday',
+    'friday': 'friday',
+    'jum': 'friday',
+    'juma': 'friday',
+    'sat': 'saturday',
+    'saturday': 'saturday',
+    'shan': 'saturday',
+    'shanba': 'saturday',
+    'sun': 'sunday',
+    'sunday': 'sunday',
+    'yak': 'sunday',
+    'yakshanba': 'sunday',
+}
+
+
+def _normalize_days(days_value: str) -> set[str]:
+    if not days_value:
+        return set()
+
+    normalized: set[str] = set()
+    for raw_token in str(days_value).split(','):
+        token = ''.join(ch for ch in raw_token.strip().lower() if ch.isalpha())
+        if not token:
+            continue
+        canonical = WEEKDAY_ALIASES.get(token)
+        if canonical:
+            normalized.add(canonical)
+    return normalized
+
+
+def _time_ranges_overlap(
+    start_a: time,
+    end_a: time,
+    start_b: time,
+    end_b: time,
+) -> bool:
+    return start_a < end_b and start_b < end_a
+
+
+def _date_ranges_overlap(
+    start_a: date,
+    end_a: date,
+    start_b: date,
+    end_b: date,
+) -> bool:
+    return start_a <= end_b and start_b <= end_a
+
+
 class PaymentTypeSerializer(serializers.ModelSerializer):
     class Meta:
         model = PaymentType
@@ -31,6 +103,134 @@ class GroupCreateSerializer(serializers.ModelSerializer):
     class Meta:
         model = Group
         fields = '__all__'
+
+    def _merged_attr(self, attrs, field):
+        if field in attrs:
+            return attrs[field]
+        if self.instance is not None:
+            return getattr(self.instance, field)
+        return None
+
+    def _validate_schedule_conflicts(self, attrs) -> None:
+        start_day = self._merged_attr(attrs, 'start_day')
+        end_day = self._merged_attr(attrs, 'end_day')
+        start_time = self._merged_attr(attrs, 'start_time')
+        end_time = self._merged_attr(attrs, 'end_time')
+        room = self._merged_attr(attrs, 'room')
+        main_teacher = self._merged_attr(attrs, 'main_teacher')
+        assistant_teacher = self._merged_attr(attrs, 'assistant_teacher')
+        days_value = self._merged_attr(attrs, 'days')
+
+        normalized_days = _normalize_days(days_value or '')
+        if not normalized_days:
+            return
+        if not all([start_day, end_day, start_time, end_time]):
+            return
+
+        resource_filter = Q()
+        teacher_ids = [
+            teacher.id
+            for teacher in [main_teacher, assistant_teacher]
+            if teacher is not None
+        ]
+
+        if room is not None:
+            resource_filter |= Q(room=room)
+        if teacher_ids:
+            resource_filter |= Q(main_teacher_id__in=teacher_ids) | Q(assistant_teacher_id__in=teacher_ids)
+        if not resource_filter:
+            return
+
+        queryset = Group.objects.select_related('room', 'main_teacher', 'assistant_teacher').filter(resource_filter)
+        if self.instance is not None:
+            queryset = queryset.exclude(pk=self.instance.pk)
+
+        conflicts = []
+        for candidate in queryset:
+            if not all([
+                candidate.start_day,
+                candidate.end_day,
+                candidate.start_time,
+                candidate.end_time,
+            ]):
+                continue
+            candidate_days = _normalize_days(candidate.days or '')
+            if not candidate_days:
+                continue
+            if not (normalized_days & candidate_days):
+                continue
+            if not _date_ranges_overlap(start_day, end_day, candidate.start_day, candidate.end_day):
+                continue
+            if not _time_ranges_overlap(start_time, end_time, candidate.start_time, candidate.end_time):
+                continue
+
+            common_days = sorted(normalized_days & candidate_days)
+            conflict_window = (
+                f"{candidate.start_time.strftime('%H:%M')} - {candidate.end_time.strftime('%H:%M')}"
+            )
+            if room is not None and candidate.room_id == room.id:
+                conflicts.append({
+                    'type': 'room',
+                    'group_id': candidate.id,
+                    'group_name': candidate.name,
+                    'days': common_days,
+                    'time': conflict_window,
+                    'room': candidate.room.name if candidate.room else None,
+                })
+
+            if teacher_ids and (
+                candidate.main_teacher_id in teacher_ids
+                or candidate.assistant_teacher_id in teacher_ids
+            ):
+                conflicts.append({
+                    'type': 'teacher',
+                    'group_id': candidate.id,
+                    'group_name': candidate.name,
+                    'days': common_days,
+                    'time': conflict_window,
+                    'teacher': candidate.main_teacher.username if candidate.main_teacher else None,
+                })
+
+        if conflicts:
+            raise serializers.ValidationError({
+                'non_field_errors': [
+                    'Schedule conflict detected for selected room/teacher and time window.',
+                ],
+                'schedule_conflicts': conflicts[:20],
+            })
+
+    def validate(self, attrs):
+        start_day = self._merged_attr(attrs, 'start_day')
+        end_day = self._merged_attr(attrs, 'end_day')
+        start_time = self._merged_attr(attrs, 'start_time')
+        end_time = self._merged_attr(attrs, 'end_time')
+        branch = self._merged_attr(attrs, 'branch')
+        room = self._merged_attr(attrs, 'room')
+        days_value = self._merged_attr(attrs, 'days')
+
+        if start_day and end_day and end_day < start_day:
+            raise serializers.ValidationError({
+                'end_day': 'End date must be on or after start date.',
+            })
+        if start_time and end_time and end_time <= start_time:
+            raise serializers.ValidationError({
+                'end_time': 'End time must be later than start time.',
+            })
+
+        if room is not None and branch is not None and room.branch_id and room.branch_id != branch.id:
+            raise serializers.ValidationError({
+                'room': 'Selected room belongs to a different branch.',
+            })
+
+        if days_value:
+            normalized_days = _normalize_days(days_value)
+            if not normalized_days:
+                raise serializers.ValidationError({
+                    'days': 'Provide valid schedule days (e.g. Mon, Wed, Fri).',
+                })
+
+        self._validate_schedule_conflicts(attrs)
+        return attrs
 
 
 class GroupBranchSummarySerializer(serializers.ModelSerializer):

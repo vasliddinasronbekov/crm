@@ -474,6 +474,13 @@ class ApiService {
     return response.data;
   }
 
+  async getGroupScheduleHealth(params?: { [key: string]: any }) {
+    const response = await this.api.get("/student-profile/groups/schedule-health/", {
+      params,
+    });
+    return response.data;
+  }
+
   async createGroup(data: any) {
     const response = await this.api.post("/student-profile/groups/", data);
     return response.data;

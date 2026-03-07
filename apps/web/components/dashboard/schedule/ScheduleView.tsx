@@ -13,11 +13,12 @@ interface ScheduleViewProps {
     onGroupClick: (group: Group) => void
     onDuplicateGroup: (group: Group, targetDays: string[]) => void
     getGroupColor: (group: Group) => string
-    detectConflicts: (group: Group, day: string, hour: number) => string[]
+    detectConflicts: (group: Group, day: string) => string[]
     detectCapacityWarning: (group: Group) => string | null
     showConflicts: boolean
     startHour: number
     endHour: number
+    canEditSchedule: boolean
     currentWeekOffset: number
     weekRange: { start: Date; end: Date }
     swimlaneBy: 'none' | 'teacher' | 'room'
@@ -36,6 +37,7 @@ export default function ScheduleView({
     showConflicts,
     startHour,
     endHour,
+    canEditSchedule,
     currentWeekOffset,
     weekRange,
     swimlaneBy,
@@ -124,16 +126,22 @@ export default function ScheduleView({
     }
   
     const handleDragStart = (e: React.DragEvent, group: Group) => {
+      if (!canEditSchedule) {
+        e.preventDefault()
+        return
+      }
       setDraggedGroup(group)
       e.dataTransfer.effectAllowed = 'move'
     }
   
     const handleDragOver = (e: React.DragEvent) => {
+      if (!canEditSchedule) return
       e.preventDefault()
       e.dataTransfer.dropEffect = 'move'
     }
   
     const handleDrop = (e: React.DragEvent, day: WeekDay, hour: number) => {
+        if (!canEditSchedule) return
         e.preventDefault()
         const newTime = `${hour.toString().padStart(2, '0')}:00`
     
@@ -162,6 +170,7 @@ export default function ScheduleView({
   
     // Context menu handlers
     const handleContextMenu = (e: React.MouseEvent, group: Group) => {
+      if (!canEditSchedule) return
       e.preventDefault()
       e.stopPropagation()
       setContextMenu({
@@ -205,7 +214,9 @@ export default function ScheduleView({
           <div className="p-4 border-b border-border">
             <h2 className="text-xl font-semibold">Weekly Schedule</h2>
             <p className="text-sm text-text-secondary mt-1">
-              Drag and drop groups to reschedule • Changes save automatically
+              {canEditSchedule
+                ? 'Drag and drop groups to reschedule • Changes save automatically'
+                : 'Read-only schedule • Contact an admin to edit'}
             </p>
           </div>
     
@@ -262,18 +273,20 @@ export default function ScheduleView({
                           >
                             {startingGroups.map(group => {
                               const span = getGroupSpan(group);
-                              const conflicts = showConflicts ? detectConflicts(group, day, hour) : [];
+                              const conflicts = showConflicts ? detectConflicts(group, day) : [];
                               const capacityWarning = detectCapacityWarning(group);
     
                               return (
                                 <div
                                   key={group.id}
-                                  draggable
+                                  draggable={canEditSchedule}
                                   onDragStart={(e) => handleDragStart(e, group)}
                                   onDragEnd={handleDragEnd}
                                   onClick={() => onGroupClick(group)}
                                   onContextMenu={(e) => handleContextMenu(e, group)}
-                                  className="absolute inset-1 rounded-lg cursor-move hover:shadow-lg transition-all z-10"
+                                  className={`absolute inset-1 rounded-lg transition-all z-10 ${
+                                    canEditSchedule ? 'cursor-move hover:shadow-lg' : 'cursor-pointer'
+                                  }`}
                                   style={{
                                     width: `calc(${span * 100}% + ${(span - 1) * 0.25}rem)`,
                                   }}
@@ -362,18 +375,20 @@ export default function ScheduleView({
                                     const leftPercent = ((clampedStartHour - startHour) / totalHoursInView) * 100;
                                     const widthPercent = ((clampedEndHour - clampedStartHour) / totalHoursInView) * 100;
                                     
-                                    const conflicts = showConflicts ? detectConflicts(group, day, groupStart.getHours()) : [];
+                                    const conflicts = showConflicts ? detectConflicts(group, day) : [];
                                     const capacityWarning = detectCapacityWarning(group);
         
                                     return (
                                     <div
                                         key={group.id}
-                                        draggable
+                                        draggable={canEditSchedule}
                                         onDragStart={(e) => handleDragStart(e, group)}
                                         onDragEnd={handleDragEnd}
                                         onClick={() => onGroupClick(group)}
                                         onContextMenu={(e) => handleContextMenu(e, group)}
-                                        className="absolute rounded-lg cursor-move hover:shadow-lg transition-all z-10"
+                                        className={`absolute rounded-lg transition-all z-10 ${
+                                          canEditSchedule ? 'cursor-move hover:shadow-lg' : 'cursor-pointer'
+                                        }`}
                                         style={{
                                         top: '0.25rem',
                                         bottom: '0.25rem',
@@ -422,12 +437,18 @@ export default function ScheduleView({
                 </div>
                 <div className="flex items-center gap-2">
                   <span>💡</span>
-                  <span>Drag to reschedule • Click for details • Right-click to duplicate</span>
+                  <span>
+                    {canEditSchedule
+                      ? 'Drag to reschedule • Click for details • Right-click to duplicate'
+                      : 'Click group cards to open details'}
+                  </span>
                 </div>
-                <div className="flex items-center gap-2">
-                  <span>⌨️</span>
-                  <span>Ctrl+Z: Undo • Ctrl+Y: Redo</span>
-                </div>
+                {canEditSchedule && (
+                  <div className="flex items-center gap-2">
+                    <span>⌨️</span>
+                    <span>Ctrl+Z: Undo • Ctrl+Y: Redo</span>
+                  </div>
+                )}
               </div>
               <div className="text-xs">
                 {groups.length} total groups
@@ -449,7 +470,7 @@ export default function ScheduleView({
           )}
     
           {/* Context Menu */}
-          {contextMenu.visible && contextMenu.group && (
+          {canEditSchedule && contextMenu.visible && contextMenu.group && (
             <div
               className="fixed bg-surface border border-border rounded-lg shadow-2xl py-2 z-[9999]"
               style={{
