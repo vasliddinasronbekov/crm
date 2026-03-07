@@ -7,6 +7,7 @@ import {
   Users,
   DollarSign,
   Calendar,
+  CalendarDays,
   Clock,
   MapPin,
   User,
@@ -818,6 +819,28 @@ export default function GroupDetailPage() {
   const paidStudentsCount = studentsInGroup.filter((student) => (student.balance || 0) <= 0).length
   const debtStudentsCount = studentsInGroup.filter((student) => (student.balance || 0) > 0).length
   const totalBalance = studentsInGroup.reduce((sum, student) => sum + (student.balance || 0), 0)
+  const daysPerWeek = group?.days ? group.days.split(',').filter((item) => item.trim()).length : 0
+  const durationHours =
+    group?.start_time && group.end_time
+      ? Math.max(
+          0,
+          Math.floor(
+            (new Date(`2000-01-01 ${group.end_time}`).getTime() -
+              new Date(`2000-01-01 ${group.start_time}`).getTime()) /
+              (1000 * 60 * 60),
+          ),
+        )
+      : 0
+  const durationWeeks =
+    group?.start_day && group.end_day
+      ? Math.max(
+          0,
+          Math.ceil(
+            (new Date(group.end_day).getTime() - new Date(group.start_day).getTime()) /
+              (1000 * 60 * 60 * 24 * 7),
+          ),
+        )
+      : 0
 
   const visibleTabs = useMemo(() => {
     const tabs: Array<{ id: Tab; label: string; icon: typeof Users }> = [
@@ -844,9 +867,11 @@ export default function GroupDetailPage() {
   if (!groupIdNumber || Number.isNaN(groupIdNumber)) {
     return (
       <ProtectedRoute>
-        <div className="p-8">
-          <div className="card text-center py-12">
-            <p className="text-text-secondary">Invalid group id.</p>
+        <div className="min-h-screen bg-background p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-surface border border-border rounded-2xl text-center py-12">
+              <p className="text-text-secondary">Invalid group id.</p>
+            </div>
           </div>
         </div>
       </ProtectedRoute>
@@ -864,12 +889,14 @@ export default function GroupDetailPage() {
   if (!group) {
     return (
       <ProtectedRoute>
-        <div className="p-8">
-          <div className="card text-center py-12">
-            <p className="text-text-secondary text-lg mb-4">Group not found.</p>
-            <button onClick={() => router.push('/dashboard/groups')} className="btn-primary">
-              Back to Groups
-            </button>
+        <div className="min-h-screen bg-background p-8">
+          <div className="max-w-7xl mx-auto">
+            <div className="bg-surface border border-border rounded-2xl text-center py-12">
+              <p className="text-text-secondary text-lg mb-4">Group not found.</p>
+              <button onClick={() => router.push('/dashboard/groups')} className="btn-primary">
+                Back to Groups
+              </button>
+            </div>
           </div>
         </div>
       </ProtectedRoute>
@@ -878,228 +905,225 @@ export default function GroupDetailPage() {
 
   return (
     <ProtectedRoute>
-      <div className="p-8">
-      <div className="mb-6">
-        <button
-          onClick={() => router.push('/dashboard/groups')}
-          className="flex items-center gap-2 text-text-secondary hover:text-primary mb-4 transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5" />
-          Back to Groups
-        </button>
-
-        <div className="flex items-start justify-between gap-4 flex-wrap">
-          <div>
-            <h1 className="text-4xl font-bold mb-2">{group.name}</h1>
-            <p className="text-text-secondary text-lg">{group.course_name}</p>
-            {group.branch_name && (
-              <p className="text-sm text-text-secondary mt-1">Branch: {group.branch_name}</p>
-            )}
-            {!canConfigureGroup && (
-              <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-                <AlertCircle className="h-4 w-4" />
-                Read-only mode for this group configuration.
-              </div>
-            )}
-          </div>
-
-          {canConfigureGroup && (
-            <div className="flex items-center gap-2">
-              {!isConfigMode ? (
-                <button
-                  onClick={() => setIsConfigMode(true)}
-                  className="btn-secondary flex items-center gap-2"
-                >
-                  <Settings className="h-4 w-4" />
-                  Configure Group
-                </button>
-              ) : (
-                <>
-                  <button onClick={handleCancelConfiguration} className="btn-secondary">
-                    Cancel
-                  </button>
-                  <button
-                    onClick={() => void handleSaveConfiguration()}
-                    disabled={isSavingConfig}
-                    className="btn-primary flex items-center gap-2 disabled:opacity-50"
-                  >
-                    <Save className="h-4 w-4" />
-                    {isSavingConfig ? 'Saving...' : 'Save Changes'}
-                  </button>
-                </>
+      <div className="min-h-screen bg-background p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+            <div>
+              <button
+                onClick={() => router.push('/dashboard/groups')}
+                className="flex items-center gap-2 text-text-secondary hover:text-primary mb-4 transition-colors"
+              >
+                <ArrowLeft className="h-5 w-5" />
+                Back to Groups
+              </button>
+              <h1 className="text-3xl font-bold flex items-center gap-3">
+                <Users className="h-8 w-8 text-primary" />
+                {group.name}
+              </h1>
+              <p className="text-text-secondary mt-1">{group.course_name}</p>
+              {group.branch_name && (
+                <p className="text-sm text-text-secondary mt-1">Branch: {group.branch_name}</p>
+              )}
+              {!canConfigureGroup && (
+                <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                  <AlertCircle className="h-4 w-4" />
+                  Read-only mode for this group configuration.
+                </div>
               )}
             </div>
-          )}
-        </div>
-      </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-6">
-        <div className="stat-card">
-          <div className="stat-value">{studentsInGroup.length}</div>
-          <div className="stat-label">Students</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{group.days ? group.days.split(',').filter(Boolean).length : 0}</div>
-          <div className="stat-label">Days per Week</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">
-            {group.start_time && group.end_time
-              ? `${Math.max(
-                  0,
-                  Math.floor(
-                    (new Date(`2000-01-01 ${group.end_time}`).getTime() -
-                      new Date(`2000-01-01 ${group.start_time}`).getTime()) /
-                      (1000 * 60 * 60),
-                  ),
-                )}h`
-              : '0h'}
-          </div>
-          <div className="stat-label">Duration</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">
-            {group.start_day && group.end_day
-              ? Math.ceil(
-                  (new Date(group.end_day).getTime() - new Date(group.start_day).getTime()) /
-                    (1000 * 60 * 60 * 24 * 7),
-                )
-              : 0}
-          </div>
-          <div className="stat-label">Weeks</div>
-        </div>
-      </div>
-
-      <div className="border-b border-border mb-6">
-        <div className="flex gap-6">
-          {visibleTabs.map((tab) => (
-            <button
-              key={tab.id}
-              onClick={() => setActiveTab(tab.id)}
-              className={`flex items-center gap-2 px-4 py-3 border-b-2 transition-colors ${
-                activeTab === tab.id
-                  ? 'border-primary text-primary'
-                  : 'border-transparent text-text-secondary hover:text-primary'
-              }`}
-            >
-              <tab.icon className="h-5 w-5" />
-              {tab.label}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      <div>
-        {activeTab === 'students' && (
-          <div>
-            <div className="flex items-center justify-between mb-6">
-              <h2 className="text-2xl font-semibold">Students ({studentsInGroup.length})</h2>
-            </div>
-
-            {isConfigMode && canConfigureGroup && (
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-                <div className="card">
-                  <h3 className="text-lg font-semibold mb-4">Current Students ({configuredStudents.length})</h3>
-                  <div className="space-y-2 max-h-72 overflow-y-auto">
-                    {configuredStudents.map((student, index) => (
-                      <div key={`${student.id}-${index}`} className="flex items-center justify-between p-3 bg-background rounded-lg">
-                        <div>
-                          <p className="font-medium">{getFullName(student)}</p>
-                          <p className="text-xs text-text-secondary">{student.phone || student.email || '-'}</p>
-                        </div>
-                        <button
-                          onClick={() => handleRemoveStudentFromConfig(student.id)}
-                          className="text-error hover:bg-error/10 rounded-lg px-2 py-1 text-sm"
-                        >
-                          Remove
-                        </button>
-                      </div>
-                    ))}
-                    {configuredStudents.length === 0 && (
-                      <p className="text-text-secondary text-sm">No students selected.</p>
-                    )}
-                  </div>
-                </div>
-
-                <div className="card">
-                  <h3 className="text-lg font-semibold mb-4">Add Students</h3>
-                  <div className="relative mb-3">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
-                    <input
-                      value={studentSearchQuery}
-                      onChange={(event) => setStudentSearchQuery(event.target.value)}
-                      placeholder="Search by name, username, phone..."
-                      className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
-                    />
-                  </div>
-
-                  <div className="space-y-2 max-h-72 overflow-y-auto">
-                    {availableStudents.map((student, index) => (
-                      <div key={`${student.id}-${index}`} className="flex items-center justify-between p-3 bg-background rounded-lg">
-                        <div>
-                          <p className="font-medium">{getFullName(student)}</p>
-                          <p className="text-xs text-text-secondary">@{student.username || '-'} • {student.phone || '-'}</p>
-                        </div>
-                        <button
-                          onClick={() => handleAddStudentToConfig(student.id)}
-                          className="text-primary hover:bg-primary/10 rounded-lg px-2 py-1 text-sm inline-flex items-center gap-1"
-                        >
-                          <Plus className="h-3.5 w-3.5" />
-                          Add
-                        </button>
-                      </div>
-                    ))}
-                    {availableStudents.length === 0 && (
-                      <p className="text-text-secondary text-sm">No available students match this query.</p>
-                    )}
-                  </div>
-                </div>
+            {canConfigureGroup && (
+              <div className="flex items-center gap-2">
+                {!isConfigMode ? (
+                  <button
+                    onClick={() => setIsConfigMode(true)}
+                    className="btn-secondary flex items-center gap-2"
+                  >
+                    <Settings className="h-4 w-4" />
+                    Configure Group
+                  </button>
+                ) : (
+                  <>
+                    <button onClick={handleCancelConfiguration} className="btn-secondary">
+                      Cancel
+                    </button>
+                    <button
+                      onClick={() => void handleSaveConfiguration()}
+                      disabled={isSavingConfig}
+                      className="btn-primary flex items-center gap-2 disabled:opacity-50"
+                    >
+                      <Save className="h-4 w-4" />
+                      {isSavingConfig ? 'Saving...' : 'Save Changes'}
+                    </button>
+                  </>
+                )}
               </div>
             )}
+          </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {studentsInGroup.length > 0 ? (
-                studentsInGroup.map((student, index) => (
-                  <div key={`${student.id}-${index}`} className="card">
-                    <div className="flex items-center gap-4 mb-4">
-                      <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl font-bold">
-                        {(student.first_name || 'S')[0]}
-                        {(student.last_name || 'T')[0]}
-                      </div>
-                      <div className="flex-1">
-                        <h3 className="font-semibold text-lg">{getFullName(student)}</h3>
-                        <p className="text-sm text-text-secondary">{student.phone || '-'}</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <Users className="h-5 w-5 text-primary" />
+              </div>
+              <p className="text-3xl font-bold">{studentsInGroup.length}</p>
+              <p className="text-sm text-text-secondary">Students</p>
+            </div>
+
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <Calendar className="h-5 w-5 text-info" />
+              </div>
+              <p className="text-3xl font-bold">{daysPerWeek}</p>
+              <p className="text-sm text-text-secondary">Days per Week</p>
+            </div>
+
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <Clock className="h-5 w-5 text-warning" />
+              </div>
+              <p className="text-3xl font-bold">{durationHours}h</p>
+              <p className="text-sm text-text-secondary">Session Duration</p>
+            </div>
+
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <CalendarDays className="h-5 w-5 text-success" />
+              </div>
+              <p className="text-3xl font-bold">{durationWeeks}</p>
+              <p className="text-sm text-text-secondary">Duration (Weeks)</p>
+            </div>
+          </div>
+
+          <div className="flex gap-2 border-b border-border">
+            {visibleTabs.map((tab) => (
+              <button
+                key={tab.id}
+                onClick={() => setActiveTab(tab.id)}
+                className={`px-5 py-3 border-b-2 transition-colors flex items-center gap-2 ${
+                  activeTab === tab.id
+                    ? 'border-primary text-primary'
+                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                }`}
+              >
+                <tab.icon className="h-5 w-5" />
+                {tab.label}
+              </button>
+            ))}
+          </div>
+
+          <div>
+            {activeTab === 'students' && (
+              <div>
+                <div className="flex items-center justify-between mb-6">
+                  <h2 className="text-2xl font-semibold">Students ({studentsInGroup.length})</h2>
+                </div>
+
+                {isConfigMode && canConfigureGroup && (
+                  <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                    <div className="bg-surface border border-border rounded-2xl p-6">
+                      <h3 className="text-lg font-semibold mb-4">Current Students ({configuredStudents.length})</h3>
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {configuredStudents.map((student, index) => (
+                          <div key={`${student.id}-${index}`} className="flex items-center justify-between p-3 bg-background rounded-lg">
+                            <div>
+                              <p className="font-medium">{getFullName(student)}</p>
+                              <p className="text-xs text-text-secondary">{student.phone || student.email || '-'}</p>
+                            </div>
+                            <button
+                              onClick={() => handleRemoveStudentFromConfig(student.id)}
+                              className="text-error hover:bg-error/10 rounded-lg px-2 py-1 text-sm"
+                            >
+                              Remove
+                            </button>
+                          </div>
+                        ))}
+                        {configuredStudents.length === 0 && (
+                          <p className="text-text-secondary text-sm">No students selected.</p>
+                        )}
                       </div>
                     </div>
-                    {student.email && (
-                      <p className="text-sm text-text-secondary mb-2">Email: {student.email}</p>
-                    )}
-                    {typeof student.balance !== 'undefined' && (
-                      <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
-                        <span className="text-sm text-text-secondary">Balance:</span>
-                        <span className={`font-semibold ${(student.balance || 0) <= 0 ? 'text-success' : 'text-error'}`}>
-                          {formatCurrency(student.balance || 0)}
-                        </span>
+
+                    <div className="bg-surface border border-border rounded-2xl p-6">
+                      <h3 className="text-lg font-semibold mb-4">Add Students</h3>
+                      <div className="relative mb-3">
+                        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+                        <input
+                          value={studentSearchQuery}
+                          onChange={(event) => setStudentSearchQuery(event.target.value)}
+                          placeholder="Search by name, username, phone..."
+                          className="w-full pl-9 pr-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
+                        />
                       </div>
-                    )}
+
+                      <div className="space-y-2 max-h-72 overflow-y-auto">
+                        {availableStudents.map((student, index) => (
+                          <div key={`${student.id}-${index}`} className="flex items-center justify-between p-3 bg-background rounded-lg">
+                            <div>
+                              <p className="font-medium">{getFullName(student)}</p>
+                              <p className="text-xs text-text-secondary">@{student.username || '-'} • {student.phone || '-'}</p>
+                            </div>
+                            <button
+                              onClick={() => handleAddStudentToConfig(student.id)}
+                              className="text-primary hover:bg-primary/10 rounded-lg px-2 py-1 text-sm inline-flex items-center gap-1"
+                            >
+                              <Plus className="h-3.5 w-3.5" />
+                              Add
+                            </button>
+                          </div>
+                        ))}
+                        {availableStudents.length === 0 && (
+                          <p className="text-text-secondary text-sm">No available students match this query.</p>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                ))
-              ) : (
-                <div className="col-span-full card text-center py-12">
-                  <Users className="h-12 w-12 mx-auto mb-4 text-text-secondary" />
-                  <p className="text-text-secondary">No students enrolled yet.</p>
+                )}
+
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {studentsInGroup.length > 0 ? (
+                    studentsInGroup.map((student, index) => (
+                      <div key={`${student.id}-${index}`} className="bg-surface border border-border rounded-2xl p-6">
+                        <div className="flex items-center gap-4 mb-4">
+                          <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center text-primary text-xl font-bold">
+                            {(student.first_name || 'S')[0]}
+                            {(student.last_name || 'T')[0]}
+                          </div>
+                          <div className="flex-1">
+                            <h3 className="font-semibold text-lg">{getFullName(student)}</h3>
+                            <p className="text-sm text-text-secondary">{student.phone || '-'}</p>
+                          </div>
+                        </div>
+                        {student.email && (
+                          <p className="text-sm text-text-secondary mb-2">Email: {student.email}</p>
+                        )}
+                        {typeof student.balance !== 'undefined' && (
+                          <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
+                            <span className="text-sm text-text-secondary">Balance:</span>
+                            <span className={`font-semibold ${(student.balance || 0) <= 0 ? 'text-success' : 'text-error'}`}>
+                              {formatCurrency(student.balance || 0)}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                    ))
+                  ) : (
+                    <div className="col-span-full bg-surface border border-border rounded-2xl text-center py-12">
+                      <Users className="h-12 w-12 mx-auto mb-4 text-text-secondary" />
+                      <p className="text-text-secondary">No students enrolled yet.</p>
+                    </div>
+                  )}
                 </div>
-              )}
-            </div>
-          </div>
-        )}
+              </div>
+            )}
+            
 
         {activeTab === 'schedule' && (
           <div>
             <h2 className="text-2xl font-semibold mb-6">Schedule & Configuration</h2>
 
             {isConfigMode && canConfigureGroup ? (
-              <div className="card">
+              <div className="bg-surface border border-border rounded-2xl p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div>
                     <label className="block text-sm font-medium mb-2">Group Name *</label>
@@ -1271,7 +1295,7 @@ export default function GroupDetailPage() {
               </div>
             ) : (
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div className="card">
+                <div className="bg-surface border border-border rounded-2xl p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <Clock className="h-5 w-5 text-primary" />
                     Class Times
@@ -1292,7 +1316,7 @@ export default function GroupDetailPage() {
                   </div>
                 </div>
 
-                <div className="card">
+                <div className="bg-surface border border-border rounded-2xl p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <Calendar className="h-5 w-5 text-primary" />
                     Course Duration
@@ -1313,7 +1337,7 @@ export default function GroupDetailPage() {
                   </div>
                 </div>
 
-                <div className="card">
+                <div className="bg-surface border border-border rounded-2xl p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <MapPin className="h-5 w-5 text-primary" />
                     Location
@@ -1332,7 +1356,7 @@ export default function GroupDetailPage() {
                   </div>
                 </div>
 
-                <div className="card">
+                <div className="bg-surface border border-border rounded-2xl p-6">
                   <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
                     <User className="h-5 w-5 text-primary" />
                     Teachers
@@ -1363,7 +1387,7 @@ export default function GroupDetailPage() {
             )}
 
             {canRecordPayment && (
-              <div className="card mb-6">
+              <div className="bg-surface border border-border rounded-2xl p-6 mb-6">
                 <h3 className="text-lg font-semibold mb-4">Record Payment</h3>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                   <select
@@ -1496,7 +1520,7 @@ export default function GroupDetailPage() {
               </div>
             )}
 
-            <div className="card">
+            <div className="bg-surface border border-border rounded-2xl p-6">
               <div className="overflow-x-auto">
                 <table className="w-full">
                   <thead>
@@ -1548,17 +1572,17 @@ export default function GroupDetailPage() {
 
             {studentsInGroup.length > 0 && (
               <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-6">
-                <div className="stat-card">
-                  <div className="stat-value text-success">{paidStudentsCount}</div>
-                  <div className="stat-label">Paid Students</div>
+                <div className="bg-surface border border-border rounded-2xl p-5">
+                  <div className="text-3xl font-bold text-success">{paidStudentsCount}</div>
+                  <div className="text-sm text-text-secondary">Paid Students</div>
                 </div>
-                <div className="stat-card">
-                  <div className="stat-value text-error">{debtStudentsCount}</div>
-                  <div className="stat-label">Students with Debt</div>
+                <div className="bg-surface border border-border rounded-2xl p-5">
+                  <div className="text-3xl font-bold text-error">{debtStudentsCount}</div>
+                  <div className="text-sm text-text-secondary">Students with Debt</div>
                 </div>
-                <div className="stat-card">
-                  <div className="stat-value">{formatCurrency(totalBalance)}</div>
-                  <div className="stat-label">Total Balance</div>
+                <div className="bg-surface border border-border rounded-2xl p-5">
+                  <div className="text-3xl font-bold">{formatCurrency(totalBalance)}</div>
+                  <div className="text-sm text-text-secondary">Total Balance</div>
                 </div>
               </div>
             )}
@@ -1586,7 +1610,7 @@ export default function GroupDetailPage() {
             )}
 
             {studentsInGroup.length > 0 ? (
-              <div className="card mb-6">
+              <div className="bg-surface border border-border rounded-2xl p-6 mb-6">
                 <div className="overflow-x-auto">
                   <table className="w-full">
                     <thead>
@@ -1655,7 +1679,7 @@ export default function GroupDetailPage() {
                 </div>
               </div>
             ) : (
-              <div className="card text-center py-12 mb-6">
+              <div className="bg-surface border border-border rounded-2xl text-center py-12 mb-6">
                 <Users className="h-12 w-12 mx-auto mb-4 text-text-secondary" />
                 <p className="text-text-secondary">No students in this group.</p>
               </div>
@@ -1664,7 +1688,7 @@ export default function GroupDetailPage() {
             {sortedAttendanceHistory.length > 0 && (
               <div>
                 <h3 className="text-xl font-semibold mb-4">Attendance History</h3>
-                <div className="card">
+                <div className="bg-surface border border-border rounded-2xl p-6">
                   <div className="overflow-x-auto">
                     <table className="w-full">
                       <thead>
@@ -1722,6 +1746,7 @@ export default function GroupDetailPage() {
             )}
           </div>
         )}
+      </div>
       </div>
       </div>
     </ProtectedRoute>

@@ -314,20 +314,45 @@ export default function GroupsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="p-8">
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">Groups Management 👥</h1>
-          <p className="text-text-secondary">Create, view, and manage all student groups</p>
-          {!canManageGroups && (
-            <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
-              <AlertTriangle className="h-4 w-4" />
-              Read-only mode: you can view groups but cannot create or modify them.
+      <div className="min-h-screen bg-background p-8">
+        <div className="max-w-7xl mx-auto space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold flex items-center gap-3">
+                <Users className="h-8 w-8 text-primary" />
+                Groups Management
+              </h1>
+              <p className="text-text-secondary mt-1">
+                Create, plan, and operate academic groups with conflict-aware scheduling.
+              </p>
+              {!canManageGroups && (
+                <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+                  <AlertTriangle className="h-4 w-4" />
+                  Read-only mode: you can view groups but cannot create or modify them.
+                </div>
+              )}
             </div>
-          )}
-        </div>
 
-        <div className="flex items-start justify-between gap-4 mb-6 flex-wrap">
-          <div className="flex-1 max-w-md min-w-[280px]">
+            <div className="flex items-center gap-2">
+              <button onClick={() => router.push('/dashboard/schedule')} className="btn-secondary flex items-center gap-2">
+                <CalendarDays className="h-5 w-5" />
+                View Schedule
+              </button>
+              <button
+                onClick={() => setIsCreatingGroup(true)}
+                disabled={!canCreateGroup}
+                title={!canCreateGroup ? 'You do not have permission to create groups' : undefined}
+                className={`flex items-center gap-2 ${
+                  canCreateGroup ? 'btn-primary' : 'btn-secondary opacity-70 cursor-not-allowed'
+                }`}
+              >
+                <Plus className="h-5 w-5" />
+                Create Group
+              </button>
+            </div>
+          </div>
+
+          <div className="bg-surface border border-border rounded-2xl p-4">
             <div className="relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-text-secondary" />
               <input
@@ -338,7 +363,7 @@ export default function GroupsPage() {
                   setSearchQuery(event.target.value)
                   setPage(1)
                 }}
-                className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:border-primary transition-colors"
+                className="w-full pl-10 pr-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors"
               />
             </div>
             <p className="text-xs text-text-secondary mt-2">
@@ -346,127 +371,106 @@ export default function GroupsPage() {
             </p>
           </div>
 
-          <div className="flex items-center gap-2">
-            <button onClick={() => router.push('/dashboard/schedule')} className="btn-secondary flex items-center gap-2">
-              <CalendarDays className="h-5 w-5" />
-              View Schedule
-            </button>
-            <button
-              onClick={() => setIsCreatingGroup(true)}
-              disabled={!canCreateGroup}
-              title={!canCreateGroup ? 'You do not have permission to create groups' : undefined}
-              className={`flex items-center gap-2 ${
-                canCreateGroup
-                  ? 'btn-primary'
-                  : 'btn-secondary opacity-70 cursor-not-allowed'
-              }`}
-            >
-              <Plus className="h-5 w-5" />
-              Create Group
-            </button>
-          </div>
-        </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4 mb-8">
-        <div className="stat-card">
-          <div className="stat-value">{totalGroups}</div>
-          <div className="stat-label">{hasStructuredFilters ? 'Matched Groups' : 'Total Groups'}</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{scheduledGroups}</div>
-          <div className="stat-label">Scheduled Groups</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{unscheduledGroups}</div>
-          <div className="stat-label">Unscheduled Groups</div>
-        </div>
-        <div className="stat-card">
-          <div className={`stat-value ${activeConflicts > 0 ? 'text-warning' : ''}`}>{activeConflicts}</div>
-          <div className="stat-label">Active Conflicts</div>
-        </div>
-        <div className="stat-card">
-          <div className={`stat-value ${capacityRiskGroups > 0 ? 'text-warning' : ''}`}>{capacityRiskGroups}</div>
-          <div className="stat-label">Capacity Risk</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{averageStudents}</div>
-          <div className="stat-label">Avg Students/Group</div>
-        </div>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {visibleGroups.map((group: Group) => (
-          <div key={group.id} className="card">
-            <div className="flex justify-between items-start mb-4">
-              <div>
-                <h3 className="text-lg font-semibold mb-1">{group.name}</h3>
-                <p className="text-sm text-text-secondary">{group.course?.name || 'No Course'}</p>
-              </div>
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={() => setEditingGroup(group)}
-                  disabled={!canEditGroup}
-                  title={!canEditGroup ? 'You do not have permission to edit groups' : undefined}
-                  className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  <Edit className="h-4 w-4 text-primary" />
-                </button>
-                <button
-                  onClick={() => handleDelete(group)}
-                  disabled={deleteGroup.isPending || !canDeleteGroup}
-                  title={!canDeleteGroup ? 'You do not have permission to delete groups' : undefined}
-                  className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
-                >
-                  <Trash2 className="h-4 w-4 text-error" />
-                </button>
-              </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+            <div className="bg-surface border border-border rounded-2xl p-4">
+              <p className="text-xs text-text-secondary mb-2">{hasStructuredFilters ? 'Matched Groups' : 'Total Groups'}</p>
+              <p className="text-3xl font-bold">{totalGroups}</p>
             </div>
+            <div className="bg-surface border border-border rounded-2xl p-4">
+              <p className="text-xs text-text-secondary mb-2">Scheduled Groups</p>
+              <p className="text-3xl font-bold">{scheduledGroups}</p>
+            </div>
+            <div className="bg-surface border border-border rounded-2xl p-4">
+              <p className="text-xs text-text-secondary mb-2">Unscheduled Groups</p>
+              <p className="text-3xl font-bold">{unscheduledGroups}</p>
+            </div>
+            <div className="bg-surface border border-border rounded-2xl p-4">
+              <p className="text-xs text-text-secondary mb-2">Active Conflicts</p>
+              <p className={`text-3xl font-bold ${activeConflicts > 0 ? 'text-warning' : ''}`}>{activeConflicts}</p>
+            </div>
+            <div className="bg-surface border border-border rounded-2xl p-4">
+              <p className="text-xs text-text-secondary mb-2">Capacity Risk</p>
+              <p className={`text-3xl font-bold ${capacityRiskGroups > 0 ? 'text-warning' : ''}`}>{capacityRiskGroups}</p>
+            </div>
+            <div className="bg-surface border border-border rounded-2xl p-4">
+              <p className="text-xs text-text-secondary mb-2">Avg Students/Group</p>
+              <p className="text-3xl font-bold">{averageStudents}</p>
+            </div>
+          </div>
 
-            <div className="space-y-3 mb-4">
-              <div className="flex items-center gap-2 text-sm text-text-secondary">
-                <Users className="h-4 w-4" />
-                <span>{group.students?.length || 0} students</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-text-secondary">
-                <Calendar className="h-4 w-4" />
-                <span>{group.days || 'Not scheduled'}</span>
-              </div>
-              <div className="flex items-center gap-2 text-sm text-text-secondary">
-                <Clock className="h-4 w-4" />
-                <span>
-                  {group.start_time
-                    ? `${group.start_time.slice(0, 5)} - ${group.end_time.slice(0, 5)}`
-                    : 'No time set'}
-                </span>
-              </div>
-              {group.room && (
-                <div className="flex items-center gap-2 text-sm text-text-secondary">
-                  <span>🚪</span>
-                  <span>{group.room.name}</span>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+            {visibleGroups.map((group: Group) => (
+              <div key={group.id} className="bg-surface border border-border rounded-2xl p-5 hover:border-primary/30 transition-colors">
+                <div className="flex justify-between items-start mb-4">
+                  <div>
+                    <h3 className="text-lg font-semibold mb-1">{group.name}</h3>
+                    <p className="text-sm text-text-secondary">{group.course?.name || 'No Course'}</p>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setEditingGroup(group)}
+                      disabled={!canEditGroup}
+                      title={!canEditGroup ? 'You do not have permission to edit groups' : undefined}
+                      className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    >
+                      <Edit className="h-4 w-4 text-primary" />
+                    </button>
+                    <button
+                      onClick={() => handleDelete(group)}
+                      disabled={deleteGroup.isPending || !canDeleteGroup}
+                      title={!canDeleteGroup ? 'You do not have permission to delete groups' : undefined}
+                      className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 className="h-4 w-4 text-error" />
+                    </button>
+                  </div>
                 </div>
-              )}
-            </div>
 
-            <button
-              onClick={() => router.push(`/dashboard/groups/${group.id}`)}
-              className="w-full btn-secondary text-sm py-2"
-            >
-              View Details →
-            </button>
+                <div className="space-y-3 mb-4">
+                  <div className="flex items-center gap-2 text-sm text-text-secondary">
+                    <Users className="h-4 w-4" />
+                    <span>{group.students?.length || 0} students</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-text-secondary">
+                    <Calendar className="h-4 w-4" />
+                    <span>{group.days || 'Not scheduled'}</span>
+                  </div>
+                  <div className="flex items-center gap-2 text-sm text-text-secondary">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      {group.start_time
+                        ? `${group.start_time.slice(0, 5)} - ${group.end_time.slice(0, 5)}`
+                        : 'No time set'}
+                    </span>
+                  </div>
+                  {group.room && (
+                    <div className="flex items-center gap-2 text-sm text-text-secondary">
+                      <span>🚪</span>
+                      <span>{group.room.name}</span>
+                    </div>
+                  )}
+                </div>
+
+                <button
+                  onClick={() => router.push(`/dashboard/groups/${group.id}`)}
+                  className="w-full btn-secondary text-sm py-2"
+                >
+                  View Details →
+                </button>
+              </div>
+            ))}
           </div>
-        ))}
-      </div>
 
-      {visibleGroups.length === 0 && (
-        <div className="card text-center py-12">
-          <p className="text-text-secondary text-lg mb-2">No groups found</p>
-          <p className="text-text-secondary text-sm">
-            {searchQuery ? 'Try adjusting your query or filters' : 'Create your first group to get started'}
-          </p>
-        </div>
-      )}
+          {visibleGroups.length === 0 && (
+            <div className="bg-surface border border-border rounded-2xl text-center py-12">
+              <p className="text-text-secondary text-lg mb-2">No groups found</p>
+              <p className="text-text-secondary text-sm">
+                {searchQuery ? 'Try adjusting your query or filters' : 'Create your first group to get started'}
+              </p>
+            </div>
+          )}
 
-      {totalGroups > PAGE_SIZE && <PaginationControls />}
+          {totalGroups > PAGE_SIZE && <PaginationControls />}
 
       {isCreatingGroup && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
@@ -640,6 +644,7 @@ export default function GroupsPage() {
           </div>
         </div>
       )}
+        </div>
       </div>
     </ProtectedRoute>
   )
