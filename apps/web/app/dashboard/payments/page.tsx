@@ -527,7 +527,16 @@ export default function PaymentsPage() {
               </tr>
             </thead>
             <tbody>
-              {payments.map((payment) => (
+              {payments.map((payment) => {
+                const studentName =
+                  payment.student_full_name ||
+                  (payment.by_user?.first_name && payment.by_user?.last_name
+                    ? `${payment.by_user.first_name} ${payment.by_user.last_name}`
+                    : payment.by_user?.username) ||
+                  'Unknown'
+                const studentInitial = studentName?.trim()?.[0]?.toUpperCase() || 'U'
+
+                return (
                 <tr
                   key={payment.id}
                   className="border-b border-border hover:bg-background transition-colors"
@@ -535,14 +544,10 @@ export default function PaymentsPage() {
                   <td className="py-4 px-6">
                     <div className="flex items-center gap-3">
                       <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-bold">
-                        {payment.by_user?.first_name?.[0] || payment.by_user?.username[0] || 'U'}
+                        {studentInitial}
                       </div>
                       <div>
-                        <p className="font-medium">
-                          {payment.by_user?.first_name && payment.by_user?.last_name
-                            ? `${payment.by_user.first_name} ${payment.by_user.last_name}`
-                            : payment.by_user?.username || 'Unknown'}
-                        </p>
+                        <p className="font-medium">{studentName}</p>
                         {payment.transaction_id && (
                           <p className="text-xs text-text-secondary">ID: {payment.transaction_id}</p>
                         )}
@@ -601,7 +606,8 @@ export default function PaymentsPage() {
                     </div>
                   </td>
                 </tr>
-              ))}
+                )
+              })}
             </tbody>
           </table>
 
