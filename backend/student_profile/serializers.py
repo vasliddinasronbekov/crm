@@ -1,4 +1,5 @@
 from datetime import date, time
+import re
 from typing import Any
 # /mnt/usb/edu-api-project/student_profile/serializers.py
 from .models import PaymentType, AutomaticFine, AssistantSlot, Booking # Importlarga qo'shing
@@ -45,7 +46,36 @@ WEEKDAY_ALIASES = {
     'sunday': 'sunday',
     'yak': 'sunday',
     'yakshanba': 'sunday',
+    'daily': '*',
+    'everyday': '*',
+    'alldays': '*',
+    'allweek': '*',
+    'harkuni': '*',
+    'har kuni': '*',
 }
+
+WEEKDAY_ORDER = [
+    'monday',
+    'tuesday',
+    'wednesday',
+    'thursday',
+    'friday',
+    'saturday',
+    'sunday',
+]
+
+
+def _expand_day_range(start_day: str, end_day: str) -> list[str]:
+    try:
+        start_index = WEEKDAY_ORDER.index(start_day)
+        end_index = WEEKDAY_ORDER.index(end_day)
+    except ValueError:
+        return []
+
+    if start_index <= end_index:
+        return WEEKDAY_ORDER[start_index:end_index + 1]
+    # Wrap-around ranges, e.g. Fri-Mon
+    return WEEKDAY_ORDER[start_index:] + WEEKDAY_ORDER[:end_index + 1]
 
 
 def _normalize_days(days_value: str) -> set[str]:
@@ -53,12 +83,24 @@ def _normalize_days(days_value: str) -> set[str]:
         return set()
 
     normalized: set[str] = set()
-    for raw_token in str(days_value).split(','):
-        token = ''.join(ch for ch in raw_token.strip().lower() if ch.isalpha())
+    raw_value = str(days_value).strip().lower()
+    for raw_token in re.split(r'[,\s;/|]+', raw_value):
+        token = ''.join(ch for ch in raw_token.strip().lower() if ch.isalpha() or ch == '-')
         if not token:
             continue
+
+        if '-' in token:
+            start_token, end_token = token.split('-', 1)
+            start_day = WEEKDAY_ALIASES.get(start_token)
+            end_day = WEEKDAY_ALIASES.get(end_token)
+            if start_day and end_day and start_day != '*' and end_day != '*':
+                normalized.update(_expand_day_range(start_day, end_day))
+                continue
+
         canonical = WEEKDAY_ALIASES.get(token)
-        if canonical:
+        if canonical == '*':
+            normalized.update(WEEKDAY_ORDER)
+        elif canonical:
             normalized.add(canonical)
     return normalized
 

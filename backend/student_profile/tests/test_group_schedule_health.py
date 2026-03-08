@@ -201,6 +201,17 @@ def test_ongoing_groups_returns_only_currently_running_groups():
         end_time=end_time,
         days=today_token,
     )
+    ranged_group = Group.objects.create(
+        name='Biology Range Token',
+        branch=branch,
+        course=course,
+        room=room,
+        start_day=today - datetime.timedelta(days=7),
+        end_day=today + datetime.timedelta(days=30),
+        start_time=start_time,
+        end_time=end_time,
+        days='Mon-Sun',
+    )
     Group.objects.create(
         name='Biology Completed',
         branch=branch,
@@ -217,8 +228,11 @@ def test_ongoing_groups_returns_only_currently_running_groups():
     response = client.get('/api/student-profile/groups/ongoing/')
 
     assert response.status_code == status.HTTP_200_OK
-    assert response.data['count'] == 1
-    assert response.data['results'][0]['id'] == ongoing_group.id
-    assert response.data['results'][0]['is_ongoing'] is True
-    assert response.data['results'][0]['minutes_since_start'] >= 0
-    assert response.data['results'][0]['minutes_until_end'] >= 0
+    result_ids = {row['id'] for row in response.data['results']}
+    assert response.data['count'] == 2
+    assert ongoing_group.id in result_ids
+    assert ranged_group.id in result_ids
+    for row in response.data['results']:
+        assert row['is_ongoing'] is True
+        assert row['minutes_since_start'] >= 0
+        assert row['minutes_until_end'] >= 0

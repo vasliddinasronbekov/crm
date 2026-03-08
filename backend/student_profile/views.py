@@ -8,6 +8,7 @@ import logging
 import requests
 import base64
 import json
+import re
 from decouple import config
 from django.db.models import F
 from django.db import transaction
@@ -140,7 +141,21 @@ class GroupViewSet(viewsets.ModelViewSet):
         'sunday': 'sunday',
         'yak': 'sunday',
         'yakshanba': 'sunday',
+        'daily': '*',
+        'everyday': '*',
+        'alldays': '*',
+        'allweek': '*',
+        'harkuni': '*',
     }
+    DAY_ORDER = [
+        'monday',
+        'tuesday',
+        'wednesday',
+        'thursday',
+        'friday',
+        'saturday',
+        'sunday',
+    ]
 
     def get_serializer_class(self):
         if self.action in ['list', 'retrieve']:
@@ -153,12 +168,31 @@ class GroupViewSet(viewsets.ModelViewSet):
             return set()
 
         normalized = set()
-        for raw_token in str(days_value).split(','):
-            token = ''.join(ch for ch in raw_token.strip().lower() if ch.isalpha())
+        for raw_token in re.split(r'[,\s;/|]+', str(days_value).strip().lower()):
+            token = ''.join(ch for ch in raw_token.strip().lower() if ch.isalpha() or ch == '-')
             if not token:
                 continue
+
+            if '-' in token:
+                start_token, end_token = token.split('-', 1)
+                start_day = cls.DAY_ALIASES.get(start_token)
+                end_day = cls.DAY_ALIASES.get(end_token)
+                if (
+                    start_day in cls.DAY_ORDER and
+                    end_day in cls.DAY_ORDER
+                ):
+                    start_index = cls.DAY_ORDER.index(start_day)
+                    end_index = cls.DAY_ORDER.index(end_day)
+                    if start_index <= end_index:
+                        normalized.update(cls.DAY_ORDER[start_index:end_index + 1])
+                    else:
+                        normalized.update(cls.DAY_ORDER[start_index:] + cls.DAY_ORDER[:end_index + 1])
+                    continue
+
             canonical = cls.DAY_ALIASES.get(token)
-            if canonical:
+            if canonical == '*':
+                normalized.update(cls.DAY_ORDER)
+            elif canonical:
                 normalized.add(canonical)
         return normalized
 
