@@ -865,9 +865,10 @@ export default function PaymentsPage() {
                   onChange={(e) => {
                     const manualMode = e.target.checked
                     setNewPayment((prev) => {
+                      const nextPricingMode: typeof prev.pricing_mode = manualMode ? 'manual' : 'course'
                       const nextState = {
                         ...prev,
-                        pricing_mode: manualMode ? 'manual' : 'course',
+                        pricing_mode: nextPricingMode,
                       }
                       return manualMode ? nextState : applyDerivedCoursePricing(nextState)
                     })

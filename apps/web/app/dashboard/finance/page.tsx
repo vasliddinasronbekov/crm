@@ -1220,9 +1220,10 @@ export default function FinanceDashboard() {
                   onChange={(event) => {
                     const manualMode = event.target.checked
                     setPaymentForm((prev) => {
+                      const nextPricingMode: typeof prev.pricing_mode = manualMode ? 'manual' : 'course'
                       const nextState = {
                         ...prev,
-                        pricing_mode: manualMode ? 'manual' : 'course',
+                        pricing_mode: nextPricingMode,
                       }
                       return manualMode ? nextState : applyDerivedCoursePricing(nextState)
                     })
