@@ -1,11 +1,15 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { Search, Plus, Edit, Trash2, BookOpen, Video, FileText, Headphones, File, Sparkles, Code2, ClipboardList } from 'lucide-react'
+import { useState, useEffect, useCallback } from 'react'
+import { useRouter } from 'next/navigation'
+import { Search, Plus, Edit, Trash2, BookOpen, Video, FileText, Headphones, File, Sparkles, Code2, ClipboardList, Lock } from 'lucide-react'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import LoadingScreen from '@/components/LoadingScreen'
 import { useSettings } from '@/contexts/SettingsContext'
+import { ProtectedRoute } from '@/components/ProtectedRoute'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/lib/permissions'
 
 interface Course {
   id: number
@@ -41,10 +45,24 @@ interface ContentDefinition {
 }
 
 export default function LMSPage() {
+  const router = useRouter()
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
   const { currency } = useSettings()
+  const canCreateCourse = permissionState.hasPermission('courses.create')
+  const canEditCourse = permissionState.hasPermission('courses.edit')
+  const canDeleteCourse = permissionState.hasPermission('courses.delete')
+  const canViewModules = permissionState.hasPermission('modules.view')
+  const canViewLessons = permissionState.hasPermission('lessons.view')
+  const canViewAssignments = permissionState.hasPermission('assignments.view')
+  const canViewQuizzes = permissionState.hasPermission('quizzes.view')
+  const canViewProgress = permissionState.hasPermission('lms.view')
   const [courses, setCourses] = useState<Course[]>([])
   const [lessons, setLessons] = useState<LessonSummary[]>([])
   const [stats, setStats] = useState<any>(null)
+  const [moduleCount, setModuleCount] = useState(0)
+  const [assignmentCount, setAssignmentCount] = useState(0)
+  const [quizCount, setQuizCount] = useState(0)
   const [isLoading, setIsLoading] = useState(true)
   const [filterStatus, setFilterStatus] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
@@ -59,8 +77,11 @@ export default function LMSPage() {
     price: 0,
   })
 
-  useEffect(() => {
-    loadLMSData()
+  const getPayloadCount = useCallback((payload: any): number => {
+    if (typeof payload?.count === 'number') return payload.count
+    if (Array.isArray(payload?.results)) return payload.results.length
+    if (Array.isArray(payload)) return payload.length
+    return 0
   }, [])
 
   const contentDefinitions: ContentDefinition[] = [
@@ -139,12 +160,15 @@ export default function LMSPage() {
     accent: definition.accent,
   }))
 
-  const loadLMSData = async () => {
+  const loadLMSData = useCallback(async () => {
     try {
-      const [coursesData, lessonsData, dashboardStats] = await Promise.all([
+      const [coursesData, lessonsData, dashboardStats, modulesData, assignmentsData, quizzesData] = await Promise.all([
         apiService.getCourses().catch(() => ({ results: [] })),
         apiService.getLessons().catch(() => ({ results: [] })),
         apiService.getDashboardStats().catch(() => ({})),
+        canViewModules ? apiService.getModules({ limit: 1 }).catch(() => ({ count: 0, results: [] })) : Promise.resolve({ count: 0, results: [] }),
+        canViewAssignments ? apiService.getAssignments({ limit: 1 }).catch(() => ({ count: 0, results: [] })) : Promise.resolve({ count: 0, results: [] }),
+        canViewQuizzes ? apiService.getQuizzes({ limit: 1 }).catch(() => ({ count: 0, results: [] })) : Promise.resolve({ count: 0, results: [] }),
       ])
 
       setCourses(coursesData.results || coursesData || [])
@@ -153,15 +177,26 @@ export default function LMSPage() {
         lesson_type: lesson.lesson_type,
       })))
       setStats(dashboardStats)
+      setModuleCount(getPayloadCount(modulesData))
+      setAssignmentCount(getPayloadCount(assignmentsData))
+      setQuizCount(getPayloadCount(quizzesData))
     } catch (error) {
       console.error('Failed to load LMS data:', error)
-      toast.error('Failed to load LMS data:')
+      toast.error('Failed to load LMS data')
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [canViewAssignments, canViewModules, canViewQuizzes, getPayloadCount])
+
+  useEffect(() => {
+    void loadLMSData()
+  }, [loadLMSData])
 
   const handleAddCourse = async () => {
+    if (!canCreateCourse) {
+      toast.error('You do not have permission to create courses')
+      return
+    }
     if (!newCourse.name) {
       toast.warning('Please fill in course name')
       return
@@ -179,7 +214,7 @@ export default function LMSPage() {
         price: 0,
       })
       toast.success('Course created successfully')
-      loadLMSData()
+      void loadLMSData()
     } catch (error: any) {
       console.error('Failed to create course:', error)
       toast.error(error.response?.data?.detail || 'Failed to create course')
@@ -187,10 +222,18 @@ export default function LMSPage() {
   }
 
   const handleEdit = (course: Course) => {
+    if (!canEditCourse) {
+      toast.error('You do not have permission to edit courses')
+      return
+    }
     setEditingCourse(course)
   }
 
   const handleSaveEdit = async () => {
+    if (!canEditCourse) {
+      toast.error('You do not have permission to edit courses')
+      return
+    }
     if (!editingCourse) return
 
     try {
@@ -210,6 +253,10 @@ export default function LMSPage() {
   }
 
   const handleDelete = async (course: Course) => {
+    if (!canDeleteCourse) {
+      toast.error('You do not have permission to delete courses')
+      return
+    }
     if (!confirm(`Are you sure you want to delete course "${course.name}"?`)) {
       return
     }
@@ -240,15 +287,26 @@ export default function LMSPage() {
   })
 
   if (isLoading) {
-    return <LoadingScreen message="Loading courses..." />
+    return (
+      <ProtectedRoute>
+        <LoadingScreen message="Loading courses..." />
+      </ProtectedRoute>
+    )
   }
 
   return (
+    <ProtectedRoute>
     <div className="p-8">
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">LMS Dashboard 🎓</h1>
         <p className="text-text-secondary">Manage courses, lessons, and learning content</p>
+        {!canCreateCourse && (
+          <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
+            <Lock className="h-4 w-4" />
+            Read-only mode for courses. You can browse LMS content but cannot create or edit courses.
+          </div>
+        )}
       </div>
 
       {/* Actions Bar */}
@@ -268,7 +326,9 @@ export default function LMSPage() {
         {/* Add Button */}
         <button
           onClick={() => setIsAddingCourse(true)}
-          className="btn-primary flex items-center gap-2"
+          disabled={!canCreateCourse}
+          title={!canCreateCourse ? 'You do not have permission to create courses' : undefined}
+          className={`flex items-center gap-2 ${canCreateCourse ? 'btn-primary' : 'btn-secondary opacity-70 cursor-not-allowed'}`}
         >
           <Plus className="h-5 w-5" />
           Create Course
@@ -276,33 +336,38 @@ export default function LMSPage() {
       </div>
 
       {/* Quick Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-6 mb-8">
         <div className="stat-card">
           <div className="stat-value">{courses.length}</div>
           <div className="stat-label">Total Courses</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{stats?.total_groups || 0}</div>
-          <div className="stat-label">Active Groups</div>
-        </div>
-        <div className="stat-card">
-          <div className="stat-value">{stats?.total_students || 0}</div>
-          <div className="stat-label">Enrolled Students</div>
+          <div className="stat-value">{moduleCount}</div>
+          <div className="stat-label">Modules</div>
         </div>
         <div className="stat-card">
           <div className="stat-value">{lessons.length}</div>
-          <div className="stat-label">Content Items</div>
+          <div className="stat-label">Lessons</div>
         </div>
         <div className="stat-card">
-          <div className="stat-value">{stats?.total_teachers || 0}</div>
-          <div className="stat-label">Teachers</div>
+          <div className="stat-value">{assignmentCount}</div>
+          <div className="stat-label">Assignments</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{quizCount}</div>
+          <div className="stat-label">Quizzes</div>
+        </div>
+        <div className="stat-card">
+          <div className="stat-value">{stats?.total_groups || 0}</div>
+          <div className="stat-label">Active Groups</div>
         </div>
       </div>
 
       {/* Quick Access Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
         <button
-          onClick={() => window.location.href = '/dashboard/lms/modules'}
+          onClick={() => router.push('/dashboard/lms/modules')}
+          disabled={!canViewModules}
           className="card hover:shadow-lg transition-shadow text-left p-6 bg-gradient-to-br from-success/10 to-success/5"
         >
           <div className="flex items-center gap-4 mb-3">
@@ -312,11 +377,14 @@ export default function LMSPage() {
             <h3 className="text-xl font-bold">Modules</h3>
           </div>
           <p className="text-text-secondary text-sm mb-3">Organize content into structured modules</p>
-          <div className="text-success font-medium text-sm">Manage Modules →</div>
+          <div className="text-success font-medium text-sm">
+            {canViewModules ? 'Manage Modules →' : 'No Access'}
+          </div>
         </button>
 
         <button
-          onClick={() => window.location.href = '/dashboard/lms/lessons'}
+          onClick={() => router.push('/dashboard/lms/lessons')}
+          disabled={!canViewLessons}
           className="card hover:shadow-lg transition-shadow text-left p-6 bg-gradient-to-br from-blue-500/10 to-blue-500/5"
         >
           <div className="flex items-center gap-4 mb-3">
@@ -326,11 +394,14 @@ export default function LMSPage() {
             <h3 className="text-xl font-bold">Lessons</h3>
           </div>
           <p className="text-text-secondary text-sm mb-3">Create video, text, and mixed lessons</p>
-          <div className="text-blue-500 font-medium text-sm">Manage Lessons →</div>
+          <div className="text-blue-500 font-medium text-sm">
+            {canViewLessons ? 'Manage Lessons →' : 'No Access'}
+          </div>
         </button>
 
         <button
-          onClick={() => window.location.href = '/dashboard/quizzes'}
+          onClick={() => router.push('/dashboard/quizzes')}
+          disabled={!canViewQuizzes}
           className="card hover:shadow-lg transition-shadow text-left p-6 bg-gradient-to-br from-primary/10 to-primary/5"
         >
           <div className="flex items-center gap-4 mb-3">
@@ -340,11 +411,14 @@ export default function LMSPage() {
             <h3 className="text-xl font-bold">Quizzes</h3>
           </div>
           <p className="text-text-secondary text-sm mb-3">Create and manage quizzes for assessments</p>
-          <div className="text-primary font-medium text-sm">Manage Quizzes →</div>
+          <div className="text-primary font-medium text-sm">
+            {canViewQuizzes ? 'Manage Quizzes →' : 'No Access'}
+          </div>
         </button>
 
         <button
-          onClick={() => window.location.href = '/dashboard/lms/assignments'}
+          onClick={() => router.push('/dashboard/lms/assignments')}
+          disabled={!canViewAssignments}
           className="card hover:shadow-lg transition-shadow text-left p-6 bg-gradient-to-br from-purple-500/10 to-purple-500/5"
         >
           <div className="flex items-center gap-4 mb-3">
@@ -354,7 +428,26 @@ export default function LMSPage() {
             <h3 className="text-xl font-bold">Assignments</h3>
           </div>
           <p className="text-text-secondary text-sm mb-3">Create and track student assignments</p>
-          <div className="text-purple-500 font-medium text-sm">Manage Assignments →</div>
+          <div className="text-purple-500 font-medium text-sm">
+            {canViewAssignments ? 'Manage Assignments →' : 'No Access'}
+          </div>
+        </button>
+
+        <button
+          onClick={() => router.push('/dashboard/lms/progress')}
+          disabled={!canViewProgress}
+          className="card hover:shadow-lg transition-shadow text-left p-6 bg-gradient-to-br from-cyan-500/10 to-cyan-500/5"
+        >
+          <div className="flex items-center gap-4 mb-3">
+            <div className="h-12 w-12 rounded-xl bg-cyan-500/10 flex items-center justify-center">
+              <span className="text-2xl">📈</span>
+            </div>
+            <h3 className="text-xl font-bold">Progress</h3>
+          </div>
+          <p className="text-text-secondary text-sm mb-3">Track learner completion and engagement trends</p>
+          <div className="text-cyan-500 font-medium text-sm">
+            {canViewProgress ? 'Open Progress →' : 'No Access'}
+          </div>
         </button>
       </div>
 
@@ -427,14 +520,17 @@ export default function LMSPage() {
                     </span>
                     <button
                       onClick={() => handleEdit(course)}
-                      className="p-2 hover:bg-background rounded-lg transition-colors"
+                      disabled={!canEditCourse}
+                      title={!canEditCourse ? 'You do not have permission to edit courses' : undefined}
+                      className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Edit className="h-4 w-4 text-primary" />
                     </button>
                     <button
                       onClick={() => handleDelete(course)}
-                      disabled={isDeleting}
-                      className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
+                      disabled={isDeleting || !canDeleteCourse}
+                      title={!canDeleteCourse ? 'You do not have permission to delete courses' : undefined}
+                      className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <Trash2 className="h-4 w-4 text-error" />
                     </button>
@@ -531,7 +627,11 @@ export default function LMSPage() {
                 />
               </div>
               <div className="flex gap-3 pt-4">
-                <button onClick={handleAddCourse} className="btn-primary flex-1">
+                <button
+                  onClick={handleAddCourse}
+                  disabled={!canCreateCourse}
+                  className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Create Course
                 </button>
                 <button
@@ -610,7 +710,11 @@ export default function LMSPage() {
                 </select>
               </div>
               <div className="flex gap-3 pt-4">
-                <button onClick={handleSaveEdit} className="btn-primary flex-1">
+                <button
+                  onClick={handleSaveEdit}
+                  disabled={!canEditCourse}
+                  className="btn-primary flex-1 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
                   Save Changes
                 </button>
                 <button
@@ -625,5 +729,6 @@ export default function LMSPage() {
         </div>
       )}
     </div>
+    </ProtectedRoute>
   )
 }

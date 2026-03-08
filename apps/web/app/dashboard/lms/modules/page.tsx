@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import { Search, Plus, Edit, Trash2, BookOpen, MoveUp, MoveDown, Eye } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/lib/permissions'
 
 interface Module {
   id: number
@@ -26,6 +28,11 @@ interface Course {
 
 export default function ModulesPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
+  const canCreateModule = permissionState.hasPermission('modules.create')
+  const canEditModule = permissionState.hasPermission('modules.edit')
+  const canDeleteModule = permissionState.hasPermission('modules.delete')
   const [modules, setModules] = useState<Module[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
@@ -41,12 +48,7 @@ export default function ModulesPage() {
     is_published: false
   })
 
-  useEffect(() => {
-    fetchCourses()
-    fetchModules()
-  }, [selectedCourse])
-
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       const response = await apiService.getCourses()
       setCourses(response.results || response || [])
@@ -54,9 +56,9 @@ export default function ModulesPage() {
       console.error('Error fetching courses:', error)
       toast.error('Failed to load courses')
     }
-  }
+  }, [])
 
-  const fetchModules = async () => {
+  const fetchModules = useCallback(async () => {
     try {
       setLoading(true)
       const params: any = {}
@@ -71,10 +73,24 @@ export default function ModulesPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedCourse])
+
+  useEffect(() => {
+    void fetchCourses()
+    void fetchModules()
+  }, [fetchCourses, fetchModules])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (editingModule && !canEditModule) {
+      toast.error('You do not have permission to edit modules')
+      return
+    }
+    if (!editingModule && !canCreateModule) {
+      toast.error('You do not have permission to create modules')
+      return
+    }
 
     if (!formData.title || !formData.course) {
       toast.error('Please fill in all required fields')
@@ -91,7 +107,7 @@ export default function ModulesPage() {
       }
       setShowModal(false)
       resetForm()
-      fetchModules()
+      void fetchModules()
     } catch (error) {
       console.error('Error saving module:', error)
       toast.error('Failed to save module')
@@ -99,6 +115,10 @@ export default function ModulesPage() {
   }
 
   const handleEdit = (module: Module) => {
+    if (!canEditModule) {
+      toast.error('You do not have permission to edit modules')
+      return
+    }
     setEditingModule(module)
     setFormData({
       course: module.course.toString(),
@@ -111,6 +131,10 @@ export default function ModulesPage() {
   }
 
   const handleDelete = async (id: number, title: string) => {
+    if (!canDeleteModule) {
+      toast.error('You do not have permission to delete modules')
+      return
+    }
     if (!confirm(`Are you sure you want to delete "${title}"? This will also delete all lessons in this module.`)) {
       return
     }
@@ -118,7 +142,7 @@ export default function ModulesPage() {
     try {
       await apiService.deleteModule(id)
       toast.success('Module deleted successfully')
-      fetchModules()
+      void fetchModules()
     } catch (error) {
       console.error('Error deleting module:', error)
       toast.error('Failed to delete module')
@@ -178,10 +202,13 @@ export default function ModulesPage() {
         {/* Create Button */}
         <button
           onClick={() => {
+            if (!canCreateModule) return
             resetForm()
             setShowModal(true)
           }}
-          className="btn-primary flex items-center gap-2"
+          disabled={!canCreateModule}
+          title={!canCreateModule ? 'You do not have permission to create modules' : undefined}
+          className={`flex items-center gap-2 ${canCreateModule ? 'btn-primary' : 'btn-secondary opacity-70 cursor-not-allowed'}`}
         >
           <Plus className="h-5 w-5" />
           Create Module
@@ -201,10 +228,12 @@ export default function ModulesPage() {
           <p className="text-text-secondary text-lg mb-4">No modules found</p>
           <button
             onClick={() => {
+              if (!canCreateModule) return
               resetForm()
               setShowModal(true)
             }}
-            className="btn-primary"
+            disabled={!canCreateModule}
+            className={`btn-primary ${!canCreateModule ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Create Your First Module
           </button>
@@ -252,15 +281,17 @@ export default function ModulesPage() {
                   </button>
                   <button
                     onClick={() => handleEdit(module)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-surface text-text hover:bg-border rounded-lg transition-colors"
-                    title="Edit"
+                    disabled={!canEditModule}
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-surface text-text hover:bg-border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={!canEditModule ? 'You do not have permission to edit modules' : 'Edit'}
                   >
                     <Edit className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(module.id, module.title)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-error/10 text-error hover:bg-error/20 rounded-lg transition-colors"
-                    title="Delete"
+                    disabled={!canDeleteModule}
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-error/10 text-error hover:bg-error/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={!canDeleteModule ? 'You do not have permission to delete modules' : 'Delete'}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -366,7 +397,8 @@ export default function ModulesPage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 btn-primary"
+                    disabled={editingModule ? !canEditModule : !canCreateModule}
+                    className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {editingModule ? 'Update Module' : 'Create Module'}
                   </button>

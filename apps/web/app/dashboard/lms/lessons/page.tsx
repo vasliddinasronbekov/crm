@@ -1,10 +1,11 @@
 'use client'
 
-import { useState, useEffect } from 'react'
-import { useRouter } from 'next/navigation'
+import { useState, useEffect, useCallback } from 'react'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
-import { Search, Plus, Edit, Trash2, FileText, Video, Link as LinkIcon, Eye } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, FileText, Video, Link as LinkIcon } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/lib/permissions'
 
 interface Lesson {
   id: number
@@ -45,7 +46,11 @@ interface Module {
 }
 
 export default function LessonsPage() {
-  const router = useRouter()
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
+  const canCreateLesson = permissionState.hasPermission('lessons.create')
+  const canEditLesson = permissionState.hasPermission('lessons.edit')
+  const canDeleteLesson = permissionState.hasPermission('lessons.delete')
   const [lessons, setLessons] = useState<Lesson[]>([])
   const [modules, setModules] = useState<Module[]>([])
   const [loading, setLoading] = useState(true)
@@ -66,12 +71,7 @@ export default function LessonsPage() {
     is_free_preview: false
   })
 
-  useEffect(() => {
-    fetchModules()
-    fetchLessons()
-  }, [selectedModule, selectedType])
-
-  const mapApiLessonTypeToUi = (lessonType: string, content?: string) => {
+  const mapApiLessonTypeToUi = useCallback((lessonType: string, content?: string): 'video' | 'text' | 'mixed' => {
     if (lessonType === 'article') {
       return 'text'
     }
@@ -79,9 +79,9 @@ export default function LessonsPage() {
       return 'mixed'
     }
     return 'video'
-  }
+  }, [])
 
-  const mapLessonFromApi = (lesson: ApiLesson): Lesson => ({
+  const mapLessonFromApi = useCallback((lesson: ApiLesson): Lesson => ({
     id: lesson.id,
     module: lesson.module,
     module_name: lesson.module_title,
@@ -95,7 +95,7 @@ export default function LessonsPage() {
     is_published: lesson.is_published,
     is_free_preview: lesson.is_free_preview,
     created_at: lesson.created_at
-  })
+  }), [mapApiLessonTypeToUi])
 
   const buildLessonPayload = () => {
     const uiType = formData.lesson_type
@@ -114,7 +114,7 @@ export default function LessonsPage() {
     }
   }
 
-  const fetchModules = async () => {
+  const fetchModules = useCallback(async () => {
     try {
       const response = await apiService.getModules()
       setModules(response.results || response || [])
@@ -122,9 +122,9 @@ export default function LessonsPage() {
       console.error('Error fetching modules:', error)
       toast.error('Failed to load modules')
     }
-  }
+  }, [])
 
-  const fetchLessons = async () => {
+  const fetchLessons = useCallback(async () => {
     try {
       setLoading(true)
       const params: any = {}
@@ -140,10 +140,24 @@ export default function LessonsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [mapLessonFromApi, selectedModule])
+
+  useEffect(() => {
+    void fetchModules()
+    void fetchLessons()
+  }, [fetchLessons, fetchModules])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (editingLesson && !canEditLesson) {
+      toast.error('You do not have permission to edit lessons')
+      return
+    }
+    if (!editingLesson && !canCreateLesson) {
+      toast.error('You do not have permission to create lessons')
+      return
+    }
 
     if (!formData.title || !formData.module) {
       toast.error('Please fill in all required fields')
@@ -171,7 +185,7 @@ export default function LessonsPage() {
       }
       setShowModal(false)
       resetForm()
-      fetchLessons()
+      void fetchLessons()
     } catch (error: any) {
       console.error('Error saving lesson:', error)
       const responseData = error?.response?.data
@@ -186,6 +200,10 @@ export default function LessonsPage() {
   }
 
   const handleEdit = (lesson: Lesson) => {
+    if (!canEditLesson) {
+      toast.error('You do not have permission to edit lessons')
+      return
+    }
     setEditingLesson(lesson)
     setFormData({
       module: lesson.module.toString(),
@@ -202,6 +220,10 @@ export default function LessonsPage() {
   }
 
   const handleDelete = async (id: number, title: string) => {
+    if (!canDeleteLesson) {
+      toast.error('You do not have permission to delete lessons')
+      return
+    }
     if (!confirm(`Are you sure you want to delete "${title}"?`)) {
       return
     }
@@ -209,7 +231,7 @@ export default function LessonsPage() {
     try {
       await apiService.deleteLesson(id)
       toast.success('Lesson deleted successfully')
-      fetchLessons()
+      void fetchLessons()
     } catch (error) {
       console.error('Error deleting lesson:', error)
       toast.error('Failed to delete lesson')
@@ -303,10 +325,13 @@ export default function LessonsPage() {
         {/* Create Button */}
         <button
           onClick={() => {
+            if (!canCreateLesson) return
             resetForm()
             setShowModal(true)
           }}
-          className="btn-primary flex items-center gap-2"
+          disabled={!canCreateLesson}
+          title={!canCreateLesson ? 'You do not have permission to create lessons' : undefined}
+          className={`flex items-center gap-2 ${canCreateLesson ? 'btn-primary' : 'btn-secondary opacity-70 cursor-not-allowed'}`}
         >
           <Plus className="h-5 w-5" />
           Create Lesson
@@ -326,10 +351,12 @@ export default function LessonsPage() {
           <p className="text-text-secondary text-lg mb-4">No lessons found</p>
           <button
             onClick={() => {
+              if (!canCreateLesson) return
               resetForm()
               setShowModal(true)
             }}
-            className="btn-primary"
+            disabled={!canCreateLesson}
+            className={`btn-primary ${!canCreateLesson ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Create Your First Lesson
           </button>
@@ -386,14 +413,18 @@ export default function LessonsPage() {
               <div className="border-t border-border pt-4 flex gap-2">
                 <button
                   onClick={() => handleEdit(lesson)}
-                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary text-background rounded-lg hover:bg-primary/90 transition-colors"
+                  disabled={!canEditLesson}
+                  title={!canEditLesson ? 'You do not have permission to edit lessons' : undefined}
+                  className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary text-background rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Edit className="h-4 w-4" />
                   Edit
                 </button>
                 <button
                   onClick={() => handleDelete(lesson.id, lesson.title)}
-                  className="flex items-center justify-center gap-2 px-3 py-2 bg-error/10 text-error hover:bg-error/20 rounded-lg transition-colors"
+                  disabled={!canDeleteLesson}
+                  title={!canDeleteLesson ? 'You do not have permission to delete lessons' : undefined}
+                  className="flex items-center justify-center gap-2 px-3 py-2 bg-error/10 text-error hover:bg-error/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 >
                   <Trash2 className="h-4 w-4" />
                 </button>
@@ -557,7 +588,8 @@ export default function LessonsPage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 btn-primary"
+                    disabled={editingLesson ? !canEditLesson : !canCreateLesson}
+                    className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {editingLesson ? 'Update Lesson' : 'Create Lesson'}
                   </button>

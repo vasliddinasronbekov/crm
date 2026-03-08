@@ -1,10 +1,12 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import { Search, Plus, Edit, Trash2, FileText, CheckCircle, Clock, Users } from 'lucide-react'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/lib/permissions'
 
 interface Assignment {
   id: number
@@ -29,6 +31,11 @@ interface Course {
 
 export default function AssignmentsPage() {
   const router = useRouter()
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
+  const canCreateAssignment = permissionState.hasPermission('assignments.create')
+  const canEditAssignment = permissionState.hasPermission('assignments.edit')
+  const canDeleteAssignment = permissionState.hasPermission('assignments.delete')
   const [assignments, setAssignments] = useState<Assignment[]>([])
   const [courses, setCourses] = useState<Course[]>([])
   const [loading, setLoading] = useState(true)
@@ -48,12 +55,7 @@ export default function AssignmentsPage() {
     allow_late_submission: false
   })
 
-  useEffect(() => {
-    fetchCourses()
-    fetchAssignments()
-  }, [selectedCourse, statusFilter])
-
-  const fetchCourses = async () => {
+  const fetchCourses = useCallback(async () => {
     try {
       const response = await apiService.getCourses()
       setCourses(response.results || response || [])
@@ -61,9 +63,9 @@ export default function AssignmentsPage() {
       console.error('Error fetching courses:', error)
       toast.error('Failed to load courses')
     }
-  }
+  }, [])
 
-  const fetchAssignments = async () => {
+  const fetchAssignments = useCallback(async () => {
     try {
       setLoading(true)
       const params: any = {}
@@ -81,10 +83,24 @@ export default function AssignmentsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [selectedCourse, statusFilter])
+
+  useEffect(() => {
+    void fetchCourses()
+    void fetchAssignments()
+  }, [fetchAssignments, fetchCourses])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    if (editingAssignment && !canEditAssignment) {
+      toast.error('You do not have permission to edit assignments')
+      return
+    }
+    if (!editingAssignment && !canCreateAssignment) {
+      toast.error('You do not have permission to create assignments')
+      return
+    }
 
     if (!formData.title || !formData.course || !formData.due_date) {
       toast.error('Please fill in all required fields')
@@ -101,7 +117,7 @@ export default function AssignmentsPage() {
       }
       setShowModal(false)
       resetForm()
-      fetchAssignments()
+      void fetchAssignments()
     } catch (error) {
       console.error('Error saving assignment:', error)
       toast.error('Failed to save assignment')
@@ -109,6 +125,10 @@ export default function AssignmentsPage() {
   }
 
   const handleEdit = (assignment: Assignment) => {
+    if (!canEditAssignment) {
+      toast.error('You do not have permission to edit assignments')
+      return
+    }
     setEditingAssignment(assignment)
     setFormData({
       course: assignment.course.toString(),
@@ -124,6 +144,10 @@ export default function AssignmentsPage() {
   }
 
   const handleDelete = async (id: number, title: string) => {
+    if (!canDeleteAssignment) {
+      toast.error('You do not have permission to delete assignments')
+      return
+    }
     if (!confirm(`Are you sure you want to delete "${title}"? All submissions will also be deleted.`)) {
       return
     }
@@ -131,7 +155,7 @@ export default function AssignmentsPage() {
     try {
       await apiService.deleteAssignment(id)
       toast.success('Assignment deleted successfully')
-      fetchAssignments()
+      void fetchAssignments()
     } catch (error) {
       console.error('Error deleting assignment:', error)
       toast.error('Failed to delete assignment')
@@ -216,10 +240,13 @@ export default function AssignmentsPage() {
         {/* Create Button */}
         <button
           onClick={() => {
+            if (!canCreateAssignment) return
             resetForm()
             setShowModal(true)
           }}
-          className="btn-primary flex items-center gap-2"
+          disabled={!canCreateAssignment}
+          title={!canCreateAssignment ? 'You do not have permission to create assignments' : undefined}
+          className={`flex items-center gap-2 ${canCreateAssignment ? 'btn-primary' : 'btn-secondary opacity-70 cursor-not-allowed'}`}
         >
           <Plus className="h-5 w-5" />
           Create Assignment
@@ -239,10 +266,12 @@ export default function AssignmentsPage() {
           <p className="text-text-secondary text-lg mb-4">No assignments found</p>
           <button
             onClick={() => {
+              if (!canCreateAssignment) return
               resetForm()
               setShowModal(true)
             }}
-            className="btn-primary"
+            disabled={!canCreateAssignment}
+            className={`btn-primary ${!canCreateAssignment ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             Create Your First Assignment
           </button>
@@ -315,15 +344,17 @@ export default function AssignmentsPage() {
                   </button>
                   <button
                     onClick={() => handleEdit(assignment)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-surface text-text hover:bg-border rounded-lg transition-colors"
-                    title="Edit"
+                    disabled={!canEditAssignment}
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-surface text-text hover:bg-border rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={!canEditAssignment ? 'You do not have permission to edit assignments' : 'Edit'}
                   >
                     <Edit className="h-4 w-4" />
                   </button>
                   <button
                     onClick={() => handleDelete(assignment.id, assignment.title)}
-                    className="flex items-center justify-center gap-2 px-3 py-2 bg-error/10 text-error hover:bg-error/20 rounded-lg transition-colors"
-                    title="Delete"
+                    disabled={!canDeleteAssignment}
+                    className="flex items-center justify-center gap-2 px-3 py-2 bg-error/10 text-error hover:bg-error/20 rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    title={!canDeleteAssignment ? 'You do not have permission to delete assignments' : 'Delete'}
                   >
                     <Trash2 className="h-4 w-4" />
                   </button>
@@ -470,7 +501,8 @@ export default function AssignmentsPage() {
                   </button>
                   <button
                     type="submit"
-                    className="flex-1 btn-primary"
+                    disabled={editingAssignment ? !canEditAssignment : !canCreateAssignment}
+                    className="flex-1 btn-primary disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {editingAssignment ? 'Update Assignment' : 'Create Assignment'}
                   </button>
