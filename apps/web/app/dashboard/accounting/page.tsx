@@ -30,7 +30,7 @@ import {
 type ActiveTab = 'balances' | 'earnings' | 'fines' | 'summaries'
 
 export default function AccountingPage() {
-  const { currency, formatCurrencyFromMinor, fromSelectedCurrency } = useSettings()
+  const { currency, formatCurrencyFromMinor, fromSelectedCurrency, toSelectedCurrency } = useSettings()
   const [activeTab, setActiveTab] = useState<ActiveTab>('balances')
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300)
@@ -71,14 +71,14 @@ export default function AccountingPage() {
       setFineForm({
         student: selectedFine.student?.id.toString() || '',
         fine_type: selectedFine.fine_type?.id.toString() || '',
-        amount: (selectedFine.amount / 100).toString(),
+        amount: toSelectedCurrency(selectedFine.amount / 100).toString(),
         reason: selectedFine.reason || '',
         description: selectedFine.description || '',
       })
     } else {
       setFineForm({ student: '', fine_type: '', amount: '', reason: '', description: '' })
     }
-  }, [selectedFine, showFineModal])
+  }, [selectedFine, showFineModal, toSelectedCurrency])
 
   const handleFineFormChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target
@@ -87,9 +87,11 @@ export default function AccountingPage() {
 
   const handleFineSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+    const normalizedAmount = parseFloat(fineForm.amount)
+    const amountInUzs = fromSelectedCurrency(Number.isFinite(normalizedAmount) ? normalizedAmount : 0)
     const data = {
       ...fineForm,
-      amount: fromSelectedCurrency(parseFloat(fineForm.amount)) * 100,
+      amount: Math.round(amountInUzs * 100),
       student: parseInt(fineForm.student),
       fine_type: parseInt(fineForm.fine_type),
     }

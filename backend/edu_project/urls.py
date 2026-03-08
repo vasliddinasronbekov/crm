@@ -54,7 +54,7 @@ from messaging.email_views import EmailTemplateViewSet, EmailCampaignViewSet, Em
 from hr.views import TeacherSalaryViewSet, SalaryViewSet
 
 # `core` app'idan
-from core.views import RegionViewSet, CommentViewSet, health_check, liveness_check, readiness_check, global_search
+from core.views import RegionViewSet, CommentViewSet, health_check, liveness_check, readiness_check, global_search, currency_rates
 
 # `analytics` app'idan
 from analytics.views import AnalyticsView, LeaderboardView, DashboardStatsView, ReportListView
@@ -207,6 +207,7 @@ urlpatterns = [
 
     # Global Search Endpoint
     path('api/v1/search/', global_search, name='global-search'),
+    path('api/v1/currency/rates/', currency_rates, name='currency-rates'),
 
     # Health Check & Monitoring Endpoints
     path('api/health/', health_check, name='health-check'),

@@ -10,6 +10,7 @@ import {
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import LoadingScreen from '@/components/LoadingScreen'
+import { useSettings } from '@/contexts/SettingsContext'
 
 interface Pipeline {
   id: number
@@ -51,6 +52,7 @@ interface Activity {
 }
 
 export default function PipelinesPage() {
+  const { formatCurrency } = useSettings()
   const [pipelines, setPipelines] = useState<Pipeline[]>([])
   const [selectedPipeline, setSelectedPipeline] = useState<Pipeline | null>(null)
   const [stages, setStages] = useState<PipelineStage[]>([])
@@ -168,14 +170,6 @@ export default function PipelinesPage() {
   const calculateStageValue = (stageId: number) => {
     const stageDeals = getDealsByStage(stageId)
     return stageDeals.reduce((sum, deal) => sum + (deal.amount || 0), 0)
-  }
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-US', {
-      style: 'currency',
-      currency: 'USD',
-      minimumFractionDigits: 0
-    }).format(amount)
   }
 
   const getStageColor = (index: number) => {

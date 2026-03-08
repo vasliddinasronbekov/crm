@@ -6,6 +6,7 @@ import pytest
 from django.core.cache import cache
 from django.db import connection
 from rest_framework import status
+from unittest.mock import patch
 
 
 @pytest.mark.django_db
@@ -99,6 +100,47 @@ class TestHealthCheckEndpoints:
 
         # Checks should be a dict
         assert isinstance(data['checks'], dict)
+
+    @patch('core.views.get_currency_rates_snapshot')
+    def test_currency_rates_returns_normalized_payload(self, mock_get_rates, api_client):
+        mock_get_rates.return_value = {
+            'base_currency': 'UZS',
+            'supported_currencies': ['UZS', 'USD', 'RUB', 'EUR'],
+            'rates_from_base': {
+                'UZS': 1.0,
+                'USD': 0.000079,
+                'RUB': 0.0071,
+                'EUR': 0.000073,
+            },
+            'source': 'open-er-api',
+            'fetched_at': '2026-03-08T00:00:00+00:00',
+            'expires_in_seconds': 1800,
+        }
+
+        response = api_client.get('/api/v1/currency/rates/')
+        assert response.status_code == status.HTTP_200_OK
+        data = response.json()
+
+        assert data['base_currency'] == 'UZS'
+        assert set(data['supported_currencies']) == {'UZS', 'USD', 'RUB', 'EUR'}
+        assert data['rates_from_base']['UZS'] == 1.0
+        assert data['rates_from_base']['USD'] > 0
+        assert data['source'] in {'open-er-api', 'cache-fallback', 'fallback-static'}
+
+    @patch('core.views.get_currency_rates_snapshot')
+    def test_currency_rates_allows_force_refresh_flag(self, mock_get_rates, api_client):
+        mock_get_rates.return_value = {
+            'base_currency': 'UZS',
+            'supported_currencies': ['UZS', 'USD', 'RUB', 'EUR'],
+            'rates_from_base': {'UZS': 1.0, 'USD': 0.000079, 'RUB': 0.0071, 'EUR': 0.000073},
+            'source': 'open-er-api',
+            'fetched_at': '2026-03-08T00:00:00+00:00',
+            'expires_in_seconds': 1800,
+        }
+
+        response = api_client.get('/api/v1/currency/rates/?force_refresh=true')
+        assert response.status_code == status.HTTP_200_OK
+        mock_get_rates.assert_called_once_with(force_refresh=True)
 
 
 @pytest.mark.django_db

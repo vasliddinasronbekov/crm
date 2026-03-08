@@ -19,7 +19,7 @@ import {
 
 export default function ExpensesPage() {
   const { user, isLoading: authLoading } = useAuth()
-  const { currency, formatCurrency } = useSettings()
+  const { currency, formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency } = useSettings()
   const router = useRouter()
 
   // UI state
@@ -76,7 +76,10 @@ export default function ExpensesPage() {
 
   const handleCreateExpense = async (e: React.FormEvent) => {
     e.preventDefault()
-    createExpense.mutate(expenseForm, {
+    createExpense.mutate({
+      ...expenseForm,
+      amount: Math.round(fromSelectedCurrency(expenseForm.amount) * 100),
+    }, {
       onSuccess: () => {
         setShowExpenseModal(false)
         resetExpenseForm()
@@ -88,7 +91,13 @@ export default function ExpensesPage() {
     e.preventDefault()
     if (!editingExpense) return
 
-    updateExpense.mutate({ id: editingExpense.id, data: expenseForm }, {
+    updateExpense.mutate({
+      id: editingExpense.id,
+      data: {
+        ...expenseForm,
+        amount: Math.round(fromSelectedCurrency(expenseForm.amount) * 100),
+      },
+    }, {
       onSuccess: () => {
         setShowExpenseModal(false)
         setEditingExpense(null)
@@ -182,7 +191,7 @@ export default function ExpensesPage() {
               <p className="text-text-secondary text-sm">Total (Page)</p>
               <DollarSign className="h-5 w-5 text-error" />
             </div>
-            <p className="text-3xl font-bold">{formatCurrency(stats.total)}</p>
+            <p className="text-3xl font-bold">{formatCurrencyFromMinor(stats.total)}</p>
             <p className="text-xs text-text-secondary mt-1">{stats.count} expenses on page</p>
           </div>
 
@@ -200,7 +209,7 @@ export default function ExpensesPage() {
               <p className="text-text-secondary text-sm">Avg Expense (Page)</p>
               <TrendingUp className="h-5 w-5 text-warning" />
             </div>
-            <p className="text-3xl font-bold">{formatCurrency(stats.avgExpense)}</p>
+            <p className="text-3xl font-bold">{formatCurrencyFromMinor(stats.avgExpense)}</p>
             <p className="text-xs text-text-secondary mt-1">Per record on page</p>
           </div>
 
@@ -284,7 +293,7 @@ export default function ExpensesPage() {
                     </td>
                     <td className="p-4">{expense.description}</td>
                     <td className="p-4">
-                      <span className="font-bold text-error">{formatCurrency(expense.amount)}</span>
+                      <span className="font-bold text-error">{formatCurrencyFromMinor(expense.amount)}</span>
                     </td>
                     <td className="p-4">
                       <div className="flex gap-2">
@@ -293,7 +302,7 @@ export default function ExpensesPage() {
                             setEditingExpense(expense)
                             setExpenseForm({
                               expense_type: expense.expense_type,
-                              amount: expense.amount,
+                              amount: toSelectedCurrency(expense.amount / 100),
                               date: expense.date,
                               description: expense.description
                             })

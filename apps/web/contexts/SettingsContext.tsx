@@ -1,6 +1,17 @@
 'use client'
 
 import { createContext, useContext, useState, useEffect, useCallback, ReactNode } from 'react'
+import apiService from '@/lib/api'
+import {
+  currencySymbols,
+  defaultCurrencyRatesFromUzs,
+  normalizeRatesFromUzs,
+  convertFromUzs,
+  convertToUzs,
+  formatFromUzs,
+  type CurrencyCode,
+  type AppLanguage,
+} from '@/lib/utils/currency'
 
 // Supported languages
 export type Language = 'en' | 'uz' | 'ru'
@@ -381,32 +392,14 @@ const applyLetterCase = (source: string, target: string): string => {
   return target
 }
 
-// Currency symbols
-const currencySymbols: Record<Currency, string> = {
-  USD: '$',
-  UZS: 'so\'m',
-  RUB: '₽',
-  EUR: '€',
-}
-
-// Approximate conversion rate from UZS to selected currency.
-const currencyRatesFromUzs: Record<Currency, number> = {
-  UZS: 1,
-  USD: 1 / 12600,
-  EUR: 1 / 13700,
-  RUB: 1 / 140,
-}
-
-const localeByLanguage: Record<Language, string> = {
-  en: 'en-US',
-  uz: 'uz-UZ',
-  ru: 'ru-RU',
-}
+const CURRENCY_RATES_STORAGE_KEY = 'app_currency_rates'
 
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const [language, setLanguageState] = useState<Language>('uz')
   const [theme, setThemeState] = useState<Theme>('dark')
   const [currency, setCurrencyState] = useState<Currency>('UZS')
+  const [currencyRatesFromUzs, setCurrencyRatesFromUzs] =
+    useState<Record<CurrencyCode, number>>(defaultCurrencyRatesFromUzs)
 
   // Load settings from localStorage on mount
   useEffect(() => {
@@ -414,6 +407,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       const savedLanguage = localStorage.getItem('app_language') as Language
       const savedTheme = localStorage.getItem('app_theme') as Theme
       const savedCurrency = localStorage.getItem('app_currency') as Currency
+      const savedRatesRaw = localStorage.getItem(CURRENCY_RATES_STORAGE_KEY)
 
       if (savedLanguage && ['en', 'uz', 'ru'].includes(savedLanguage)) {
         setLanguageState(savedLanguage)
@@ -431,6 +425,39 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (savedCurrency && ['USD', 'UZS', 'RUB', 'EUR'].includes(savedCurrency)) {
         setCurrencyState(savedCurrency)
       }
+
+      if (savedRatesRaw) {
+        try {
+          const parsed = JSON.parse(savedRatesRaw) as Partial<Record<string, number>>
+          setCurrencyRatesFromUzs(normalizeRatesFromUzs(parsed))
+        } catch {
+          setCurrencyRatesFromUzs(defaultCurrencyRatesFromUzs)
+        }
+      }
+    }
+  }, [])
+
+  useEffect(() => {
+    let isCancelled = false
+
+    const loadCurrencyRates = async () => {
+      try {
+        const payload = await apiService.getCurrencyRates()
+        const normalized = normalizeRatesFromUzs(payload?.rates_from_base)
+        if (!isCancelled) {
+          setCurrencyRatesFromUzs(normalized)
+          if (typeof window !== 'undefined') {
+            localStorage.setItem(CURRENCY_RATES_STORAGE_KEY, JSON.stringify(normalized))
+          }
+        }
+      } catch {
+        // Keep fallback/cached rates if API is unavailable.
+      }
+    }
+
+    loadCurrencyRates()
+    return () => {
+      isCancelled = true
     }
   }, [])
 
@@ -522,34 +549,22 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [language])
 
   const toSelectedCurrency = (amountInUzs: number): number => {
-    const rate = currencyRatesFromUzs[currency] || 1
-    return amountInUzs * rate
+    return convertFromUzs(amountInUzs, currency as CurrencyCode, currencyRatesFromUzs)
   }
 
   const fromSelectedCurrency = (amountInSelectedCurrency: number): number => {
-    const rate = currencyRatesFromUzs[currency] || 1
-    if (rate === 0) return amountInSelectedCurrency
-    return amountInSelectedCurrency / rate
+    return convertToUzs(amountInSelectedCurrency, currency as CurrencyCode, currencyRatesFromUzs)
   }
 
   // Currency formatting function (input expected in UZS).
   const formatCurrency = (amountInUzs: number, options?: CurrencyFormatOptions): string => {
-    const symbol = currencySymbols[currency]
-    const locale = localeByLanguage[language] || 'en-US'
-    const converted = toSelectedCurrency(amountInUzs)
-    const minFractionDigits = options?.minimumFractionDigits ?? 2
-    const maxFractionDigits = options?.maximumFractionDigits ?? 2
-    const sign = converted < 0 ? '-' : ''
-    const absoluteAmount = Math.abs(converted)
-    const formatted = new Intl.NumberFormat(locale, {
-      minimumFractionDigits: minFractionDigits,
-      maximumFractionDigits: maxFractionDigits,
-    }).format(absoluteAmount)
-
-    if (currency === 'UZS') {
-      return `${sign}${formatted} ${symbol}`
-    }
-    return `${sign}${symbol}${formatted}`
+    return formatFromUzs(amountInUzs, {
+      currency: currency as CurrencyCode,
+      language: language as AppLanguage,
+      ratesFromUzs: currencyRatesFromUzs,
+      minimumFractionDigits: options?.minimumFractionDigits,
+      maximumFractionDigits: options?.maximumFractionDigits,
+    })
   }
 
   const formatCurrencyFromMinor = (amountInMinor: number, options?: CurrencyFormatOptions): string => {
@@ -570,7 +585,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setTheme,
         setCurrency,
         t,
-        currencySymbol: currencySymbols[currency],
+        currencySymbol: currencySymbols[currency as CurrencyCode],
         formatCurrency,
         formatCurrencyFromMinor,
         formatCurrencyFromCoins,

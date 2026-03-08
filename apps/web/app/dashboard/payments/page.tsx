@@ -242,12 +242,12 @@ export default function PaymentsPage() {
   }
 
   const exportToCSV = () => {
-    const headers = ['Date', 'Student', 'Group', 'Amount', 'Status', 'Type', 'Detail']
+    const headers = ['Date', 'Student', 'Group', `Amount (${currency})`, 'Status', 'Type', 'Detail']
     const rows = displayPayments.map((p: Payment) => [
       p.date,
       resolveStudentName(p),
       resolveGroupName(p),
-      (p.amount / 100).toFixed(2),
+      toSelectedCurrency(p.amount / 100).toFixed(2),
       p.status,
       resolvePaymentTypeName(p) || 'Other',
       p.detail || ''

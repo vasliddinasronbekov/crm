@@ -1,12 +1,13 @@
 # /mnt/usb/edu-api-project/core/views.py
 from rest_framework import viewsets, permissions
-from rest_framework.decorators import api_view, permission_classes
+from rest_framework.decorators import api_view, permission_classes, authentication_classes
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import IsAuthenticated, AllowAny
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from .models import Region, Comment
 from .serializers import RegionSerializer, CommentSerializer
+from .currency_rates import get_currency_rates_snapshot
 
 # Health Check and Monitoring
 from django.http import JsonResponse
@@ -239,3 +240,16 @@ def global_search(request):
         logger.error(f"Search error: {str(e)}")
 
     return Response(results)
+
+
+@extend_schema(
+    responses=OpenApiTypes.OBJECT,
+    description="Get normalized currency conversion rates with UZS as base currency."
+)
+@api_view(['GET'])
+@authentication_classes([])
+@permission_classes([AllowAny])
+def currency_rates(request):
+    force_refresh = str(request.query_params.get('force_refresh', '')).lower() in {'1', 'true', 'yes'}
+    payload = get_currency_rates_snapshot(force_refresh=force_refresh)
+    return Response(payload)

@@ -5,6 +5,7 @@ import { Search, Plus, Edit, Trash2, BookOpen, Video, FileText, Headphones, File
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import LoadingScreen from '@/components/LoadingScreen'
+import { useSettings } from '@/contexts/SettingsContext'
 
 interface Course {
   id: number
@@ -40,6 +41,7 @@ interface ContentDefinition {
 }
 
 export default function LMSPage() {
+  const { currency } = useSettings()
   const [courses, setCourses] = useState<Course[]>([])
   const [lessons, setLessons] = useState<LessonSummary[]>([])
   const [stats, setStats] = useState<any>(null)
@@ -519,7 +521,7 @@ export default function LMSPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Price (USD)</label>
+                <label className="block text-sm font-medium mb-2">Price ({currency})</label>
                 <input
                   type="number"
                   value={newCourse.price}

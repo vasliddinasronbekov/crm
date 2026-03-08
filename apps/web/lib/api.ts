@@ -187,6 +187,11 @@ class ApiService {
     return response.data;
   }
 
+  async getCurrencyRates(params?: { force_refresh?: boolean }) {
+    const response = await this.api.get("/v1/currency/rates/", { params });
+    return response.data;
+  }
+
   // Analytics
   async getAnalytics(params?: any) {
     const response = await this.api.get("/analytics/", { params });

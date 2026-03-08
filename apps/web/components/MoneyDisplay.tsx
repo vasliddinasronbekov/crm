@@ -5,7 +5,7 @@
 
 'use client'
 
-import { tiyinToUzs, formatMoney, formatCompactMoney, getBalanceStatus } from '@/lib/utils/money'
+import { tiyinToUzs, formatCompactMoney, getBalanceStatus } from '@/lib/utils/money'
 import { useSettings } from '@/contexts/SettingsContext'
 
 interface MoneyDisplayProps {
@@ -26,15 +26,10 @@ export function MoneyDisplay({
   const { currency: selectedCurrency, formatCurrencyFromMinor } = useSettings()
 
   if (tiyin === null || tiyin === undefined) {
-    if (currency !== 'UZS') {
-      return <span className={className}>0 {currency}</span>
-    }
     return <span className={className}>{formatCurrencyFromMinor(0)}</span>
   }
 
-  const formatted = currency !== 'UZS'
-    ? formatMoney(tiyin, currency, showDecimals)
-    : compact
+  const formatted = compact
     ? formatCompactMoney(tiyin, selectedCurrency)
     : formatCurrencyFromMinor(tiyin, {
         minimumFractionDigits: showDecimals ? 2 : 0,
