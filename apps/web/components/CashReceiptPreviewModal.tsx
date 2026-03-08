@@ -60,25 +60,45 @@ export default function CashReceiptPreviewModal({
           <meta charset="utf-8" />
           <title>Receipt ${escapeHtml(receipt.receipt_number)}</title>
           <style>
-            body { margin: 0; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif; background: #ffffff; }
-            .paper { width: 80mm; min-height: 100vh; margin: 0 auto; padding: 8px 6px 12px; color: #0f172a; }
-            .header { text-align: center; margin-bottom: 10px; }
+            body {
+              margin: 0;
+              font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+              background: #ffffff;
+              color: #0f172a;
+            }
+            .paper {
+              width: 80mm;
+              margin: 0 auto;
+              padding: 4mm 3mm 5mm;
+              box-sizing: border-box;
+              page-break-inside: avoid;
+            }
+            .header { text-align: center; margin-bottom: 6px; }
             .logo { width: 34px; height: 34px; border-radius: 999px; object-fit: cover; margin: 0 auto 6px; display: block; }
             .title { font-size: 14px; font-weight: 700; line-height: 1.3; }
             .subtitle { font-size: 11px; color: #334155; }
-            .line { border-top: 1px dashed #94a3b8; margin: 8px 0; }
-            .row { display: flex; justify-content: space-between; gap: 10px; margin: 4px 0; font-size: 11px; }
+            .line { border-top: 1px dashed #94a3b8; margin: 6px 0; }
+            .row { display: flex; justify-content: space-between; gap: 10px; margin: 3px 0; font-size: 11px; }
             .label { color: #334155; }
             .value { font-weight: 600; text-align: right; word-break: break-word; }
             .strong { font-size: 12px; }
             .note { font-size: 11px; margin-top: 6px; color: #334155; white-space: pre-wrap; word-break: break-word; }
-            .qr-wrap { margin-top: 12px; text-align: center; }
+            .qr-wrap { margin-top: 8px; text-align: center; }
             .qr-wrap img { width: 140px; height: 140px; object-fit: contain; }
-            .footer { text-align: center; margin-top: 8px; font-size: 10px; color: #334155; }
-            @page { size: 80mm auto; margin: 0; }
+            .footer {
+              text-align: center;
+              margin-top: 6px;
+              font-size: 9px;
+              color: #334155;
+              word-break: break-all;
+            }
+            @page {
+              size: 80mm auto;
+              margin: 2mm;
+            }
             @media print {
               body { margin: 0; }
-              .paper { width: 80mm; padding: 6mm 4mm 8mm; }
+              .paper { width: 80mm; padding: 3mm 2mm 4mm; }
             }
           </style>
         </head>
