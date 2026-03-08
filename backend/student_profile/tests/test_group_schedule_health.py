@@ -1,6 +1,8 @@
 import datetime
+import os
 
 import pytest
+import requests
 from rest_framework import status
 from rest_framework.test import APIClient
 from django.utils import timezone
@@ -16,6 +18,30 @@ def _auth_client_for_user(user: User) -> APIClient:
     refresh = RefreshToken.for_user(user)
     client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
     return client
+
+
+def _get_live_api_access_token() -> str:
+    """
+    Integration helper for real API smoke checks.
+    Credentials are intentionally read from env vars instead of hardcoding.
+    """
+    base_url = os.getenv('LIVE_API_BASE_URL', 'https://api.crmai.uz').rstrip('/')
+    username = os.getenv('LIVE_API_USERNAME', 'admin')
+    password = os.getenv('LIVE_API_PASSWORD')
+
+    if not password:
+        pytest.skip('Set LIVE_API_PASSWORD to run live API integration test')
+
+    response = requests.post(
+        f'{base_url}/api/auth/login/',
+        json={'username': username, 'password': password},
+        timeout=20,
+    )
+
+    assert response.status_code == status.HTTP_200_OK, response.text
+    access_token = response.json().get('access')
+    assert access_token, response.text
+    return access_token
 
 
 @pytest.mark.django_db
@@ -236,3 +262,20 @@ def test_ongoing_groups_returns_only_currently_running_groups():
         assert row['is_ongoing'] is True
         assert row['minutes_since_start'] >= 0
         assert row['minutes_until_end'] >= 0
+
+
+@pytest.mark.integration
+def test_live_ongoing_groups_endpoint_with_real_credentials():
+    base_url = os.getenv('LIVE_API_BASE_URL', 'https://api.crmai.uz').rstrip('/')
+    access_token = _get_live_api_access_token()
+
+    response = requests.get(
+        f'{base_url}/api/student-profile/groups/ongoing/',
+        headers={'Authorization': f'Bearer {access_token}'},
+        timeout=20,
+    )
+
+    assert response.status_code == status.HTTP_200_OK, response.text
+    payload = response.json()
+    assert 'count' in payload
+    assert isinstance(payload.get('results', []), list)
