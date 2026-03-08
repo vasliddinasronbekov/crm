@@ -502,6 +502,13 @@ class ApiService {
     return response.data;
   }
 
+  async getOngoingGroups(params?: { [key: string]: any }) {
+    const response = await this.api.get("/student-profile/groups/ongoing/", {
+      params,
+    });
+    return response.data;
+  }
+
   async createGroup(data: any) {
     const response = await this.api.post("/student-profile/groups/", data);
     return response.data;

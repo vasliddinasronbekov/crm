@@ -3,10 +3,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Plus, Edit, Trash2, Users, Calendar, Clock, CalendarDays, AlertTriangle } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, Users, Calendar, Clock, CalendarDays, AlertTriangle, Activity } from 'lucide-react'
 import toast from '@/lib/toast'
 import apiService from '@/lib/api'
-import { useGroups, useCreateGroup, useUpdateGroup, useDeleteGroup, Group } from '@/lib/hooks/useGroups'
+import { useGroups, useCreateGroup, useUpdateGroup, useDeleteGroup, useOngoingGroups, Group } from '@/lib/hooks/useGroups'
 import { useCourses, Course } from '@/lib/hooks/useCourses'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { normalizeDayToken, parseGroupDays, type WeekDay } from '@/lib/utils/schedule'
@@ -34,6 +34,13 @@ interface GroupScheduleHealth {
   room_conflicts: number
   capacity_near_full_groups: number
   capacity_overflow_groups: number
+  top_conflicts?: Array<{
+    type: string
+    day: string
+    time: string
+    resource?: string | null
+    groups?: Array<{ id: number; name: string }>
+  }>
 }
 
 const PAGE_SIZE = 9
@@ -126,6 +133,7 @@ export default function GroupsPage() {
   )
 
   const [page, setPage] = useState(1)
+  const [sortBy, setSortBy] = useState<'name' | 'students_desc' | 'schedule' | 'risk'>('name')
   const [isCreatingGroup, setIsCreatingGroup] = useState(false)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [newGroup, setNewGroup] = useState(createEmptyGroupForm)
@@ -160,6 +168,10 @@ export default function GroupsPage() {
     staleTime: 60 * 1000,
     enabled: Boolean(user),
   })
+  const { data: ongoingGroupsData } = useOngoingGroups({
+    enabled: Boolean(user),
+    refetchIntervalMs: 60_000,
+  })
 
   const { data: coursesData } = useCourses()
   const courses = useMemo(() => coursesData?.results || [], [coursesData?.results])
@@ -193,14 +205,42 @@ export default function GroupsPage() {
     })
   }, [rawGroups, parsedSearch])
 
-  const totalGroups = hasStructuredFilters ? filteredGroups.length : groupsData?.count || 0
+  const sortedGroups = useMemo(() => {
+    const rows = [...filteredGroups]
+    if (sortBy === 'students_desc') {
+      rows.sort((a, b) => (b.students?.length || 0) - (a.students?.length || 0))
+      return rows
+    }
+    if (sortBy === 'schedule') {
+      rows.sort((a, b) => {
+        const aSchedule = `${a.start_time || '99:99'}-${a.end_time || '99:99'}`
+        const bSchedule = `${b.start_time || '99:99'}-${b.end_time || '99:99'}`
+        return aSchedule.localeCompare(bSchedule)
+      })
+      return rows
+    }
+    if (sortBy === 'risk') {
+      rows.sort((a, b) => {
+        const aCapacity = a.room?.capacity || 0
+        const bCapacity = b.room?.capacity || 0
+        const aRatio = aCapacity > 0 ? (a.students?.length || 0) / aCapacity : 0
+        const bRatio = bCapacity > 0 ? (b.students?.length || 0) / bCapacity : 0
+        return bRatio - aRatio
+      })
+      return rows
+    }
+    rows.sort((a, b) => a.name.localeCompare(b.name))
+    return rows
+  }, [filteredGroups, sortBy])
+
+  const totalGroups = hasStructuredFilters ? sortedGroups.length : groupsData?.count || 0
   const totalPages = Math.max(1, Math.ceil(totalGroups / PAGE_SIZE))
 
   const visibleGroups = useMemo(() => {
-    if (!hasStructuredFilters) return filteredGroups
+    if (!hasStructuredFilters) return sortedGroups
     const start = (page - 1) * PAGE_SIZE
-    return filteredGroups.slice(start, start + PAGE_SIZE)
-  }, [filteredGroups, hasStructuredFilters, page])
+    return sortedGroups.slice(start, start + PAGE_SIZE)
+  }, [hasStructuredFilters, page, sortedGroups])
 
   useEffect(() => {
     if (page > totalPages) {
@@ -269,6 +309,14 @@ export default function GroupsPage() {
     (sum: number, group: Group) => sum + (group.students?.length || 0),
     0,
   )
+  const ongoingGroups = useMemo(
+    () => ongoingGroupsData?.results || [],
+    [ongoingGroupsData?.results],
+  )
+  const ongoingGroupIdSet = useMemo(
+    () => new Set(ongoingGroups.map((group) => Number(group.id))),
+    [ongoingGroups],
+  )
   const averageStudents =
     visibleGroups.length > 0 ? Math.round(studentsOnPage / visibleGroups.length) : 0
   const scheduledGroups =
@@ -281,6 +329,7 @@ export default function GroupsPage() {
   const capacityRiskGroups =
     (scheduleHealthData?.capacity_near_full_groups || 0) +
     (scheduleHealthData?.capacity_overflow_groups || 0)
+  const topConflicts = scheduleHealthData?.top_conflicts || []
 
   const PaginationControls = () => (
     <div className="flex justify-center items-center gap-4 mt-8">
@@ -369,9 +418,25 @@ export default function GroupsPage() {
             <p className="text-xs text-text-secondary mt-2">
               Inline filters: <code>course:</code> <code>teacher:</code> <code>room:</code> <code>day:</code> <code>status:</code>
             </p>
+            <div className="mt-3 flex flex-wrap items-center gap-3">
+              <label className="text-xs text-text-secondary">Sort by</label>
+              <select
+                value={sortBy}
+                onChange={(event) => {
+                  setSortBy(event.target.value as 'name' | 'students_desc' | 'schedule' | 'risk')
+                  setPage(1)
+                }}
+                className="px-3 py-2 bg-background border border-border rounded-lg text-sm focus:outline-none focus:border-primary"
+              >
+                <option value="name">Name (A-Z)</option>
+                <option value="students_desc">Students (High-Low)</option>
+                <option value="schedule">Schedule time</option>
+                <option value="risk">Capacity risk</option>
+              </select>
+            </div>
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-4">
             <div className="bg-surface border border-border rounded-2xl p-4">
               <p className="text-xs text-text-secondary mb-2">{hasStructuredFilters ? 'Matched Groups' : 'Total Groups'}</p>
               <p className="text-3xl font-bold">{totalGroups}</p>
@@ -383,6 +448,10 @@ export default function GroupsPage() {
             <div className="bg-surface border border-border rounded-2xl p-4">
               <p className="text-xs text-text-secondary mb-2">Unscheduled Groups</p>
               <p className="text-3xl font-bold">{unscheduledGroups}</p>
+            </div>
+            <div className="bg-surface border border-border rounded-2xl p-4">
+              <p className="text-xs text-text-secondary mb-2">Ongoing Now</p>
+              <p className="text-3xl font-bold text-success">{ongoingGroups.length}</p>
             </div>
             <div className="bg-surface border border-border rounded-2xl p-4">
               <p className="text-xs text-text-secondary mb-2">Active Conflicts</p>
@@ -398,13 +467,108 @@ export default function GroupsPage() {
             </div>
           </div>
 
+          <div className="grid grid-cols-1 xl:grid-cols-3 gap-5">
+            <div className="xl:col-span-2 bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-4">
+                <div className="flex items-center gap-2">
+                  <Activity className="h-5 w-5 text-success" />
+                  <h2 className="text-lg font-semibold">Ongoing Groups</h2>
+                </div>
+                <button
+                  onClick={() => router.push('/dashboard/schedule')}
+                  className="text-sm text-primary hover:underline"
+                >
+                  Open schedule
+                </button>
+              </div>
+              <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1">
+                {ongoingGroups.length > 0 ? (
+                  ongoingGroups.map((group) => (
+                    <button
+                      key={group.id}
+                      onClick={() => router.push(`/dashboard/groups/${group.id}`)}
+                      className="w-full rounded-xl border border-border bg-background px-3 py-3 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-medium">{group.name}</p>
+                          <p className="text-xs text-text-secondary mt-1">
+                            {group.main_teacher_name || group.main_teacher?.username || 'No teacher'} •{' '}
+                            {group.room?.name || 'No room'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <span className="inline-flex rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">
+                            Live
+                          </span>
+                          <p className="text-xs text-text-secondary mt-1">{group.minutes_until_end}m left</p>
+                        </div>
+                      </div>
+                    </button>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border bg-background px-4 py-8 text-center text-sm text-text-secondary">
+                    No ongoing groups right now.
+                  </div>
+                )}
+              </div>
+            </div>
+
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <h2 className="text-lg font-semibold mb-4">Conflict Highlights</h2>
+              <div className="max-h-[220px] overflow-y-auto space-y-2 pr-1">
+                {topConflicts.length > 0 ? (
+                  topConflicts.slice(0, 8).map((conflict, index) => (
+                    <div
+                      key={`${conflict.type}-${conflict.day}-${index}`}
+                      className="rounded-xl border border-warning/30 bg-warning/10 px-3 py-2"
+                    >
+                      <p className="text-xs font-semibold uppercase tracking-wide text-warning">
+                        {conflict.type} conflict
+                      </p>
+                      <p className="text-sm mt-1">
+                        {(conflict.groups || []).map((group: { name: string }) => group.name).join(' vs ')}
+                      </p>
+                      <p className="text-xs text-text-secondary mt-1">
+                        {conflict.day} • {conflict.time}
+                      </p>
+                    </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-border bg-background px-3 py-8 text-center text-sm text-text-secondary">
+                    No schedule conflicts detected.
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {visibleGroups.map((group: Group) => (
+            {visibleGroups.map((group: Group) => {
+              const isOngoing = ongoingGroupIdSet.has(Number(group.id))
+              const studentCount = group.students?.length || 0
+              const roomCapacity = group.room?.capacity || 0
+              const utilizationPercent = roomCapacity > 0 ? Math.round((studentCount / roomCapacity) * 100) : 0
+              const isCapacityRisk = utilizationPercent >= 90
+
+              return (
               <div key={group.id} className="bg-surface border border-border rounded-2xl p-5 hover:border-primary/30 transition-colors">
                 <div className="flex justify-between items-start mb-4">
                   <div>
                     <h3 className="text-lg font-semibold mb-1">{group.name}</h3>
                     <p className="text-sm text-text-secondary">{group.course?.name || 'No Course'}</p>
+                    <div className="flex items-center gap-2 mt-2">
+                      {isOngoing && (
+                        <span className="inline-flex items-center rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">
+                          Ongoing
+                        </span>
+                      )}
+                      {isCapacityRisk && (
+                        <span className="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">
+                          Capacity Risk
+                        </span>
+                      )}
+                    </div>
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -429,7 +593,10 @@ export default function GroupsPage() {
                 <div className="space-y-3 mb-4">
                   <div className="flex items-center gap-2 text-sm text-text-secondary">
                     <Users className="h-4 w-4" />
-                    <span>{group.students?.length || 0} students</span>
+                    <span>
+                      {studentCount} students
+                      {roomCapacity > 0 && ` • ${utilizationPercent}% of room`}
+                    </span>
                   </div>
                   <div className="flex items-center gap-2 text-sm text-text-secondary">
                     <Calendar className="h-4 w-4" />
@@ -458,7 +625,8 @@ export default function GroupsPage() {
                   View Details →
                 </button>
               </div>
-            ))}
+              )
+            })}
           </div>
 
           {visibleGroups.length === 0 && (

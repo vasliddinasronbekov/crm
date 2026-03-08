@@ -1,6 +1,6 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { Search, Plus, Edit, Trash2, DollarSign, Calendar, User, CreditCard, Download, X, CheckCircle, XCircle, Clock, Bell, Send, Settings, Printer } from 'lucide-react'
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -10,6 +10,7 @@ import {
   usePaymentsList,
   usePaymentStudents,
   usePaymentGroups,
+  usePaymentCourses,
   usePaymentTypes,
   usePaymentTeachers,
   useCreatePayment,
@@ -22,6 +23,7 @@ import {
   usePaymentTrends,
   isCashPaymentType,
   isCashPaymentTypeName,
+  type PaymentCourseOption,
   type PaymentTypeOption,
   type CashReceiptPayload,
   type Payment,
@@ -66,6 +68,16 @@ const isCashPaymentRecord = (payment: Payment): boolean => {
   return isCashPaymentTypeName(resolvePaymentTypeName(payment))
 }
 
+type PaymentGroupOption = {
+  id: number
+  name?: string
+  course?: {
+    id?: number
+    name?: string
+    price?: number
+  } | null
+}
+
 export default function PaymentsPage() {
   const { currency, formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency } = useSettings()
   // UI state
@@ -90,10 +102,27 @@ export default function PaymentsPage() {
     date_before: dateTo || undefined,
   })
   const { data: students = [] } = usePaymentStudents()
-  const { data: groups = [] } = usePaymentGroups()
+  const { data: groupsData = [] } = usePaymentGroups()
+  const { data: coursesData = [] } = usePaymentCourses()
   const { data: paymentTypes = [] } = usePaymentTypes()
   const { data: teachers = [] } = usePaymentTeachers()
   const paymentTypeOptions = paymentTypes as PaymentTypeOption[]
+  const groups = useMemo(
+    () => (Array.isArray(groupsData) ? (groupsData as PaymentGroupOption[]) : []),
+    [groupsData],
+  )
+  const courses = useMemo(
+    () => (Array.isArray(coursesData) ? (coursesData as PaymentCourseOption[]) : []),
+    [coursesData],
+  )
+  const groupsById = useMemo(
+    () => new Map(groups.map((group) => [String(group.id), group])),
+    [groups],
+  )
+  const coursesById = useMemo(
+    () => new Map(courses.map((course) => [String(course.id), course])),
+    [courses],
+  )
 
   // React Query mutations
   const createPayment = useCreatePayment()
@@ -131,8 +160,10 @@ export default function PaymentsPage() {
 
   const [newPayment, setNewPayment] = useState({
     by_user: '',
+    course: '',
     amount: 0,
     course_price: 0,
+    pricing_mode: 'course' as 'course' | 'manual',
     status: 'pending' as const,
     group: '',
     detail: '',
@@ -164,13 +195,53 @@ export default function PaymentsPage() {
     }
   }
 
+  const resolveSelectedCourse = (groupId?: string, courseId?: string) => {
+    const courseFromGroup = groupId ? groupsById.get(String(groupId))?.course : undefined
+    if (courseFromGroup?.id) {
+      return courseFromGroup
+    }
+    return courseId ? coursesById.get(String(courseId)) : undefined
+  }
+
+  const applyDerivedCoursePricing = (
+    draft: typeof newPayment,
+    explicitCourseId?: string,
+    explicitGroupId?: string,
+  ) => {
+    const selectedCourse = resolveSelectedCourse(explicitGroupId ?? draft.group, explicitCourseId ?? draft.course)
+    const coursePriceMinor = Number(selectedCourse?.price || 0)
+    if (!selectedCourse?.id || coursePriceMinor <= 0) {
+      return draft
+    }
+    const displayPrice = toSelectedCurrency(coursePriceMinor / 100)
+    return {
+      ...draft,
+      course: String(selectedCourse.id),
+      amount: displayPrice,
+      course_price: displayPrice,
+    }
+  }
+
   const handleAddPayment = async (options?: { autoPrint?: boolean }) => {
-    if (!newPayment.by_user || !newPayment.amount) {
-      toast.warning('Please fill in all required fields')
+    if (!newPayment.by_user) {
+      toast.warning('Please select a student')
       return
     }
     if (!newPayment.payment_type) {
       toast.warning('Please select a payment method')
+      return
+    }
+
+    const selectedCourse = resolveSelectedCourse(newPayment.group, newPayment.course)
+    const coursePriceMinor = Number(selectedCourse?.price || 0)
+    const isCourseMode = newPayment.pricing_mode === 'course'
+    if (isCourseMode && (!selectedCourse?.id || coursePriceMinor <= 0)) {
+      toast.warning('Please select a valid course or group with a course')
+      return
+    }
+
+    if (!isCourseMode && newPayment.amount <= 0) {
+      toast.warning('Please enter a valid payment amount')
       return
     }
 
@@ -179,18 +250,34 @@ export default function PaymentsPage() {
     )
     const isCashType = isCashPaymentType(selectedPaymentType)
     const shouldAutoPrint = Boolean(options?.autoPrint)
+    const amountInUzs = isCourseMode
+      ? coursePriceMinor / 100
+      : fromSelectedCurrency(newPayment.amount)
+    const coursePriceInUzs = isCourseMode
+      ? coursePriceMinor / 100
+      : fromSelectedCurrency(newPayment.course_price > 0 ? newPayment.course_price : newPayment.amount)
 
     createPayment.mutate({
-      ...newPayment,
-      amount: fromSelectedCurrency(newPayment.amount),
-      course_price: fromSelectedCurrency(newPayment.course_price),
+      by_user: newPayment.by_user,
+      amount: amountInUzs,
+      course_price: coursePriceInUzs,
+      status: newPayment.status,
+      group: newPayment.group || undefined,
+      course: selectedCourse?.id ? String(selectedCourse.id) : undefined,
+      pricing_mode: newPayment.pricing_mode,
+      detail: newPayment.detail,
+      date: newPayment.date,
+      payment_type: newPayment.payment_type,
+      teacher: newPayment.teacher,
     }, {
       onSuccess: (createdPayment) => {
         setIsAddingPayment(false)
         setNewPayment({
           by_user: '',
+          course: '',
           amount: 0,
           course_price: 0,
+          pricing_mode: 'course',
           status: 'pending',
           group: '',
           detail: '',
@@ -727,43 +814,112 @@ export default function PaymentsPage() {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-medium mb-2">Amount ({currency}) *</label>
-                <input
-                  type="number"
-                  value={newPayment.amount}
-                  onChange={(e) => setNewPayment({ ...newPayment, amount: parseFloat(e.target.value) })}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
-                  min="0"
-                  step="0.01"
-                  placeholder="100.00"
-                />
-              </div>
-              <div>
-                <label className="block text-sm font-medium mb-2">Course Price ({currency}) *</label>
-                <input
-                  type="number"
-                  value={newPayment.course_price}
-                  onChange={(e) => setNewPayment({ ...newPayment, course_price: parseFloat(e.target.value) })}
-                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
-                  min="0"
-                  step="0.01"
-                  placeholder="500.00"
-                />
-              </div>
-              <div>
                 <label className="block text-sm font-medium mb-2">Group</label>
                 <select
                   value={newPayment.group}
-                  onChange={(e) => setNewPayment({ ...newPayment, group: e.target.value })}
+                  onChange={(e) => {
+                    const nextGroup = e.target.value
+                    setNewPayment((prev) => {
+                      const withGroup = { ...prev, group: nextGroup }
+                      const nextState = applyDerivedCoursePricing(withGroup, prev.course, nextGroup)
+                      return prev.pricing_mode === 'course' ? nextState : withGroup
+                    })
+                  }}
                   className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
                 >
                   <option value="">Select a group (optional)</option>
-                  {groups.map((group: any) => (
+                  {groups.map((group: PaymentGroupOption) => (
                     <option key={group.id} value={group.id}>
                       {group.name}
                     </option>
                   ))}
                 </select>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">Course *</label>
+                <select
+                  value={newPayment.course}
+                  onChange={(e) => {
+                    const nextCourse = e.target.value
+                    setNewPayment((prev) => {
+                      const withCourse = { ...prev, course: nextCourse }
+                      return prev.pricing_mode === 'course'
+                        ? applyDerivedCoursePricing(withCourse, nextCourse, prev.group)
+                        : withCourse
+                    })
+                  }}
+                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
+                >
+                  <option value="">Select a course</option>
+                  {courses.map((course: PaymentCourseOption) => (
+                    <option key={course.id} value={course.id}>
+                      {course.name || `Course #${course.id}`}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <label className="flex items-center gap-2 text-sm text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={newPayment.pricing_mode === 'manual'}
+                  onChange={(e) => {
+                    const manualMode = e.target.checked
+                    setNewPayment((prev) => {
+                      const nextState = {
+                        ...prev,
+                        pricing_mode: manualMode ? 'manual' : 'course',
+                      }
+                      return manualMode ? nextState : applyDerivedCoursePricing(nextState)
+                    })
+                  }}
+                  className="h-4 w-4 rounded border-border"
+                />
+                Manual override (exceptional use only)
+              </label>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Amount ({currency}) *
+                </label>
+                <input
+                  type="number"
+                  value={newPayment.amount}
+                  onChange={(e) =>
+                    setNewPayment({
+                      ...newPayment,
+                      amount: Number(e.target.value) || 0,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary disabled:opacity-60"
+                  min="0"
+                  step="0.01"
+                  placeholder="100.00"
+                  disabled={newPayment.pricing_mode === 'course'}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">
+                  Course Price ({currency}) *
+                </label>
+                <input
+                  type="number"
+                  value={newPayment.course_price}
+                  onChange={(e) =>
+                    setNewPayment({
+                      ...newPayment,
+                      course_price: Number(e.target.value) || 0,
+                    })
+                  }
+                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary disabled:opacity-60"
+                  min="0"
+                  step="0.01"
+                  placeholder="500.00"
+                  disabled={newPayment.pricing_mode === 'course'}
+                />
+                {newPayment.pricing_mode === 'course' && (
+                  <p className="mt-1 text-xs text-text-secondary">
+                    Auto-filled from selected course price.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Payment Method *</label>
@@ -831,8 +987,10 @@ export default function PaymentsPage() {
                     setIsAddingPayment(false)
                     setNewPayment({
                       by_user: '',
+                      course: '',
                       amount: 0,
                       course_price: 0,
+                      pricing_mode: 'course',
                       status: 'pending',
                       group: '',
                       detail: '',

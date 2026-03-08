@@ -6,6 +6,7 @@ import apiService from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useRealtimeAccountingDashboard } from '@/lib/hooks/useAccounting'
+import { useOngoingGroups } from '@/lib/hooks/useGroups'
 import { type Permission, usePermissions } from '@/lib/permissions'
 import {
   Users, GraduationCap, BookOpen, DollarSign,
@@ -46,12 +47,18 @@ export default function DashboardPage() {
     isLoading: isRealtimeLoading,
     refetch: refetchRealtimeDashboard,
   } = useRealtimeAccountingDashboard(30)
+  const canViewGroups = permissions.hasPermission('groups.view') && permissions.canAccessPage('/dashboard/groups')
+  const { data: ongoingGroupsData } = useOngoingGroups({
+    refetchIntervalMs: 60_000,
+    enabled: canViewGroups,
+  })
   const router = useRouter()
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const realtimeRefetchRef = useRef(refetchRealtimeDashboard)
   const canViewFinanceOverview = permissions.hasAnyPermission(['payments.view'])
+  const ongoingGroups = ongoingGroupsData?.results || []
 
   useEffect(() => {
     realtimeRefetchRef.current = refetchRealtimeDashboard
@@ -483,6 +490,7 @@ export default function DashboardPage() {
 
           {/* Real-time accounting cards + feed */}
           {canViewFinanceOverview ? (
+            <>
             <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-8">
               <div className="bg-surface p-6 rounded-2xl border border-border hover:border-success/50 transition-all h-[120px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
@@ -551,6 +559,55 @@ export default function DashboardPage() {
                 </div>
               </div>
             </div>
+
+            {canViewGroups && (
+              <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
+                <div className="xl:col-span-2 bg-surface/90 backdrop-blur-md rounded-2xl border border-border p-5">
+                  <div className="flex items-center justify-between mb-4">
+                    <div>
+                      <p className="text-sm text-text-secondary">Operational Jump List</p>
+                      <h3 className="text-lg font-semibold">Ongoing Groups</h3>
+                    </div>
+                    <button
+                      onClick={() => router.push('/dashboard/groups')}
+                      className="text-sm text-primary hover:underline"
+                    >
+                      Open groups
+                    </button>
+                  </div>
+
+                  <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                    {ongoingGroups.length > 0 ? (
+                      ongoingGroups.map((group) => (
+                        <button
+                          key={group.id}
+                          onClick={() => router.push(`/dashboard/groups/${group.id}`)}
+                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                        >
+                          <div className="flex items-center justify-between gap-2">
+                            <p className="font-medium">{group.name}</p>
+                            <span className="rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">
+                              Live
+                            </span>
+                          </div>
+                          <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-text-secondary">
+                            <span>{group.course?.name || 'No course'}</span>
+                            <span>{group.main_teacher_name || group.main_teacher?.username || 'No teacher'}</span>
+                            <span>{group.room?.name || 'No room'}</span>
+                            <span>{group.minutes_until_end}m left</span>
+                          </div>
+                        </button>
+                      ))
+                    ) : (
+                      <div className="rounded-xl border border-dashed border-border bg-background px-4 py-6 text-center text-sm text-text-secondary">
+                        No groups are in session right now.
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+            </>
           ) : (
             <div className="mb-8 bg-surface rounded-2xl border border-border p-6">
               <p className="text-sm text-text-secondary">

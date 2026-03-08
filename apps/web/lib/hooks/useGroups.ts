@@ -7,9 +7,12 @@ import { PaginatedResponse } from '@/lib/types'
 export interface Group {
   id: number
   name: string
+  course_name?: string
   course: {
     id: number
     name: string
+    price?: number
+    duration_months?: number
   }
   students: any[]
   start_day: string
@@ -17,11 +20,16 @@ export interface Group {
   start_time: string
   end_time: string
   days: string
+  room_name?: string
   room?: {
     id: number
     name: string
     capacity?: number
   }
+  branch_name?: string
+  student_count?: number
+  main_teacher_name?: string
+  assistant_teacher_name?: string
   main_teacher?: {
     id: number
     username: string
@@ -34,6 +42,19 @@ export interface Group {
     first_name?: string
     last_name?: string
   }
+}
+
+export interface OngoingGroup extends Group {
+  is_ongoing: boolean
+  minutes_since_start: number
+  minutes_until_end: number
+  as_of: string
+}
+
+export interface OngoingGroupsResponse {
+  count: number
+  as_of: string
+  results: OngoingGroup[]
 }
 
 export interface GroupFormData {
@@ -59,6 +80,7 @@ export const groupsKeys = {
   list: (filters?: Record<string, any>) => [...groupsKeys.lists(), filters] as const,
   details: () => [...groupsKeys.all, 'detail'] as const,
   detail: (id: number | string) => [...groupsKeys.details(), id] as const,
+  ongoing: () => [...groupsKeys.all, 'ongoing'] as const,
 }
 
 /**
@@ -91,6 +113,28 @@ export function useGroup(id: number | string | null) {
     },
     enabled: !!id, // Only run if id exists
     staleTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+/**
+ * Hook to fetch currently ongoing groups based on backend schedule logic.
+ */
+export function useOngoingGroups({
+  refetchIntervalMs = 60_000,
+  enabled = true,
+}: {
+  refetchIntervalMs?: number
+  enabled?: boolean
+} = {}) {
+  return useQuery<OngoingGroupsResponse>({
+    queryKey: groupsKeys.ongoing(),
+    queryFn: async () => {
+      const response = await apiService.getOngoingGroups()
+      return response
+    },
+    staleTime: 30 * 1000,
+    refetchInterval: refetchIntervalMs,
+    enabled,
   })
 }
 

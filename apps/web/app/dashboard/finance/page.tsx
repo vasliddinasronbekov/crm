@@ -34,7 +34,13 @@ import {
   useStudentFines,
   useTeacherEarnings,
 } from '@/lib/hooks/useFinance'
-import { usePaymentStudents, usePaymentTypes } from '@/lib/hooks/usePayments'
+import {
+  usePaymentStudents,
+  usePaymentTypes,
+  usePaymentGroups,
+  usePaymentCourses,
+  type PaymentCourseOption,
+} from '@/lib/hooks/usePayments'
 import { useExpenseTypes } from '@/lib/hooks/useExpenses'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -85,6 +91,16 @@ type StudentOption = {
 type SimpleOption = {
   id: number
   name?: string
+}
+
+type PaymentGroupOption = {
+  id: number
+  name?: string
+  course?: {
+    id?: number
+    name?: string
+    price?: number
+  } | null
 }
 
 const PAYMENT_STATUS_META: Record<
@@ -168,7 +184,7 @@ const todayDate = new Date().toISOString().split('T')[0]
 
 export default function FinanceDashboard() {
   const router = useRouter()
-  const { currency, formatCurrencyFromMinor, fromSelectedCurrency } = useSettings()
+  const { currency, formatCurrencyFromMinor, fromSelectedCurrency, toSelectedCurrency } = useSettings()
   const { user } = useAuth()
   const permissionState = usePermissions(user)
   const canCreatePayment = permissionState.hasPermission('payments.create')
@@ -181,9 +197,12 @@ export default function FinanceDashboard() {
 
   const [paymentForm, setPaymentForm] = useState({
     by_user: '',
+    group: '',
+    course: '',
     payment_type: '',
     amount: '',
     course_price: '',
+    pricing_mode: 'course' as 'course' | 'manual',
     status: 'paid' as PaymentStatus,
     detail: '',
     date: todayDate,
@@ -205,6 +224,8 @@ export default function FinanceDashboard() {
   const { data: studentFinesData, isLoading: finesLoading } = useStudentFines({ limit: 200 })
 
   const { data: studentsData = [] } = usePaymentStudents()
+  const { data: groupsData = [] } = usePaymentGroups()
+  const { data: coursesData = [] } = usePaymentCourses()
   const { data: paymentTypesData = [] } = usePaymentTypes()
   const { data: expenseTypesData = [] } = useExpenseTypes()
 
@@ -224,9 +245,34 @@ export default function FinanceDashboard() {
   )
   const studentFines = useMemo(() => studentFinesData?.results || [], [studentFinesData?.results])
 
-  const students = (Array.isArray(studentsData) ? studentsData : []) as StudentOption[]
-  const paymentTypes = (Array.isArray(paymentTypesData) ? paymentTypesData : []) as SimpleOption[]
-  const expenseTypes = (Array.isArray(expenseTypesData) ? expenseTypesData : []) as SimpleOption[]
+  const students = useMemo(
+    () => (Array.isArray(studentsData) ? (studentsData as StudentOption[]) : []),
+    [studentsData]
+  )
+  const groups = useMemo(
+    () => (Array.isArray(groupsData) ? (groupsData as PaymentGroupOption[]) : []),
+    [groupsData]
+  )
+  const courses = useMemo(
+    () => (Array.isArray(coursesData) ? (coursesData as PaymentCourseOption[]) : []),
+    [coursesData]
+  )
+  const paymentTypes = useMemo(
+    () => (Array.isArray(paymentTypesData) ? (paymentTypesData as SimpleOption[]) : []),
+    [paymentTypesData]
+  )
+  const expenseTypes = useMemo(
+    () => (Array.isArray(expenseTypesData) ? (expenseTypesData as SimpleOption[]) : []),
+    [expenseTypesData]
+  )
+  const groupsById = useMemo(
+    () => new Map(groups.map((group) => [String(group.id), group])),
+    [groups]
+  )
+  const coursesById = useMemo(
+    () => new Map(courses.map((course) => [String(course.id), course])),
+    [courses]
+  )
 
   const loading =
     summariesLoading ||
@@ -429,6 +475,34 @@ export default function FinanceDashboard() {
     }, 450)
   }
 
+  const resolveSelectedCourse = (groupId?: string, courseId?: string) => {
+    const courseFromGroup = groupId ? groupsById.get(String(groupId))?.course : undefined
+    if (courseFromGroup?.id) {
+      return courseFromGroup
+    }
+    return courseId ? coursesById.get(String(courseId)) : undefined
+  }
+
+  const applyDerivedCoursePricing = (
+    draft: typeof paymentForm,
+    explicitCourseId?: string,
+    explicitGroupId?: string
+  ) => {
+    const selectedCourse = resolveSelectedCourse(explicitGroupId ?? draft.group, explicitCourseId ?? draft.course)
+    const coursePriceMinor = Number(selectedCourse?.price || 0)
+    if (!selectedCourse?.id || coursePriceMinor <= 0) {
+      return draft
+    }
+
+    const displayPrice = toSelectedCurrency(coursePriceMinor / 100)
+    return {
+      ...draft,
+      course: String(selectedCourse.id),
+      amount: displayPrice.toString(),
+      course_price: displayPrice.toString(),
+    }
+  }
+
   const handlePaymentSubmit = (event: React.FormEvent) => {
     event.preventDefault()
 
@@ -442,32 +516,55 @@ export default function FinanceDashboard() {
       return
     }
 
-    if (!paymentForm.amount || Number(paymentForm.amount) <= 0) {
+    const isCourseMode = paymentForm.pricing_mode === 'course'
+    const selectedCourse = resolveSelectedCourse(paymentForm.group, paymentForm.course)
+    const derivedCoursePriceMinor = Number(selectedCourse?.price || 0)
+
+    if (isCourseMode && (!selectedCourse?.id || derivedCoursePriceMinor <= 0)) {
+      toast.error('Select a valid course or a group with a linked course')
+      return
+    }
+
+    if (!isCourseMode && (!paymentForm.amount || Number(paymentForm.amount) <= 0)) {
       toast.error('Please enter a valid payment amount')
       return
     }
 
-    const amount = Number(paymentForm.amount)
-    const coursePrice = paymentForm.course_price ? Number(paymentForm.course_price) : amount
+    const amountInMinor = isCourseMode
+      ? derivedCoursePriceMinor
+      : Math.round(fromSelectedCurrency(Number(paymentForm.amount)) * 100)
+    const coursePriceInMinor = isCourseMode
+      ? derivedCoursePriceMinor
+      : Math.round(
+          fromSelectedCurrency(
+            paymentForm.course_price ? Number(paymentForm.course_price) : Number(paymentForm.amount)
+          ) * 100
+        )
 
     createPayment.mutate(
       {
         by_user: Number(paymentForm.by_user),
+        group: paymentForm.group ? Number(paymentForm.group) : undefined,
+        course: selectedCourse?.id ? Number(selectedCourse.id) : undefined,
+        pricing_mode: paymentForm.pricing_mode,
         payment_type: paymentForm.payment_type ? Number(paymentForm.payment_type) : undefined,
         status: paymentForm.status,
         detail: paymentForm.detail || undefined,
         date: paymentForm.date,
-        amount: Math.round(fromSelectedCurrency(amount) * 100),
-        course_price: Math.round(fromSelectedCurrency(coursePrice) * 100),
+        amount: amountInMinor,
+        course_price: coursePriceInMinor,
       },
       {
         onSuccess: () => {
           setShowPaymentModal(false)
           setPaymentForm({
             by_user: '',
+            group: '',
+            course: '',
             payment_type: '',
             amount: '',
             course_price: '',
+            pricing_mode: 'course',
             status: 'paid',
             detail: '',
             date: todayDate,
@@ -1069,6 +1166,74 @@ export default function FinanceDashboard() {
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
+                  <label className="text-sm text-text-secondary block mb-1">Group</label>
+                  <select
+                    value={paymentForm.group}
+                    onChange={(event) => {
+                      const nextGroup = event.target.value
+                      setPaymentForm((prev) => {
+                        const withGroup = { ...prev, group: nextGroup }
+                        return prev.pricing_mode === 'course'
+                          ? applyDerivedCoursePricing(withGroup, prev.course, nextGroup)
+                          : withGroup
+                      })
+                    }}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  >
+                    <option value="">Select group (optional)</option>
+                    {groups.map((group) => (
+                      <option key={group.id} value={group.id}>
+                        {group.name || `Group #${group.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="text-sm text-text-secondary block mb-1">Course</label>
+                  <select
+                    value={paymentForm.course}
+                    onChange={(event) => {
+                      const nextCourse = event.target.value
+                      setPaymentForm((prev) => {
+                        const withCourse = { ...prev, course: nextCourse }
+                        return prev.pricing_mode === 'course'
+                          ? applyDerivedCoursePricing(withCourse, nextCourse, prev.group)
+                          : withCourse
+                      })
+                    }}
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                  >
+                    <option value="">Select course</option>
+                    {courses.map((course) => (
+                      <option key={course.id} value={course.id}>
+                        {course.name || `Course #${course.id}`}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <label className="flex items-center gap-2 text-sm text-text-secondary">
+                <input
+                  type="checkbox"
+                  checked={paymentForm.pricing_mode === 'manual'}
+                  onChange={(event) => {
+                    const manualMode = event.target.checked
+                    setPaymentForm((prev) => {
+                      const nextState = {
+                        ...prev,
+                        pricing_mode: manualMode ? 'manual' : 'course',
+                      }
+                      return manualMode ? nextState : applyDerivedCoursePricing(nextState)
+                    })
+                  }}
+                  className="h-4 w-4 rounded border-border"
+                />
+                Manual override (exceptional)
+              </label>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
                   <label className="text-sm text-text-secondary block mb-1">Amount ({currency})</label>
                   <input
                     type="number"
@@ -1078,8 +1243,9 @@ export default function FinanceDashboard() {
                     onChange={(event) =>
                       setPaymentForm((prev) => ({ ...prev, amount: event.target.value }))
                     }
-                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl disabled:opacity-60"
                     required
+                    disabled={paymentForm.pricing_mode === 'course'}
                   />
                 </div>
                 <div>
@@ -1092,8 +1258,9 @@ export default function FinanceDashboard() {
                     onChange={(event) =>
                       setPaymentForm((prev) => ({ ...prev, course_price: event.target.value }))
                     }
-                    className="w-full px-4 py-3 bg-background border border-border rounded-xl"
-                    placeholder="Defaults to amount"
+                    className="w-full px-4 py-3 bg-background border border-border rounded-xl disabled:opacity-60"
+                    placeholder={paymentForm.pricing_mode === 'course' ? 'Auto-filled from course' : 'Defaults to amount'}
+                    disabled={paymentForm.pricing_mode === 'course'}
                   />
                 </div>
               </div>

@@ -446,6 +446,104 @@ class PaymentSerializer(serializers.ModelSerializer):
             return ''
         full_name = obj.by_user.get_full_name().strip()
         return full_name or obj.by_user.username
+
+
+class PaymentWriteSerializer(serializers.ModelSerializer):
+    PRICING_MODE_COURSE = 'course'
+    PRICING_MODE_MANUAL = 'manual'
+    PRICING_MODE_CHOICES = (
+        (PRICING_MODE_COURSE, 'Course derived'),
+        (PRICING_MODE_MANUAL, 'Manual override'),
+    )
+
+    course = serializers.PrimaryKeyRelatedField(
+        queryset=Course.objects.all(),
+        required=False,
+        allow_null=True,
+        write_only=True,
+    )
+    pricing_mode = serializers.ChoiceField(
+        choices=PRICING_MODE_CHOICES,
+        required=False,
+        default=PRICING_MODE_COURSE,
+        write_only=True,
+    )
+
+    class Meta:
+        model = Payment
+        fields = [
+            'id',
+            'date',
+            'by_user',
+            'status',
+            'group',
+            'teacher',
+            'amount',
+            'payment_type',
+            'detail',
+            'course_price',
+            'transaction_id',
+            'course',
+            'pricing_mode',
+        ]
+
+    def _resolve_course(self, attrs):
+        group = attrs.get('group')
+        course = attrs.get('course')
+        if group and getattr(group, 'course_id', None):
+            return group.course
+        return course
+
+    def _validate_manual_fields(self, attrs):
+        amount = attrs.get('amount')
+        course_price = attrs.get('course_price')
+        if amount is None or amount <= 0:
+            raise serializers.ValidationError({'amount': 'Manual payments require a positive amount.'})
+        if course_price is None or course_price <= 0:
+            raise serializers.ValidationError({'course_price': 'Manual payments require a positive course price.'})
+
+    def validate(self, attrs):
+        attrs = super().validate(attrs)
+
+        pricing_mode = attrs.get('pricing_mode', self.PRICING_MODE_COURSE)
+        is_create = self.instance is None
+
+        if not is_create:
+            return attrs
+
+        if pricing_mode == self.PRICING_MODE_MANUAL:
+            self._validate_manual_fields(attrs)
+            attrs.pop('course', None)
+            return attrs
+
+        resolved_course = self._resolve_course(attrs)
+        if not resolved_course:
+            raise serializers.ValidationError(
+                {'course': 'Select a course or a group to auto-fill pricing.'}
+            )
+
+        resolved_price = int(resolved_course.price or 0)
+        if resolved_price <= 0:
+            raise serializers.ValidationError(
+                {'course': 'Selected course has no valid price.'}
+            )
+
+        attrs['amount'] = resolved_price
+        attrs['course_price'] = resolved_price
+        attrs.pop('course', None)
+        return attrs
+
+    def create(self, validated_data):
+        validated_data.pop('pricing_mode', None)
+        return super().create(validated_data)
+
+    def update(self, instance, validated_data):
+        # Keep backward-compatible updates (status/detail/amount edits) untouched.
+        validated_data.pop('course', None)
+        validated_data.pop('pricing_mode', None)
+        return super().update(instance, validated_data)
+
+
 class StorySerializer(serializers.ModelSerializer):
     student = UserSerializer(read_only=True)
     class Meta:

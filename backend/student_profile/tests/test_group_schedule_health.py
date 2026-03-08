@@ -3,6 +3,7 @@ import datetime
 import pytest
 from rest_framework import status
 from rest_framework.test import APIClient
+from django.utils import timezone
 
 from student_profile.models import Branch, Course, Group, Room
 from users.models import User, UserRoleEnum
@@ -167,3 +168,57 @@ def test_teacher_cannot_create_group_without_groups_manage_capability():
     )
 
     assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_ongoing_groups_returns_only_currently_running_groups():
+    branch = Branch.objects.create(name='Branch Ongoing')
+    room = Room.objects.create(name='Room Ongoing', capacity=20, branch=branch)
+    course = Course.objects.create(name='Biology', price=8200000, duration_months=4)
+    manager = User.objects.create_user(
+        username='manager_ongoing_groups',
+        password='TestPass123!',
+        role=UserRoleEnum.MANAGER.value,
+    )
+
+    now_local = timezone.localtime(timezone.now())
+    today = now_local.date()
+    now_time = now_local.time().replace(second=0, microsecond=0)
+    start_time = (datetime.datetime.combine(today, now_time) - datetime.timedelta(minutes=45)).time()
+    end_time = (datetime.datetime.combine(today, now_time) + datetime.timedelta(minutes=45)).time()
+    closed_start = (datetime.datetime.combine(today, now_time) - datetime.timedelta(hours=3)).time()
+    closed_end = (datetime.datetime.combine(today, now_time) - datetime.timedelta(hours=2)).time()
+    today_token = now_local.strftime('%a')
+
+    ongoing_group = Group.objects.create(
+        name='Biology Ongoing',
+        branch=branch,
+        course=course,
+        room=room,
+        start_day=today - datetime.timedelta(days=7),
+        end_day=today + datetime.timedelta(days=30),
+        start_time=start_time,
+        end_time=end_time,
+        days=today_token,
+    )
+    Group.objects.create(
+        name='Biology Completed',
+        branch=branch,
+        course=course,
+        room=room,
+        start_day=today - datetime.timedelta(days=7),
+        end_day=today + datetime.timedelta(days=30),
+        start_time=closed_start,
+        end_time=closed_end,
+        days=today_token,
+    )
+
+    client = _auth_client_for_user(manager)
+    response = client.get('/api/student-profile/groups/ongoing/')
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.data['count'] == 1
+    assert response.data['results'][0]['id'] == ongoing_group.id
+    assert response.data['results'][0]['is_ongoing'] is True
+    assert response.data['results'][0]['minutes_since_start'] >= 0
+    assert response.data['results'][0]['minutes_until_end'] >= 0

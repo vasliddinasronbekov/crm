@@ -25,6 +25,7 @@ import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/lib/permissions'
+import { useOngoingGroups } from '@/lib/hooks/useGroups'
 import { WEEK_DAYS } from '@/lib/utils/schedule'
 import LoadingScreen from '@/components/LoadingScreen'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
@@ -287,6 +288,10 @@ export default function GroupDetailPage() {
   const canViewPayments = permissionState.hasPermission('payments.view')
   const canMarkAttendance = permissionState.hasAnyPermission(['attendance.create', 'attendance.edit'])
   const canViewAttendance = permissionState.hasPermission('attendance.view')
+  const { data: ongoingGroupsData } = useOngoingGroups({
+    enabled: Boolean(user),
+    refetchIntervalMs: 60_000,
+  })
 
   const [rawGroup, setRawGroup] = useState<any | null>(null)
   const [isLoading, setIsLoading] = useState(true)
@@ -819,6 +824,13 @@ export default function GroupDetailPage() {
   const paidStudentsCount = studentsInGroup.filter((student) => (student.balance || 0) <= 0).length
   const debtStudentsCount = studentsInGroup.filter((student) => (student.balance || 0) > 0).length
   const totalBalance = studentsInGroup.reduce((sum, student) => sum + (student.balance || 0), 0)
+  const ongoingSession = useMemo(
+    () => (ongoingGroupsData?.results || []).find((item) => Number(item.id) === groupIdNumber) || null,
+    [groupIdNumber, ongoingGroupsData?.results],
+  )
+  const sessionStatusLabel = ongoingSession
+    ? `Live now • ${ongoingSession.minutes_until_end}m left`
+    : 'Not in session'
   const daysPerWeek = group?.days ? group.days.split(',').filter((item) => item.trim()).length : 0
   const durationHours =
     group?.start_time && group.end_time
@@ -921,6 +933,20 @@ export default function GroupDetailPage() {
                 {group.name}
               </h1>
               <p className="text-text-secondary mt-1">{group.course_name}</p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span
+                  className={`inline-flex items-center rounded-full px-3 py-1 text-xs font-semibold ${
+                    ongoingSession ? 'bg-success/15 text-success' : 'bg-background text-text-secondary'
+                  }`}
+                >
+                  {sessionStatusLabel}
+                </span>
+                {group.room_name && (
+                  <span className="inline-flex items-center rounded-full bg-background px-3 py-1 text-xs text-text-secondary">
+                    Room: {group.room_name}
+                  </span>
+                )}
+              </div>
               {group.branch_name && (
                 <p className="text-sm text-text-secondary mt-1">Branch: {group.branch_name}</p>
               )}
@@ -961,7 +987,7 @@ export default function GroupDetailPage() {
             )}
           </div>
 
-          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
             <div className="bg-surface border border-border rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <Users className="h-5 w-5 text-primary" />
@@ -992,6 +1018,52 @@ export default function GroupDetailPage() {
               </div>
               <p className="text-3xl font-bold">{durationWeeks}</p>
               <p className="text-sm text-text-secondary">Duration (Weeks)</p>
+            </div>
+
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="flex items-center justify-between mb-3">
+                <DollarSign className={`h-5 w-5 ${debtStudentsCount > 0 ? 'text-warning' : 'text-success'}`} />
+              </div>
+              <p className={`text-3xl font-bold ${debtStudentsCount > 0 ? 'text-warning' : 'text-success'}`}>
+                {debtStudentsCount}
+              </p>
+              <p className="text-sm text-text-secondary">Students in Debt</p>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <div className="bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-5">
+              <p className="text-xs text-text-secondary uppercase tracking-wide mb-2">Session status</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-lg font-semibold">{sessionStatusLabel}</p>
+                <button
+                  onClick={() => setActiveTab('schedule')}
+                  className="text-sm text-primary hover:underline"
+                >
+                  View schedule
+                </button>
+              </div>
+              <p className="text-sm text-text-secondary mt-2">
+                {group.days || 'No days configured'} • {group.start_time || '--:--'} - {group.end_time || '--:--'}
+              </p>
+            </div>
+
+            <div className="bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-5">
+              <p className="text-xs text-text-secondary uppercase tracking-wide mb-2">Financial snapshot</p>
+              <div className="flex items-center justify-between gap-3">
+                <p className="text-lg font-semibold">{formatCurrency(totalBalance)}</p>
+                {canViewPayments && (
+                  <button
+                    onClick={() => setActiveTab('payments')}
+                    className="text-sm text-primary hover:underline"
+                  >
+                    Open payments
+                  </button>
+                )}
+              </div>
+              <p className="text-sm text-text-secondary mt-2">
+                {paidStudentsCount} paid • {debtStudentsCount} with debt
+              </p>
             </div>
           </div>
 

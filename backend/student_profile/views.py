@@ -50,6 +50,7 @@ from .serializers import (
     ShopProductSerializer,
     ShopOrderSerializer,
     PaymentSerializer,
+    PaymentWriteSerializer,
     StorySerializer,
     StudentCoinsSerializer,
     TicketSerializer,
@@ -100,6 +101,7 @@ class GroupViewSet(viewsets.ModelViewSet):
         'list': 'groups.read',
         'retrieve': 'groups.read',
         'schedule_health': 'groups.read',
+        'ongoing': 'groups.read',
         'create': 'groups.manage',
         'update': 'groups.manage',
         'partial_update': 'groups.manage',
@@ -167,6 +169,19 @@ class GroupViewSet(viewsets.ModelViewSet):
     @staticmethod
     def _date_ranges_overlap(start_a, end_a, start_b, end_b):
         return bool(start_a and end_a and start_b and end_b and start_a <= end_b and start_b <= end_a)
+
+    def _is_group_ongoing(self, group, now_date, now_time, now_weekday):
+        if not group.start_day or not group.end_day or not group.start_time or not group.end_time:
+            return False
+
+        if now_date < group.start_day or now_date > group.end_day:
+            return False
+
+        day_set = self._normalize_days(group.days or '')
+        if now_weekday not in day_set:
+            return False
+
+        return group.start_time <= now_time < group.end_time
 
     def _calculate_schedule_health(self, groups_queryset):
         groups = list(
@@ -282,6 +297,61 @@ class GroupViewSet(viewsets.ModelViewSet):
         queryset = self.filter_queryset(self.get_queryset()).annotate(student_total=Count('students'))
         payload = self._calculate_schedule_health(queryset)
         return Response(payload)
+
+    @action(detail=False, methods=['get'], url_path='ongoing')
+    def ongoing(self, request):
+        now_local = timezone.localtime(timezone.now())
+        now_date = now_local.date()
+        now_time = now_local.time().replace(second=0, microsecond=0)
+        now_weekday = now_local.strftime('%A').lower()
+        now_minutes = now_time.hour * 60 + now_time.minute
+
+        queryset = (
+            self.filter_queryset(self.get_queryset())
+            .select_related('course', 'room', 'branch', 'main_teacher', 'assistant_teacher')
+            .prefetch_related('students')
+        )
+
+        ongoing_groups = []
+        for group in queryset:
+            if not self._is_group_ongoing(group, now_date, now_time, now_weekday):
+                continue
+
+            start_minutes = group.start_time.hour * 60 + group.start_time.minute
+            end_minutes = group.end_time.hour * 60 + group.end_time.minute
+            ongoing_groups.append(
+                {
+                    'group': group,
+                    'minutes_since_start': max(0, now_minutes - start_minutes),
+                    'minutes_until_end': max(0, end_minutes - now_minutes),
+                }
+            )
+
+        serialized_groups = GroupReadSerializer(
+            [item['group'] for item in ongoing_groups],
+            many=True,
+            context={'request': request},
+        ).data
+
+        results = []
+        for serialized_group, ongoing_item in zip(serialized_groups, ongoing_groups):
+            results.append(
+                {
+                    **serialized_group,
+                    'is_ongoing': True,
+                    'minutes_since_start': ongoing_item['minutes_since_start'],
+                    'minutes_until_end': ongoing_item['minutes_until_end'],
+                    'as_of': now_local.isoformat(),
+                }
+            )
+
+        return Response(
+            {
+                'count': len(results),
+                'as_of': now_local.isoformat(),
+                'results': results,
+            }
+        )
 
     def get_queryset(self):
         user = self.request.user
@@ -631,6 +701,11 @@ class PaymentViewSet(viewsets.ModelViewSet):
         'send_reminder': 'payments.manage',
         'bulk_send_reminders': 'payments.manage',
     }
+
+    def get_serializer_class(self):
+        if self.action in ['create', 'update', 'partial_update']:
+            return PaymentWriteSerializer
+        return PaymentSerializer
 
     def perform_create(self, serializer):
         with transaction.atomic():

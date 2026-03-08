@@ -56,6 +56,8 @@ export interface PaymentFormData {
   course_price: number
   status: 'pending' | 'paid' | 'failed'
   group?: string
+  course?: string
+  pricing_mode?: 'course' | 'manual'
   detail?: string
   date: string
   payment_type?: string
@@ -106,6 +108,12 @@ export interface PaymentTypeOption {
   display_order?: number
 }
 
+export interface PaymentCourseOption {
+  id: number
+  name?: string
+  price?: number
+}
+
 const normalizePaymentMethod = (value?: string | null): string =>
   (value || '').trim().toLowerCase()
 
@@ -149,6 +157,7 @@ export const paymentsKeys = {
   detail: (id: number | string) => [...paymentsKeys.details(), id] as const,
   students: () => ['students'] as const,
   groups: () => ['groups'] as const,
+  courses: () => ['courses'] as const,
   paymentTypes: () => ['payment-types'] as const,
   teachers: () => ['teachers'] as const,
 }
@@ -190,6 +199,18 @@ export function usePaymentGroups() {
     queryFn: async () => fetchAllPaginated((page) => apiService.getGroups({ page })),
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+/**
+ * Hook to fetch courses for payment pricing/autofill.
+ */
+export function usePaymentCourses() {
+  return useQuery({
+    queryKey: paymentsKeys.courses(),
+    queryFn: async () => fetchAllPaginated((page) => apiService.getCourses({ page })),
+    staleTime: 2 * 60 * 1000,
+    gcTime: 5 * 60 * 1000,
   })
 }
 
