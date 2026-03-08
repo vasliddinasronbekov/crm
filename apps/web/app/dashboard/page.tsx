@@ -59,6 +59,7 @@ export default function DashboardPage() {
   const realtimeRefetchRef = useRef(refetchRealtimeDashboard)
   const canViewFinanceOverview = permissions.hasAnyPermission(['payments.view'])
   const ongoingGroups = ongoingGroupsData?.results || []
+  const ongoingAsOf = ongoingGroupsData?.as_of || null
 
   useEffect(() => {
     realtimeRefetchRef.current = refetchRealtimeDashboard
@@ -562,21 +563,31 @@ export default function DashboardPage() {
 
             {canViewGroups && (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-                <div className="xl:col-span-2 bg-surface/90 backdrop-blur-md rounded-2xl border border-border p-5">
+                <div className="xl:col-span-2 bg-surface/90 backdrop-blur-md rounded-2xl border border-border p-5 h-[320px] flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="text-sm text-text-secondary">Operational Jump List</p>
                       <h3 className="text-lg font-semibold">Ongoing Groups</h3>
+                      {ongoingAsOf && (
+                        <p className="text-xs text-text-secondary mt-0.5">
+                          Updated {new Date(ongoingAsOf).toLocaleTimeString()}
+                        </p>
+                      )}
                     </div>
-                    <button
-                      onClick={() => router.push('/dashboard/groups')}
-                      className="text-sm text-primary hover:underline"
-                    >
-                      Open groups
-                    </button>
+                    <div className="flex items-center gap-3">
+                      <span className="rounded-full bg-primary/10 px-3 py-1 text-xs font-semibold text-primary">
+                        {ongoingGroups.length} live
+                      </span>
+                      <button
+                        onClick={() => router.push('/dashboard/groups')}
+                        className="text-sm text-primary hover:underline"
+                      >
+                        Open groups
+                      </button>
+                    </div>
                   </div>
 
-                  <div className="space-y-2 max-h-[150px] overflow-y-auto pr-1">
+                  <div className="space-y-2 flex-1 overflow-y-auto pr-1">
                     {ongoingGroups.length > 0 ? (
                       ongoingGroups.map((group) => (
                         <button
@@ -594,6 +605,7 @@ export default function DashboardPage() {
                             <span>{group.course?.name || 'No course'}</span>
                             <span>{group.main_teacher_name || group.main_teacher?.username || 'No teacher'}</span>
                             <span>{group.room?.name || 'No room'}</span>
+                            {group.branch_name && <span>{group.branch_name}</span>}
                             <span>{group.minutes_until_end}m left</span>
                           </div>
                         </button>

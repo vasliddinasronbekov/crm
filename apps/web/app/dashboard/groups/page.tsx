@@ -3,7 +3,22 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useQuery } from '@tanstack/react-query'
-import { Search, Plus, Edit, Trash2, Users, Calendar, Clock, CalendarDays, AlertTriangle, Activity } from 'lucide-react'
+import {
+  Search,
+  Plus,
+  Edit,
+  Trash2,
+  Users,
+  Calendar,
+  Clock,
+  CalendarDays,
+  AlertTriangle,
+  Activity,
+  LayoutGrid,
+  Rows3,
+  ChevronRight,
+  ShieldAlert,
+} from 'lucide-react'
 import toast from '@/lib/toast'
 import apiService from '@/lib/api'
 import { useGroups, useCreateGroup, useUpdateGroup, useDeleteGroup, useOngoingGroups, Group } from '@/lib/hooks/useGroups'
@@ -16,6 +31,8 @@ import { useAuth } from '@/contexts/AuthContext'
 import { usePermissions } from '@/lib/permissions'
 
 type SearchStatus = 'all' | 'scheduled' | 'unscheduled'
+type GroupFocusFilter = 'all' | 'ongoing' | 'capacity' | 'unscheduled' | 'conflicts'
+type GroupsViewMode = 'cards' | 'table'
 
 interface ParsedGroupSearch {
   text: string
@@ -134,6 +151,8 @@ export default function GroupsPage() {
 
   const [page, setPage] = useState(1)
   const [sortBy, setSortBy] = useState<'name' | 'students_desc' | 'schedule' | 'risk'>('name')
+  const [focusFilter, setFocusFilter] = useState<GroupFocusFilter>('all')
+  const [viewMode, setViewMode] = useState<GroupsViewMode>('table')
   const [isCreatingGroup, setIsCreatingGroup] = useState(false)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [newGroup, setNewGroup] = useState(createEmptyGroupForm)
@@ -150,13 +169,15 @@ export default function GroupsPage() {
     [parsedSearch],
   )
 
+  const requiresClientWindow = hasStructuredFilters || focusFilter !== 'all'
+
   const groupsQueryParams = useMemo(
     () => ({
-      page: hasStructuredFilters ? 1 : page,
-      limit: hasStructuredFilters ? 1000 : PAGE_SIZE,
+      page: requiresClientWindow ? 1 : page,
+      limit: requiresClientWindow ? 1000 : PAGE_SIZE,
       search: parsedSearch.text || undefined,
     }),
-    [hasStructuredFilters, page, parsedSearch.text],
+    [page, parsedSearch.text, requiresClientWindow],
   )
 
   const { data: groupsData, isLoading } = useGroups(groupsQueryParams)
@@ -233,20 +254,81 @@ export default function GroupsPage() {
     return rows
   }, [filteredGroups, sortBy])
 
-  const totalGroups = hasStructuredFilters ? sortedGroups.length : groupsData?.count || 0
+  const ongoingGroups = useMemo(
+    () => ongoingGroupsData?.results || [],
+    [ongoingGroupsData?.results],
+  )
+  const ongoingGroupIdSet = useMemo(
+    () => new Set(ongoingGroups.map((group) => Number(group.id))),
+    [ongoingGroups],
+  )
+  const topConflicts = useMemo(
+    () => scheduleHealthData?.top_conflicts || [],
+    [scheduleHealthData?.top_conflicts],
+  )
+  const conflictGroupIdSet = useMemo(() => {
+    const ids = new Set<number>()
+    topConflicts.forEach((conflict) => {
+      ;(conflict.groups || []).forEach((group) => {
+        if (group?.id) ids.add(Number(group.id))
+      })
+    })
+    return ids
+  }, [topConflicts])
+  const capacityRiskCountClient = useMemo(
+    () =>
+      sortedGroups.filter((group) => {
+        const roomCapacity = group.room?.capacity || 0
+        if (roomCapacity <= 0) return false
+        const studentCount = group.students?.length || 0
+        return studentCount / roomCapacity >= 0.9
+      }).length,
+    [sortedGroups],
+  )
+  const unscheduledCountClient = useMemo(
+    () => sortedGroups.filter((group) => parseGroupDays(group.days).length === 0).length,
+    [sortedGroups],
+  )
+  const focusFilteredGroups = useMemo(() => {
+    if (focusFilter === 'all') return sortedGroups
+    if (focusFilter === 'ongoing') {
+      return sortedGroups.filter((group) => ongoingGroupIdSet.has(Number(group.id)))
+    }
+    if (focusFilter === 'capacity') {
+      return sortedGroups.filter((group) => {
+        const roomCapacity = group.room?.capacity || 0
+        if (roomCapacity <= 0) return false
+        const studentCount = group.students?.length || 0
+        return studentCount / roomCapacity >= 0.9
+      })
+    }
+    if (focusFilter === 'unscheduled') {
+      return sortedGroups.filter((group) => parseGroupDays(group.days).length === 0)
+    }
+    if (focusFilter === 'conflicts') {
+      return sortedGroups.filter((group) => conflictGroupIdSet.has(Number(group.id)))
+    }
+    return sortedGroups
+  }, [conflictGroupIdSet, focusFilter, ongoingGroupIdSet, sortedGroups])
+  const baseTotalGroups = hasStructuredFilters ? sortedGroups.length : groupsData?.count || 0
+  const totalGroups = requiresClientWindow ? focusFilteredGroups.length : baseTotalGroups
   const totalPages = Math.max(1, Math.ceil(totalGroups / PAGE_SIZE))
 
   const visibleGroups = useMemo(() => {
-    if (!hasStructuredFilters) return sortedGroups
+    if (!requiresClientWindow) return focusFilteredGroups
     const start = (page - 1) * PAGE_SIZE
-    return sortedGroups.slice(start, start + PAGE_SIZE)
-  }, [hasStructuredFilters, page, sortedGroups])
+    return focusFilteredGroups.slice(start, start + PAGE_SIZE)
+  }, [focusFilteredGroups, page, requiresClientWindow])
 
   useEffect(() => {
     if (page > totalPages) {
       setPage(totalPages)
     }
   }, [page, totalPages])
+
+  useEffect(() => {
+    setPage(1)
+  }, [focusFilter])
 
   const handleDelete = async (group: Group) => {
     if (!canDeleteGroup) {
@@ -305,18 +387,7 @@ export default function GroupsPage() {
     })
   }
 
-  const studentsOnPage = visibleGroups.reduce(
-    (sum: number, group: Group) => sum + (group.students?.length || 0),
-    0,
-  )
-  const ongoingGroups = useMemo(
-    () => ongoingGroupsData?.results || [],
-    [ongoingGroupsData?.results],
-  )
-  const ongoingGroupIdSet = useMemo(
-    () => new Set(ongoingGroups.map((group) => Number(group.id))),
-    [ongoingGroups],
-  )
+  const studentsOnPage = visibleGroups.reduce((sum: number, group: Group) => sum + (group.students?.length || 0), 0)
   const averageStudents =
     visibleGroups.length > 0 ? Math.round(studentsOnPage / visibleGroups.length) : 0
   const scheduledGroups =
@@ -326,10 +397,9 @@ export default function GroupsPage() {
     scheduleHealthData?.unscheduled_groups ?? Math.max(0, totalGroups - scheduledGroups)
   const activeConflicts =
     (scheduleHealthData?.teacher_conflicts || 0) + (scheduleHealthData?.room_conflicts || 0)
-  const capacityRiskGroups =
-    (scheduleHealthData?.capacity_near_full_groups || 0) +
-    (scheduleHealthData?.capacity_overflow_groups || 0)
-  const topConflicts = scheduleHealthData?.top_conflicts || []
+  const capacityRiskGroups = scheduleHealthData
+    ? (scheduleHealthData.capacity_near_full_groups || 0) + (scheduleHealthData.capacity_overflow_groups || 0)
+    : capacityRiskCountClient
 
   const PaginationControls = () => (
     <div className="flex justify-center items-center gap-4 mt-8">
@@ -433,12 +503,62 @@ export default function GroupsPage() {
                 <option value="schedule">Schedule time</option>
                 <option value="risk">Capacity risk</option>
               </select>
+
+              <div className="ml-auto inline-flex items-center gap-1 rounded-xl border border-border bg-background p-1">
+                <button
+                  type="button"
+                  onClick={() => setViewMode('table')}
+                  className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    viewMode === 'table' ? 'bg-primary text-white' : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  <Rows3 className="h-3.5 w-3.5" />
+                  Ops Table
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setViewMode('cards')}
+                  className={`inline-flex items-center gap-1 rounded-lg px-3 py-1.5 text-xs font-medium transition-colors ${
+                    viewMode === 'cards' ? 'bg-primary text-white' : 'text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  <LayoutGrid className="h-3.5 w-3.5" />
+                  Cards
+                </button>
+              </div>
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              {[
+                { key: 'all', label: 'All', count: baseTotalGroups },
+                { key: 'ongoing', label: 'Live now', count: ongoingGroups.length },
+                { key: 'capacity', label: 'Capacity risk', count: capacityRiskCountClient },
+                { key: 'unscheduled', label: 'Unscheduled', count: unscheduledCountClient },
+                { key: 'conflicts', label: 'Conflicts', count: conflictGroupIdSet.size },
+              ].map((filterOption) => (
+                <button
+                  key={filterOption.key}
+                  type="button"
+                  onClick={() => setFocusFilter(filterOption.key as GroupFocusFilter)}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3 py-1.5 text-xs font-medium transition-colors ${
+                    focusFilter === filterOption.key
+                      ? 'border-primary/50 bg-primary/10 text-primary'
+                      : 'border-border bg-background text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  {filterOption.label}
+                  <span className="rounded-full bg-surface px-1.5 py-0.5 text-[11px]">
+                    {filterOption.count}
+                  </span>
+                </button>
+              ))}
             </div>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-7 gap-4">
             <div className="bg-surface border border-border rounded-2xl p-4">
-              <p className="text-xs text-text-secondary mb-2">{hasStructuredFilters ? 'Matched Groups' : 'Total Groups'}</p>
+              <p className="text-xs text-text-secondary mb-2">
+                {hasStructuredFilters || focusFilter !== 'all' ? 'Filtered Groups' : 'Total Groups'}
+              </p>
               <p className="text-3xl font-bold">{totalGroups}</p>
             </div>
             <div className="bg-surface border border-border rounded-2xl p-4">
@@ -543,97 +663,218 @@ export default function GroupsPage() {
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-            {visibleGroups.map((group: Group) => {
-              const isOngoing = ongoingGroupIdSet.has(Number(group.id))
-              const studentCount = group.students?.length || 0
-              const roomCapacity = group.room?.capacity || 0
-              const utilizationPercent = roomCapacity > 0 ? Math.round((studentCount / roomCapacity) * 100) : 0
-              const isCapacityRisk = utilizationPercent >= 90
+          {viewMode === 'cards' ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {visibleGroups.map((group: Group) => {
+                const isOngoing = ongoingGroupIdSet.has(Number(group.id))
+                const studentCount = group.students?.length || 0
+                const roomCapacity = group.room?.capacity || 0
+                const utilizationPercent = roomCapacity > 0 ? Math.round((studentCount / roomCapacity) * 100) : 0
+                const isCapacityRisk = utilizationPercent >= 90
+                const hasConflict = conflictGroupIdSet.has(Number(group.id))
 
-              return (
-              <div key={group.id} className="bg-surface border border-border rounded-2xl p-5 hover:border-primary/30 transition-colors">
-                <div className="flex justify-between items-start mb-4">
-                  <div>
-                    <h3 className="text-lg font-semibold mb-1">{group.name}</h3>
-                    <p className="text-sm text-text-secondary">{group.course?.name || 'No Course'}</p>
-                    <div className="flex items-center gap-2 mt-2">
-                      {isOngoing && (
-                        <span className="inline-flex items-center rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">
-                          Ongoing
+                return (
+                  <div key={group.id} className="bg-surface border border-border rounded-2xl p-5 hover:border-primary/30 transition-colors">
+                    <div className="flex justify-between items-start mb-4">
+                      <div>
+                        <h3 className="text-lg font-semibold mb-1">{group.name}</h3>
+                        <p className="text-sm text-text-secondary">{group.course?.name || 'No Course'}</p>
+                        <div className="flex items-center gap-2 mt-2 flex-wrap">
+                          {isOngoing && (
+                            <span className="inline-flex items-center rounded-full bg-success/15 px-2 py-0.5 text-xs font-semibold text-success">
+                              Ongoing
+                            </span>
+                          )}
+                          {isCapacityRisk && (
+                            <span className="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">
+                              Capacity Risk
+                            </span>
+                          )}
+                          {hasConflict && (
+                            <span className="inline-flex items-center rounded-full bg-error/15 px-2 py-0.5 text-xs font-semibold text-error">
+                              Conflict
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setEditingGroup(group)}
+                          disabled={!canEditGroup}
+                          title={!canEditGroup ? 'You do not have permission to edit groups' : undefined}
+                          className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                        >
+                          <Edit className="h-4 w-4 text-primary" />
+                        </button>
+                        <button
+                          onClick={() => handleDelete(group)}
+                          disabled={deleteGroup.isPending || !canDeleteGroup}
+                          title={!canDeleteGroup ? 'You do not have permission to delete groups' : undefined}
+                          className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 className="h-4 w-4 text-error" />
+                        </button>
+                      </div>
+                    </div>
+
+                    <div className="space-y-3 mb-4">
+                      <div className="flex items-center gap-2 text-sm text-text-secondary">
+                        <Users className="h-4 w-4" />
+                        <span>
+                          {studentCount} students
+                          {roomCapacity > 0 && ` • ${utilizationPercent}% of room`}
                         </span>
-                      )}
-                      {isCapacityRisk && (
-                        <span className="inline-flex items-center rounded-full bg-warning/15 px-2 py-0.5 text-xs font-semibold text-warning">
-                          Capacity Risk
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-text-secondary">
+                        <Calendar className="h-4 w-4" />
+                        <span>{group.days || 'Not scheduled'}</span>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-text-secondary">
+                        <Clock className="h-4 w-4" />
+                        <span>
+                          {group.start_time
+                            ? `${group.start_time.slice(0, 5)} - ${group.end_time.slice(0, 5)}`
+                            : 'No time set'}
                         </span>
+                      </div>
+                      {group.room && (
+                        <div className="flex items-center gap-2 text-sm text-text-secondary">
+                          <span>🚪</span>
+                          <span>{group.room.name}</span>
+                        </div>
                       )}
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
+
                     <button
-                      onClick={() => setEditingGroup(group)}
-                      disabled={!canEditGroup}
-                      title={!canEditGroup ? 'You do not have permission to edit groups' : undefined}
-                      className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                      onClick={() => router.push(`/dashboard/groups/${group.id}`)}
+                      className="w-full btn-secondary text-sm py-2"
                     >
-                      <Edit className="h-4 w-4 text-primary" />
-                    </button>
-                    <button
-                      onClick={() => handleDelete(group)}
-                      disabled={deleteGroup.isPending || !canDeleteGroup}
-                      title={!canDeleteGroup ? 'You do not have permission to delete groups' : undefined}
-                      className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
-                    >
-                      <Trash2 className="h-4 w-4 text-error" />
+                      View Details →
                     </button>
                   </div>
-                </div>
+                )
+              })}
+            </div>
+          ) : (
+            <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full min-w-[980px]">
+                  <thead className="bg-background/80">
+                    <tr className="border-b border-border text-xs uppercase tracking-wide text-text-secondary">
+                      <th className="text-left px-4 py-3">Group</th>
+                      <th className="text-left px-4 py-3">Schedule</th>
+                      <th className="text-left px-4 py-3">Teacher / Room</th>
+                      <th className="text-left px-4 py-3">Students</th>
+                      <th className="text-left px-4 py-3">Status</th>
+                      <th className="text-right px-4 py-3">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {visibleGroups.map((group: Group) => {
+                      const studentCount = group.students?.length || 0
+                      const roomCapacity = group.room?.capacity || 0
+                      const utilizationPercent = roomCapacity > 0 ? Math.round((studentCount / roomCapacity) * 100) : 0
+                      const isCapacityRisk = utilizationPercent >= 90
+                      const isOngoing = ongoingGroupIdSet.has(Number(group.id))
+                      const hasConflict = conflictGroupIdSet.has(Number(group.id))
 
-                <div className="space-y-3 mb-4">
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <Users className="h-4 w-4" />
-                    <span>
-                      {studentCount} students
-                      {roomCapacity > 0 && ` • ${utilizationPercent}% of room`}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <Calendar className="h-4 w-4" />
-                    <span>{group.days || 'Not scheduled'}</span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm text-text-secondary">
-                    <Clock className="h-4 w-4" />
-                    <span>
-                      {group.start_time
-                        ? `${group.start_time.slice(0, 5)} - ${group.end_time.slice(0, 5)}`
-                        : 'No time set'}
-                    </span>
-                  </div>
-                  {group.room && (
-                    <div className="flex items-center gap-2 text-sm text-text-secondary">
-                      <span>🚪</span>
-                      <span>{group.room.name}</span>
-                    </div>
-                  )}
-                </div>
-
-                <button
-                  onClick={() => router.push(`/dashboard/groups/${group.id}`)}
-                  className="w-full btn-secondary text-sm py-2"
-                >
-                  View Details →
-                </button>
+                      return (
+                        <tr key={group.id} className="border-b border-border/60 hover:bg-background/40 transition-colors">
+                          <td className="px-4 py-3">
+                            <button
+                              onClick={() => router.push(`/dashboard/groups/${group.id}`)}
+                              className="text-left"
+                            >
+                              <p className="font-semibold hover:text-primary transition-colors">{group.name}</p>
+                              <p className="text-xs text-text-secondary">{group.course?.name || 'No course'}</p>
+                            </button>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-sm">{group.days || 'Not scheduled'}</p>
+                            <p className="text-xs text-text-secondary">
+                              {group.start_time ? `${group.start_time.slice(0, 5)} - ${group.end_time.slice(0, 5)}` : 'No time'}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-sm">
+                              {group.main_teacher_name || group.main_teacher?.username || 'No teacher'}
+                            </p>
+                            <p className="text-xs text-text-secondary">{group.room?.name || 'No room'}</p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <p className="text-sm font-medium">{studentCount}</p>
+                            <p className="text-xs text-text-secondary">
+                              {roomCapacity > 0 ? `${utilizationPercent}% of ${roomCapacity}` : 'No room capacity'}
+                            </p>
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex flex-wrap gap-1.5">
+                              {isOngoing && (
+                                <span className="inline-flex rounded-full bg-success/15 px-2 py-0.5 text-[11px] font-semibold text-success">
+                                  Live
+                                </span>
+                              )}
+                              {isCapacityRisk && (
+                                <span className="inline-flex rounded-full bg-warning/15 px-2 py-0.5 text-[11px] font-semibold text-warning">
+                                  Capacity risk
+                                </span>
+                              )}
+                              {hasConflict && (
+                                <span className="inline-flex rounded-full bg-error/15 px-2 py-0.5 text-[11px] font-semibold text-error">
+                                  Conflict
+                                </span>
+                              )}
+                              {!isOngoing && !isCapacityRisk && !hasConflict && (
+                                <span className="inline-flex rounded-full bg-background px-2 py-0.5 text-[11px] text-text-secondary">
+                                  Stable
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-right">
+                            <div className="inline-flex items-center gap-1">
+                              <button
+                                onClick={() => router.push(`/dashboard/groups/${group.id}`)}
+                                className="inline-flex items-center gap-1 rounded-lg px-2 py-1 text-xs text-primary hover:bg-primary/10"
+                              >
+                                Open
+                                <ChevronRight className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={() => setEditingGroup(group)}
+                                disabled={!canEditGroup}
+                                title={!canEditGroup ? 'You do not have permission to edit groups' : undefined}
+                                className="p-1.5 hover:bg-background rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                              >
+                                <Edit className="h-4 w-4 text-primary" />
+                              </button>
+                              <button
+                                onClick={() => handleDelete(group)}
+                                disabled={deleteGroup.isPending || !canDeleteGroup}
+                                title={!canDeleteGroup ? 'You do not have permission to delete groups' : undefined}
+                                className="p-1.5 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
+                              >
+                                <Trash2 className="h-4 w-4 text-error" />
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      )
+                    })}
+                  </tbody>
+                </table>
               </div>
-              )
-            })}
-          </div>
+            </div>
+          )}
 
           {visibleGroups.length === 0 && (
             <div className="bg-surface border border-border rounded-2xl text-center py-12">
+              <ShieldAlert className="h-10 w-10 mx-auto mb-3 text-text-secondary" />
               <p className="text-text-secondary text-lg mb-2">No groups found</p>
               <p className="text-text-secondary text-sm">
-                {searchQuery ? 'Try adjusting your query or filters' : 'Create your first group to get started'}
+                {searchQuery || focusFilter !== 'all'
+                  ? 'Try adjusting search or operational filters'
+                  : 'Create your first group to get started'}
               </p>
             </div>
           )}

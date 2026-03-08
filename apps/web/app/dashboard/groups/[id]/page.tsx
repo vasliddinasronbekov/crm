@@ -18,6 +18,10 @@ import {
   Save,
   Settings,
   Search,
+  Wallet,
+  ClipboardCheck,
+  BookOpen,
+  ShieldAlert,
 } from 'lucide-react'
 
 import apiService from '@/lib/api'
@@ -56,6 +60,7 @@ interface TeacherOption {
 interface RoomOption {
   id: number
   name: string
+  capacity?: number
 }
 
 interface PaymentTypeOption {
@@ -121,6 +126,14 @@ interface PaymentForm {
 
 type Tab = 'students' | 'schedule' | 'payments' | 'attendance'
 type AttendanceStatus = 'present' | 'absent' | 'absence'
+type AlertSeverity = 'info' | 'warning' | 'error'
+
+interface OperationalAlert {
+  id: string
+  title: string
+  detail: string
+  severity: AlertSeverity
+}
 
 const parseListPayload = <T,>(payload: any): T[] => {
   if (Array.isArray(payload)) return payload
@@ -853,6 +866,61 @@ export default function GroupDetailPage() {
           ),
         )
       : 0
+  const roomCapacity = group?.room_id ? rooms.find((room) => room.id === group.room_id)?.capacity || 0 : 0
+  const utilizationPercent =
+    roomCapacity > 0 ? Math.round((studentsInGroup.length / roomCapacity) * 100) : 0
+  const operationalAlerts = useMemo<OperationalAlert[]>(() => {
+    if (!group) return []
+
+    const alerts: OperationalAlert[] = []
+
+    if (!group.main_teacher_id) {
+      alerts.push({
+        id: 'missing-main-teacher',
+        title: 'Main teacher is not assigned',
+        detail: 'Assign a primary teacher to keep attendance and lesson ownership clear.',
+        severity: 'warning',
+      })
+    }
+
+    if (!group.days || !group.start_time || !group.end_time) {
+      alerts.push({
+        id: 'missing-schedule',
+        title: 'Schedule is incomplete',
+        detail: 'Set meeting days and time window so this group appears correctly in schedule and ongoing widgets.',
+        severity: 'error',
+      })
+    }
+
+    if (!group.room_id) {
+      alerts.push({
+        id: 'missing-room',
+        title: 'Room is not assigned',
+        detail: 'Room assignment helps avoid conflicts and gives staff location context.',
+        severity: 'warning',
+      })
+    }
+
+    if (roomCapacity > 0 && utilizationPercent >= 90) {
+      alerts.push({
+        id: 'capacity-risk',
+        title: 'Capacity risk detected',
+        detail: `${studentsInGroup.length}/${roomCapacity} students assigned (${utilizationPercent}%).`,
+        severity: 'warning',
+      })
+    }
+
+    if (debtStudentsCount > 0) {
+      alerts.push({
+        id: 'students-in-debt',
+        title: 'Outstanding student balances',
+        detail: `${debtStudentsCount} students currently have unpaid balance.`,
+        severity: 'info',
+      })
+    }
+
+    return alerts
+  }, [debtStudentsCount, group, roomCapacity, studentsInGroup.length, utilizationPercent])
 
   const visibleTabs = useMemo(() => {
     const tabs: Array<{ id: Tab; label: string; icon: typeof Users }> = [
@@ -956,6 +1024,40 @@ export default function GroupDetailPage() {
                   Read-only mode for this group configuration.
                 </div>
               )}
+              <div className="mt-4 flex flex-wrap items-center gap-2">
+                <button
+                  onClick={() => setActiveTab('students')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium hover:border-primary/40"
+                >
+                  <BookOpen className="h-3.5 w-3.5" />
+                  Students workspace
+                </button>
+                <button
+                  onClick={() => setActiveTab('schedule')}
+                  className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium hover:border-primary/40"
+                >
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  Schedule panel
+                </button>
+                {canViewAttendance && (
+                  <button
+                    onClick={() => setActiveTab('attendance')}
+                    className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium hover:border-primary/40"
+                  >
+                    <ClipboardCheck className="h-3.5 w-3.5" />
+                    Attendance desk
+                  </button>
+                )}
+                {canViewPayments && (
+                  <button
+                    onClick={() => setActiveTab('payments')}
+                    className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium hover:border-primary/40"
+                  >
+                    <Wallet className="h-3.5 w-3.5" />
+                    Payments desk
+                  </button>
+                )}
+              </div>
             </div>
 
             {canConfigureGroup && (
@@ -1028,10 +1130,15 @@ export default function GroupDetailPage() {
                 {debtStudentsCount}
               </p>
               <p className="text-sm text-text-secondary">Students in Debt</p>
+              <p className="text-xs text-text-secondary mt-1">
+                {roomCapacity > 0
+                  ? `Room usage: ${studentsInGroup.length}/${roomCapacity} (${utilizationPercent}%)`
+                  : 'No room capacity configured'}
+              </p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
             <div className="bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-5">
               <p className="text-xs text-text-secondary uppercase tracking-wide mb-2">Session status</p>
               <div className="flex items-center justify-between gap-3">
@@ -1064,6 +1171,36 @@ export default function GroupDetailPage() {
               <p className="text-sm text-text-secondary mt-2">
                 {paidStudentsCount} paid • {debtStudentsCount} with debt
               </p>
+            </div>
+
+            <div className="bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-5">
+              <div className="flex items-center justify-between gap-2 mb-2">
+                <p className="text-xs text-text-secondary uppercase tracking-wide">Operational alerts</p>
+                <ShieldAlert className="h-4 w-4 text-warning" />
+              </div>
+              {operationalAlerts.length > 0 ? (
+                <div className="space-y-2 max-h-[130px] overflow-y-auto pr-1">
+                  {operationalAlerts.map((alert) => (
+                    <div
+                      key={alert.id}
+                      className={`rounded-lg border px-3 py-2 ${
+                        alert.severity === 'error'
+                          ? 'border-error/30 bg-error/10'
+                          : alert.severity === 'warning'
+                            ? 'border-warning/30 bg-warning/10'
+                            : 'border-info/30 bg-info/10'
+                      }`}
+                    >
+                      <p className="text-xs font-semibold">{alert.title}</p>
+                      <p className="text-[11px] text-text-secondary mt-1">{alert.detail}</p>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-border bg-background px-3 py-6 text-center text-xs text-text-secondary">
+                  No blockers detected for this group.
+                </div>
+              )}
             </div>
           </div>
 
