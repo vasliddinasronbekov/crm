@@ -1,6 +1,7 @@
 'use client'
 
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useMemo } from 'react'
+import { useSearchParams } from 'next/navigation'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import { Search, Plus, Edit, Trash2, FileText, Video, Link as LinkIcon } from 'lucide-react'
@@ -46,6 +47,7 @@ interface Module {
 }
 
 export default function LessonsPage() {
+  const searchParams = useSearchParams()
   const { user } = useAuth()
   const permissionState = usePermissions(user)
   const canCreateLesson = permissionState.hasPermission('lessons.create')
@@ -70,6 +72,18 @@ export default function LessonsPage() {
     is_published: false,
     is_free_preview: false
   })
+
+  const selectedModuleFromQuery = useMemo<number | 'all'>(() => {
+    const raw = searchParams.get('module')
+    if (!raw) return 'all'
+
+    const parsed = Number.parseInt(raw, 10)
+    return Number.isFinite(parsed) && parsed > 0 ? parsed : 'all'
+  }, [searchParams])
+
+  useEffect(() => {
+    setSelectedModule(selectedModuleFromQuery)
+  }, [selectedModuleFromQuery])
 
   const mapApiLessonTypeToUi = useCallback((lessonType: string, content?: string): 'video' | 'text' | 'mixed' => {
     if (lessonType === 'article') {
