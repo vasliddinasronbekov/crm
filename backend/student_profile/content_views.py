@@ -5,7 +5,7 @@ Content Delivery System API Views
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
 from rest_framework.exceptions import PermissionDenied
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
@@ -361,13 +361,43 @@ class StudentProgressViewSet(viewsets.ModelViewSet):
     """Student progress tracking API"""
 
     queryset = StudentProgress.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'lms.view',
+        'retrieve': 'lms.view',
+        'my_progress': 'lms.view',
+        'continue_learning': 'lms.view',
+        'track_video': 'lms.view',
+        'create': 'lms.view',
+        'update': 'lms.view',
+        'partial_update': 'lms.view',
+        'destroy': 'lms.edit',
+    }
 
     def get_serializer_class(self):
         """Use different serializers for update"""
         if self.action in ['update', 'partial_update']:
             return StudentProgressUpdateSerializer
         return StudentProgressSerializer
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasRoleCapability()]
+
+    def perform_create(self, serializer):
+        user = self.request.user
+        if has_capability(user, 'lms.edit'):
+            serializer.save()
+            return
+
+        lesson = serializer.validated_data.get('lesson')
+        if lesson is None:
+            raise PermissionDenied(detail='lesson is required for progress creation.')
+
+        serializer.save(
+            student=user,
+            course=lesson.module.course,
+            module=lesson.module,
+        )
 
     def get_queryset(self):
         """Filter progress records"""
@@ -574,7 +604,15 @@ class VideoWatchLogViewSet(viewsets.ReadOnlyModelViewSet):
 
     queryset = VideoWatchLog.objects.all()
     serializer_class = VideoWatchLogSerializer
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'lms.edit',
+        'retrieve': 'lms.edit',
+        'analytics': 'lms.edit',
+    }
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasRoleCapability()]
 
     def get_queryset(self):
         """Filter watch logs"""
@@ -624,13 +662,25 @@ class LessonNoteViewSet(viewsets.ModelViewSet):
     """Lesson notes management API"""
 
     queryset = LessonNote.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'lms.view',
+        'retrieve': 'lms.view',
+        'create': 'lms.view',
+        'update': 'lms.view',
+        'partial_update': 'lms.view',
+        'destroy': 'lms.view',
+        'my_notes': 'lms.view',
+    }
 
     def get_serializer_class(self):
         """Use different serializers for create/update"""
         if self.action in ['create', 'update', 'partial_update']:
             return LessonNoteCreateSerializer
         return LessonNoteSerializer
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasRoleCapability()]
 
     def get_queryset(self):
         """Filter notes - students see only their own"""

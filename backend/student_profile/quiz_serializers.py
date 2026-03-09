@@ -11,6 +11,13 @@ from .quiz_models import (
     QuizAttempt, QuizAnswer
 )
 from users.serializers import UserSerializer
+from users.roles import has_capability
+
+
+def _can_view_answer_key(context: dict[str, Any]) -> bool:
+    request = context.get('request')
+    user = getattr(request, 'user', None)
+    return bool(user and user.is_authenticated and has_capability(user, 'quizzes.edit'))
 
 
 class AssignmentSerializer(serializers.ModelSerializer):
@@ -137,6 +144,12 @@ class QuestionOptionSerializer(serializers.ModelSerializer):
         model = QuestionOption
         fields = ['id', 'option_text', 'is_correct', 'order']
 
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not _can_view_answer_key(self.context):
+            data.pop('is_correct', None)
+        return data
+
 
 class QuestionSerializer(serializers.ModelSerializer):
     """Question serializer"""
@@ -151,6 +164,12 @@ class QuestionSerializer(serializers.ModelSerializer):
             'is_required', 'options', 'created_at', 'updated_at'
         ]
         read_only_fields = ['created_at', 'updated_at']
+
+    def to_representation(self, instance):
+        data = super().to_representation(instance)
+        if not _can_view_answer_key(self.context):
+            data['explanation'] = ''
+        return data
 
 
 class QuestionCreateSerializer(serializers.ModelSerializer):
@@ -336,7 +355,10 @@ class QuizAnswerSerializer(serializers.ModelSerializer):
 
     def get_correct_answer_text(self, obj) -> Any:
         """Show correct answer (only if quiz allows or after submission)"""
-        if not obj.attempt.quiz.show_correct_answers and obj.attempt.status == 'in_progress':
+        can_view_answer_key = _can_view_answer_key(self.context)
+        if not can_view_answer_key and not obj.attempt.quiz.show_correct_answers:
+            return None
+        if not can_view_answer_key and obj.attempt.status == 'in_progress':
             return None
 
         if obj.question.question_type == 'multiple_choice':

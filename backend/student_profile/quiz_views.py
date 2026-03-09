@@ -44,8 +44,8 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         'list': 'assignments.view',
         'retrieve': 'assignments.view',
         'submit': 'assignments.view',
-        'submissions': 'assignments.view',
-        'statistics': 'assignments.view',
+        'submissions': 'assignments.edit',
+        'statistics': 'assignments.edit',
         'create': 'assignments.create',
         'update': 'assignments.edit',
         'partial_update': 'assignments.edit',
@@ -286,7 +286,7 @@ class QuizViewSet(viewsets.ModelViewSet):
         if quiz.shuffle_questions:
             questions = questions.order_by('?')
 
-        serializer = QuestionSerializer(questions, many=True)
+        serializer = QuestionSerializer(questions, many=True, context={'request': request})
         return Response(serializer.data)
 
     @action(detail=True, methods=['post'])
@@ -475,6 +475,9 @@ class QuestionViewSet(viewsets.ModelViewSet):
         if quiz_id:
             queryset = queryset.filter(quiz_id=quiz_id)
 
+        if not has_capability(self.request.user, 'quizzes.edit'):
+            queryset = queryset.filter(quiz__is_published=True)
+
         return queryset.order_by('order')
 
     @action(detail=False, methods=['post'])
@@ -522,13 +525,26 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
     """Quiz attempt management API"""
 
     queryset = QuizAttempt.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'quizzes.view',
+        'retrieve': 'quizzes.view',
+        'create': 'quizzes.view',
+        'submit': 'quizzes.view',
+        'my_attempts': 'quizzes.view',
+        'update': 'quizzes.edit',
+        'partial_update': 'quizzes.edit',
+        'destroy': 'quizzes.delete',
+    }
 
     def get_serializer_class(self):
         """Use different serializers for different actions"""
         if self.action == 'create':
             return QuizAttemptCreateSerializer
         return QuizAttemptSerializer
+
+    def get_permissions(self):
+        return [IsAuthenticated(), HasRoleCapability()]
 
     def get_queryset(self):
         """Filter attempts"""
