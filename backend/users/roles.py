@@ -65,6 +65,16 @@ MANAGEMENT_ROLES = {
     UserRoleEnum.SUPERADMIN.value,
 }
 
+LMS_VIEW_ROLES = set(ALL_ROLES)
+
+LMS_EDIT_ROLES = set(STAFF_SIDE_ROLES)
+
+LMS_DELETE_ROLES = {
+    UserRoleEnum.ADMIN.value,
+    UserRoleEnum.DIRECTOR.value,
+    UserRoleEnum.SUPERADMIN.value,
+}
+
 CAPABILITY_MATRIX: dict[str, set[str]] = {
     # Portal routing
     'portal.staff.access': set(STAFF_SIDE_ROLES),
@@ -119,6 +129,31 @@ CAPABILITY_MATRIX: dict[str, set[str]] = {
         UserRoleEnum.ADMIN.value,
         UserRoleEnum.SUPERADMIN.value,
     },
+    # LMS domain (staff + teacher management with student/parent read access)
+    'lms.view': set(LMS_VIEW_ROLES),
+    'lms.create': set(LMS_EDIT_ROLES),
+    'lms.edit': set(LMS_EDIT_ROLES),
+    'lms.delete': set(LMS_DELETE_ROLES),
+    'courses.view': set(LMS_VIEW_ROLES),
+    'courses.create': set(LMS_EDIT_ROLES),
+    'courses.edit': set(LMS_EDIT_ROLES),
+    'courses.delete': set(LMS_DELETE_ROLES),
+    'modules.view': set(LMS_VIEW_ROLES),
+    'modules.create': set(LMS_EDIT_ROLES),
+    'modules.edit': set(LMS_EDIT_ROLES),
+    'modules.delete': set(LMS_DELETE_ROLES),
+    'lessons.view': set(LMS_VIEW_ROLES),
+    'lessons.create': set(LMS_EDIT_ROLES),
+    'lessons.edit': set(LMS_EDIT_ROLES),
+    'lessons.delete': set(LMS_DELETE_ROLES),
+    'assignments.view': set(LMS_VIEW_ROLES),
+    'assignments.create': set(LMS_EDIT_ROLES),
+    'assignments.edit': set(LMS_EDIT_ROLES),
+    'assignments.delete': set(LMS_DELETE_ROLES),
+    'quizzes.view': set(LMS_VIEW_ROLES),
+    'quizzes.create': set(LMS_EDIT_ROLES),
+    'quizzes.edit': set(LMS_EDIT_ROLES),
+    'quizzes.delete': set(LMS_DELETE_ROLES),
 }
 
 

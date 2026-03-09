@@ -33,7 +33,8 @@ from .content_access import (
     get_lesson_lock_state,
 )
 from .models import Course
-from users.models import User
+from users.permissions import HasRoleCapability
+from users.roles import has_capability
 
 
 class CourseModuleViewSet(viewsets.ModelViewSet):
@@ -41,7 +42,19 @@ class CourseModuleViewSet(viewsets.ModelViewSet):
 
     queryset = CourseModule.objects.all()
     serializer_class = CourseModuleSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'modules.view',
+        'retrieve': 'modules.view',
+        'lessons': 'modules.view',
+        'roadmap': 'modules.view',
+        'progress': 'modules.view',
+        'create': 'modules.create',
+        'update': 'modules.edit',
+        'partial_update': 'modules.edit',
+        'reorder': 'modules.edit',
+        'destroy': 'modules.delete',
+    }
 
     def get_queryset(self):
         """Filter modules"""
@@ -55,7 +68,7 @@ class CourseModuleViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(course_id=course_id)
 
         # Students only see published modules
-        if not self.request.user.is_staff:
+        if not has_capability(self.request.user, 'modules.edit'):
             queryset = queryset.filter(Q(is_published=True) | Q(is_free_preview=True))
 
         return queryset.order_by('order')
@@ -71,10 +84,7 @@ class CourseModuleViewSet(viewsets.ModelViewSet):
         return context
 
     def get_permissions(self):
-        """Allow students to read, staff to write"""
-        if self.action in ['list', 'retrieve', 'roadmap', 'lessons', 'progress']:
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminUser()]
+        return [IsAuthenticated(), HasRoleCapability()]
 
     @action(detail=False, methods=['post'])
     def reorder(self, request):
@@ -96,7 +106,7 @@ class CourseModuleViewSet(viewsets.ModelViewSet):
         lessons = module.lessons.all()
 
         # Students only see published lessons
-        if not request.user.is_staff:
+        if not has_capability(request.user, 'modules.edit'):
             lessons = lessons.filter(Q(is_published=True) | Q(is_free_preview=True))
 
         lessons = lessons.order_by('order')
@@ -172,7 +182,19 @@ class LessonViewSet(viewsets.ModelViewSet):
     """Lesson management API"""
 
     queryset = Lesson.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'lessons.view',
+        'retrieve': 'lessons.view',
+        'start': 'lessons.view',
+        'mark_complete': 'lessons.view',
+        'next_lesson': 'lessons.view',
+        'create': 'lessons.create',
+        'update': 'lessons.edit',
+        'partial_update': 'lessons.edit',
+        'reorder': 'lessons.edit',
+        'destroy': 'lessons.delete',
+    }
 
     def get_serializer_class(self):
         """Use different serializers for create/update"""
@@ -199,7 +221,7 @@ class LessonViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(lesson_type=lesson_type)
 
         # Students only see published lessons (or free preview lessons)
-        if not self.request.user.is_staff:
+        if not has_capability(self.request.user, 'lessons.edit'):
             queryset = queryset.filter(
                 Q(is_published=True) | Q(is_free_preview=True)
             )
@@ -207,10 +229,7 @@ class LessonViewSet(viewsets.ModelViewSet):
         return queryset.order_by('module__order', 'order')
 
     def get_permissions(self):
-        """Allow students to read, staff to write"""
-        if self.action in ['list', 'retrieve', 'start', 'mark_complete', 'next_lesson']:
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminUser()]
+        return [IsAuthenticated(), HasRoleCapability()]
 
     def get_serializer_context(self):
         context = super().get_serializer_context()
@@ -222,7 +241,7 @@ class LessonViewSet(viewsets.ModelViewSet):
         return context
 
     def _ensure_lesson_access(self, request, lesson):
-        if request.user.is_staff:
+        if has_capability(request.user, 'lessons.edit'):
             return
         access_state = build_content_access_state(request.user, course=lesson.module.course)
         is_locked, reason = get_lesson_lock_state(request.user, lesson, access_state)
@@ -359,7 +378,7 @@ class StudentProgressViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         # Students see only their own progress
-        if not user.is_staff:
+        if not has_capability(user, 'lms.edit'):
             queryset = queryset.filter(student=user)
         else:
             # Staff can filter by student
@@ -620,7 +639,7 @@ class LessonNoteViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         # Students see only their own notes
-        if not user.is_staff:
+        if not has_capability(user, 'lms.edit'):
             queryset = queryset.filter(student=user)
 
         # Filter by lesson
@@ -654,7 +673,16 @@ class CourseAnnouncementViewSet(viewsets.ModelViewSet):
     """Course announcements API"""
 
     queryset = CourseAnnouncement.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'lms.view',
+        'retrieve': 'lms.view',
+        'create': 'lms.create',
+        'update': 'lms.edit',
+        'partial_update': 'lms.edit',
+        'toggle_pin': 'lms.edit',
+        'destroy': 'lms.delete',
+    }
 
     def get_serializer_class(self):
         """Use different serializers for create/update"""
@@ -674,10 +702,7 @@ class CourseAnnouncementViewSet(viewsets.ModelViewSet):
         return queryset.order_by('-created_at')
 
     def get_permissions(self):
-        """Allow students to read, staff to write"""
-        if self.action in ['list', 'retrieve']:
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminUser()]
+        return [IsAuthenticated(), HasRoleCapability()]
 
     @action(detail=True, methods=['post'])
     def toggle_pin(self, request, pk=None):

@@ -15,3 +15,25 @@ CSRF_COOKIE_SECURE = False
 SECURE_HSTS_SECONDS = 0
 SECURE_HSTS_INCLUDE_SUBDOMAINS = False
 SECURE_HSTS_PRELOAD = False
+
+# Keep tests self-contained (no Redis dependency).
+CACHES = {
+    "default": {
+        "BACKEND": "django.core.cache.backends.locmem.LocMemCache",
+        "LOCATION": "edu-test-cache",
+    }
+}
+SESSION_ENGINE = "django.contrib.sessions.backends.cache"
+SESSION_CACHE_ALIAS = "default"
+
+CHANNEL_LAYERS = {
+    "default": {
+        "BACKEND": "channels.layers.InMemoryChannelLayer",
+    }
+}
+
+# Run Celery tasks in-process during tests to avoid broker connectivity.
+CELERY_TASK_ALWAYS_EAGER = True
+CELERY_TASK_EAGER_PROPAGATES = True
+CELERY_BROKER_URL = "memory://"
+CELERY_RESULT_BACKEND = "cache+memory://"

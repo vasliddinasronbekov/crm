@@ -10,6 +10,7 @@ from typing import Dict, Optional, Set
 from django.db.models import Q
 
 from .content_models import CourseModule, Lesson, StudentProgress
+from users.roles import has_capability
 
 
 @dataclass
@@ -21,6 +22,10 @@ class ContentAccessState:
 
 def _published_module_lessons(module: CourseModule):
     return module.lessons.filter(Q(is_published=True) | Q(is_free_preview=True)).order_by("order", "id")
+
+
+def _has_lms_editor_access(user) -> bool:
+    return has_capability(user, "lms.edit")
 
 
 def is_module_completed(module: CourseModule, completed_lesson_ids: Set[int]) -> bool:
@@ -71,7 +76,7 @@ def get_module_lock_state(
     module: CourseModule,
     state: Optional[ContentAccessState] = None,
 ):
-    if user.is_staff:
+    if _has_lms_editor_access(user):
         return False, ""
 
     if module.is_free_preview:
@@ -109,7 +114,7 @@ def get_lesson_lock_state(
     lesson: Lesson,
     state: Optional[ContentAccessState] = None,
 ):
-    if user.is_staff:
+    if _has_lms_editor_access(user):
         return False, ""
 
     if lesson.is_free_preview or lesson.module.is_free_preview:

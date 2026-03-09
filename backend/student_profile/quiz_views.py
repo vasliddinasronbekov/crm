@@ -7,7 +7,7 @@ from decimal import Decimal, InvalidOperation
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, IsAdminUser
+from rest_framework.permissions import IsAuthenticated
 from django.shortcuts import get_object_or_404
 from django.utils import timezone
 from django.db.models import Avg, Count, Sum, Q, F, Max
@@ -30,7 +30,8 @@ from .quiz_serializers import (
     QuizAnswerSerializer,
     QuizAnswerSubmitSerializer
 )
-from users.models import User
+from users.permissions import HasRoleCapability
+from users.roles import has_capability
 
 
 class AssignmentViewSet(viewsets.ModelViewSet):
@@ -38,7 +39,18 @@ class AssignmentViewSet(viewsets.ModelViewSet):
 
     queryset = Assignment.objects.all()
     serializer_class = AssignmentSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'assignments.view',
+        'retrieve': 'assignments.view',
+        'submit': 'assignments.view',
+        'submissions': 'assignments.view',
+        'statistics': 'assignments.view',
+        'create': 'assignments.create',
+        'update': 'assignments.edit',
+        'partial_update': 'assignments.edit',
+        'destroy': 'assignments.delete',
+    }
 
     def get_queryset(self):
         """Filter assignments"""
@@ -55,16 +67,13 @@ class AssignmentViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(assignment_type=assignment_type)
 
         # Students only see published assignments
-        if not self.request.user.is_staff:
+        if not has_capability(self.request.user, 'assignments.edit'):
             queryset = queryset.filter(is_published=True)
 
         return queryset.order_by('due_date')
 
     def get_permissions(self):
-        """Allow students to read, staff to write"""
-        if self.action in ['list', 'retrieve', 'submit']:
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminUser()]
+        return [IsAuthenticated(), HasRoleCapability()]
 
     @action(detail=True, methods=['get'])
     def submissions(self, request, pk=None):
@@ -145,7 +154,17 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
     """Assignment submission management API"""
 
     queryset = AssignmentSubmission.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'assignments.view',
+        'retrieve': 'assignments.view',
+        'create': 'assignments.view',
+        'my_submissions': 'assignments.view',
+        'grade': 'assignments.edit',
+        'update': 'assignments.edit',
+        'partial_update': 'assignments.edit',
+        'destroy': 'assignments.delete',
+    }
 
     def get_serializer_class(self):
         """Use different serializers for different actions"""
@@ -164,7 +183,7 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         # Students see only their own submissions
-        if not user.is_staff:
+        if not has_capability(user, 'assignments.edit'):
             queryset = queryset.filter(student=user)
         else:
             # Staff can filter by student
@@ -184,7 +203,7 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by('-submitted_at')
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
+    @action(detail=True, methods=['post'])
     def grade(self, request, pk=None):
         """Grade a submission (teacher action)"""
         submission = self.get_object()
@@ -218,7 +237,21 @@ class QuizViewSet(viewsets.ModelViewSet):
 
     queryset = Quiz.objects.all()
     serializer_class = QuizSerializer
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'quizzes.view',
+        'retrieve': 'quizzes.view',
+        'questions': 'quizzes.view',
+        'start_attempt': 'quizzes.view',
+        'statistics': 'quizzes.view',
+        'leaderboard': 'quizzes.view',
+        'create': 'quizzes.create',
+        'create_with_questions': 'quizzes.create',
+        'duplicate': 'quizzes.create',
+        'update': 'quizzes.edit',
+        'partial_update': 'quizzes.edit',
+        'destroy': 'quizzes.delete',
+    }
 
     def get_queryset(self):
         """Filter quizzes"""
@@ -235,16 +268,13 @@ class QuizViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(quiz_type=quiz_type)
 
         # Students only see published quizzes
-        if not self.request.user.is_staff:
+        if not has_capability(self.request.user, 'quizzes.edit'):
             queryset = queryset.filter(is_published=True)
 
         return queryset.order_by('created_at')
 
     def get_permissions(self):
-        """Allow students to read and take, staff to write"""
-        if self.action in ['list', 'retrieve', 'start_attempt', 'questions']:
-            return [IsAuthenticated()]
-        return [IsAuthenticated(), IsAdminUser()]
+        return [IsAuthenticated(), HasRoleCapability()]
 
     @action(detail=True, methods=['get'])
     def questions(self, request, pk=None):
@@ -326,7 +356,7 @@ class QuizViewSet(viewsets.ModelViewSet):
 
         return Response(leaderboard)
 
-    @action(detail=False, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
+    @action(detail=False, methods=['post'])
     def create_with_questions(self, request):
         """Create quiz with questions and options in one call"""
         quiz_data = request.data.copy()
@@ -365,7 +395,7 @@ class QuizViewSet(viewsets.ModelViewSet):
             'message': f'Quiz created successfully with {len(created_questions)} questions'
         }, status=status.HTTP_201_CREATED)
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
+    @action(detail=True, methods=['post'])
     def duplicate(self, request, pk=None):
         """Duplicate an existing quiz with all questions"""
         original_quiz = self.get_object()
@@ -418,7 +448,17 @@ class QuestionViewSet(viewsets.ModelViewSet):
     """Question management API (for quiz builder)"""
 
     queryset = Question.objects.all()
-    permission_classes = [IsAuthenticated, IsAdminUser]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'quizzes.view',
+        'retrieve': 'quizzes.view',
+        'create': 'quizzes.create',
+        'duplicate': 'quizzes.edit',
+        'update': 'quizzes.edit',
+        'partial_update': 'quizzes.edit',
+        'reorder': 'quizzes.edit',
+        'destroy': 'quizzes.delete',
+    }
 
     def get_serializer_class(self):
         """Use different serializers for create/update"""
@@ -497,7 +537,7 @@ class QuizAttemptViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         # Students see only their own attempts
-        if not user.is_staff:
+        if not has_capability(user, 'quizzes.edit'):
             queryset = queryset.filter(student=user)
         else:
             # Staff can filter by student
@@ -575,7 +615,16 @@ class QuizAnswerViewSet(viewsets.ModelViewSet):
     """Quiz answer management API"""
 
     queryset = QuizAnswer.objects.all()
-    permission_classes = [IsAuthenticated]
+    permission_classes = [IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'quizzes.view',
+        'retrieve': 'quizzes.view',
+        'create': 'quizzes.view',
+        'grade_manually': 'quizzes.edit',
+        'update': 'quizzes.edit',
+        'partial_update': 'quizzes.edit',
+        'destroy': 'quizzes.delete',
+    }
 
     def get_serializer_class(self):
         """Use different serializers for different actions"""
@@ -590,7 +639,7 @@ class QuizAnswerViewSet(viewsets.ModelViewSet):
         user = self.request.user
 
         # Students see only their own answers
-        if not user.is_staff:
+        if not has_capability(user, 'quizzes.edit'):
             queryset = queryset.filter(attempt__student=user)
 
         # Filter by attempt
@@ -600,7 +649,7 @@ class QuizAnswerViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by('question__order')
 
-    @action(detail=True, methods=['post'], permission_classes=[IsAuthenticated, IsAdminUser])
+    @action(detail=True, methods=['post'])
     def grade_manually(self, request, pk=None):
         """Manually grade essay/short answer questions"""
         answer = self.get_object()
