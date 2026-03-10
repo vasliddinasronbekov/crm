@@ -1505,7 +1505,7 @@ class ReportDownloadView(APIView):
         if report is None:
             return Response({'detail': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
 
-        download_format = (request.query_params.get('format') or 'csv').lower()
+        download_format = (request.query_params.get('file_format') or 'csv').lower()
         if download_format == 'json':
             response = HttpResponse(
                 json.dumps(ReportDetailSerializer(report).data),

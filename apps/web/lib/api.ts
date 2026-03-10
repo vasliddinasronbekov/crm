@@ -954,7 +954,7 @@ class ApiService {
 
   async downloadReport(reportId: string, format: "csv" | "json" = "csv") {
     const response = await this.api.get(`/analytics/reports/${reportId}/download/`, {
-      params: { format },
+      params: { file_format: format },
       responseType: "blob",
     });
     return response.data;
