@@ -16,7 +16,12 @@ import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useTheme } from '@eduvoice/mobile-shared';
 
 import { GlassCard } from '../components/app/GlassCard';
-import { listRuntimeAssignments, type RuntimeAssignmentSummary } from '../lib/lmsRuntime';
+import {
+  getRuntimeAssignmentsInsights,
+  listRuntimeAssignments,
+  type RuntimeAssignmentInsights,
+  type RuntimeAssignmentSummary,
+} from '../lib/lmsRuntime';
 import type { AppStackParamList } from '../navigation/types';
 
 type AssignmentFilter = 'all' | 'pending' | 'submitted' | 'graded';
@@ -33,11 +38,18 @@ export const AssignmentsScreen = () => {
     queryFn: () => listRuntimeAssignments(filter),
   });
 
+  const insightsQuery = useQuery({
+    queryKey: ['runtime-assignment-insights'],
+    queryFn: getRuntimeAssignmentsInsights,
+  });
+
   const assignments = assignmentsQuery.data || [];
+  const insights: RuntimeAssignmentInsights | undefined = insightsQuery.data;
   const stats = {
-    total: assignments.length,
-    pending: assignments.filter((assignment) => assignment.status === 'pending').length,
-    graded: assignments.filter((assignment) => assignment.status === 'graded').length,
+    total: insights?.totalAssignments ?? assignments.length,
+    pending: insights?.awaitingGradeCount ?? assignments.filter((assignment) => assignment.status === 'pending').length,
+    graded: insights?.gradedCount ?? assignments.filter((assignment) => assignment.status === 'graded').length,
+    completionRate: insights?.completionRate ?? 0,
   };
 
   const filters: { key: AssignmentFilter; label: string; color: string }[] = [
@@ -105,7 +117,56 @@ export const AssignmentsScreen = () => {
             <Text style={styles.statLabel}>Graded</Text>
           </GlassCard>
         </View>
+        <View style={styles.heroInsightsRow}>
+          <View style={styles.heroInsightPill}>
+            <Text style={styles.heroInsightLabel}>Completion</Text>
+            <Text style={styles.heroInsightValue}>{stats.completionRate.toFixed(1)}%</Text>
+          </View>
+          <View style={styles.heroInsightPill}>
+            <Text style={styles.heroInsightLabel}>On-Time Rate</Text>
+            <Text style={styles.heroInsightValue}>{(insights?.onTimeRate ?? 0).toFixed(1)}%</Text>
+          </View>
+          <View style={styles.heroInsightPill}>
+            <Text style={styles.heroInsightLabel}>Avg Score</Text>
+            <Text style={styles.heroInsightValue}>{(insights?.averageScore ?? 0).toFixed(1)}</Text>
+          </View>
+        </View>
       </GlassCard>
+
+      {insightsQuery.isLoading ? (
+        <GlassCard style={styles.insightsLoadingCard}>
+          <ActivityIndicator size="small" color={theme.colors.primary500} />
+          <Text style={styles.insightsLoadingText}>Preparing assignment insights...</Text>
+        </GlassCard>
+      ) : insights && insights.recentSubmissions.length > 0 ? (
+        <GlassCard style={styles.recentCard}>
+          <Text style={styles.recentTitle}>Recent Submissions</Text>
+          <View style={styles.recentList}>
+            {insights.recentSubmissions.slice(0, 3).map((submission) => (
+              <TouchableOpacity
+                key={submission.submissionId}
+                style={styles.recentItem}
+                onPress={() => navigation.navigate('AssignmentReview', { submissionId: submission.submissionId })}
+                activeOpacity={0.88}
+              >
+                <View style={styles.recentItemMain}>
+                  <Text style={styles.recentItemTitle} numberOfLines={1}>
+                    {submission.assignmentTitle}
+                  </Text>
+                  <Text style={styles.recentItemMeta}>
+                    {submission.status.toUpperCase()} • {submission.isLate ? 'LATE' : 'ON TIME'}
+                  </Text>
+                </View>
+                <Text style={styles.recentItemScore}>
+                  {submission.pointsEarned === null || submission.pointsEarned === undefined
+                    ? 'Pending'
+                    : `${submission.pointsEarned}/${submission.maxPoints}`}
+                </Text>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </GlassCard>
+      ) : null}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {filters.map((item) => {
@@ -134,13 +195,21 @@ export const AssignmentsScreen = () => {
         </GlassCard>
       ) : (
         <View style={styles.list}>
-          {assignments.map((assignment) => (
-            <AssignmentCard
-              key={assignment.id}
-              assignment={assignment}
-              onPress={() => navigation.navigate('AssignmentDetail', { assignmentId: assignment.id })}
-            />
-          ))}
+          {assignments.map((assignment) => {
+            const submissionId = assignment.userSubmission?.id;
+            return (
+              <AssignmentCard
+                key={assignment.id}
+                assignment={assignment}
+                onPress={() => navigation.navigate('AssignmentDetail', { assignmentId: assignment.id })}
+                onOpenReview={
+                  submissionId
+                    ? () => navigation.navigate('AssignmentReview', { submissionId })
+                    : undefined
+                }
+              />
+            );
+          })}
         </View>
       )}
     </ScrollView>
@@ -150,9 +219,11 @@ export const AssignmentsScreen = () => {
 const AssignmentCard = ({
   assignment,
   onPress,
+  onOpenReview,
 }: {
   assignment: RuntimeAssignmentSummary;
   onPress: () => void;
+  onOpenReview?: () => void;
 }) => {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]);
@@ -198,6 +269,12 @@ const AssignmentCard = ({
           <Text style={styles.metaText}>{assignment.maxPoints} pts</Text>
         </View>
       </View>
+      {onOpenReview ? (
+        <TouchableOpacity style={styles.reviewButton} onPress={onOpenReview}>
+          <MaterialCommunityIcons name="clipboard-text-search-outline" size={17} color={theme.text} />
+          <Text style={styles.reviewButtonText}>Open Submission Review</Text>
+        </TouchableOpacity>
+      ) : null}
     </GlassCard>
   );
 };
@@ -268,6 +345,31 @@ const createStyles = (theme: any, isDark: boolean) =>
       flexDirection: 'row',
       gap: 10,
     },
+    heroInsightsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    heroInsightPill: {
+      flex: 1,
+      minWidth: 100,
+      borderRadius: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.72)',
+    },
+    heroInsightLabel: {
+      ...theme.typography.caption,
+      color: theme.textSecondary,
+    },
+    heroInsightValue: {
+      ...theme.typography.body,
+      marginTop: 2,
+      color: theme.text,
+      fontWeight: '700',
+    },
     statCard: {
       flex: 1,
       padding: 14,
@@ -309,6 +411,57 @@ const createStyles = (theme: any, isDark: boolean) =>
       borderRadius: 28,
       alignItems: 'center',
       gap: 8,
+    },
+    insightsLoadingCard: {
+      padding: 16,
+      borderRadius: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    insightsLoadingText: {
+      ...theme.typography.body,
+      color: theme.textSecondary,
+    },
+    recentCard: {
+      padding: 16,
+      borderRadius: 22,
+      gap: 10,
+    },
+    recentTitle: {
+      ...theme.typography.h4,
+      color: theme.text,
+    },
+    recentList: {
+      gap: 10,
+    },
+    recentItem: {
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+      borderRadius: 14,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)',
+    },
+    recentItemMain: {
+      flex: 1,
+      gap: 2,
+    },
+    recentItemTitle: {
+      ...theme.typography.body,
+      color: theme.text,
+      fontWeight: '700',
+    },
+    recentItemMeta: {
+      ...theme.typography.caption,
+      color: theme.textSecondary,
+    },
+    recentItemScore: {
+      ...theme.typography.body,
+      color: theme.text,
+      fontWeight: '700',
     },
     assignmentCard: {
       padding: 18,
@@ -371,5 +524,23 @@ const createStyles = (theme: any, isDark: boolean) =>
     metaText: {
       ...theme.typography.caption,
       color: theme.textSecondary,
+    },
+    reviewButton: {
+      marginTop: 6,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 14,
+      paddingVertical: 11,
+      paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.78)',
+    },
+    reviewButtonText: {
+      ...theme.typography.caption,
+      color: theme.text,
+      fontWeight: '700',
     },
   });

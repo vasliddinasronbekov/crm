@@ -2,6 +2,7 @@
 Quiz & Assignment System Serializers
 """
 from typing import Any
+from decimal import Decimal, InvalidOperation
 
 from rest_framework import serializers
 from django.utils import timezone
@@ -123,14 +124,36 @@ class AssignmentSubmissionCreateSerializer(serializers.ModelSerializer):
 class AssignmentSubmissionGradeSerializer(serializers.ModelSerializer):
     """Grade assignment submission"""
 
+    status = serializers.ChoiceField(
+        choices=['graded', 'returned'],
+        required=False,
+        default='graded',
+    )
+
     class Meta:
         model = AssignmentSubmission
-        fields = ['points_earned', 'feedback']
+        fields = ['points_earned', 'feedback', 'status']
 
     def update(self, instance, validated_data):
-        instance.points_earned = validated_data.get('points_earned', instance.points_earned)
+        requested_points = validated_data.get('points_earned', instance.points_earned)
+        if requested_points is not None:
+            try:
+                parsed_points = Decimal(str(requested_points))
+            except (InvalidOperation, ValueError):
+                raise serializers.ValidationError({'points_earned': 'Enter a valid numeric score.'})
+
+            if parsed_points < 0 or parsed_points > Decimal(str(instance.assignment.max_points)):
+                raise serializers.ValidationError(
+                    {
+                        'points_earned': f'Score must be between 0 and {instance.assignment.max_points}.',
+                    }
+                )
+            instance.points_earned = parsed_points
+        else:
+            instance.points_earned = requested_points
+
         instance.feedback = validated_data.get('feedback', instance.feedback)
-        instance.status = 'graded'
+        instance.status = validated_data.get('status', 'graded')
         instance.graded_by = self.context['request'].user
         instance.graded_at = timezone.now()
         instance.save()

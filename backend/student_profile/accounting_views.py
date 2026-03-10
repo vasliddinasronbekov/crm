@@ -61,6 +61,20 @@ class StudentAccountViewSet(viewsets.ReadOnlyModelViewSet):
         if student_id:
             queryset = queryset.filter(student_id=student_id)
 
+        student_ids = self.request.query_params.get('student_ids')
+        if student_ids:
+            parsed_ids = []
+            for raw_id in student_ids.split(','):
+                token = raw_id.strip()
+                if not token:
+                    continue
+                try:
+                    parsed_ids.append(int(token))
+                except (TypeError, ValueError):
+                    continue
+            if parsed_ids:
+                queryset = queryset.filter(student_id__in=parsed_ids)
+
         status_filter = self.request.query_params.get('status')
         if status_filter:
             queryset = queryset.filter(status=status_filter)

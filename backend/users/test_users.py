@@ -6,6 +6,7 @@ import pytest
 from django.contrib.auth import get_user_model
 from rest_framework import status
 from users.models import UserRoleEnum
+from student_profile.accounting_models import StudentAccount
 
 User = get_user_model()
 
@@ -236,3 +237,45 @@ class TestUserAPI:
         assert created.is_teacher is True
         assert created.is_staff is True
         assert created.role == UserRoleEnum.TEACHER.value
+
+    def test_admin_can_manually_freeze_deactivate_and_activate_student_account(self, admin_client, student):
+        freeze_response = admin_client.post(
+            f'/api/users/students/{student.id}/freeze_account/',
+            {},
+            format='json',
+        )
+        assert freeze_response.status_code == status.HTTP_200_OK
+        student.refresh_from_db()
+        account = StudentAccount.objects.get(student=student)
+        assert account.status == StudentAccount.STATUS_FROZEN
+        assert student.is_active is False
+
+        deactivate_response = admin_client.post(
+            f'/api/users/students/{student.id}/deactivate_account/',
+            {},
+            format='json',
+        )
+        assert deactivate_response.status_code == status.HTTP_200_OK
+        account.refresh_from_db()
+        student.refresh_from_db()
+        assert account.status == StudentAccount.STATUS_DEACTIVATED
+        assert student.is_active is False
+
+        activate_response = admin_client.post(
+            f'/api/users/students/{student.id}/activate_account/',
+            {},
+            format='json',
+        )
+        assert activate_response.status_code == status.HTTP_200_OK
+        account.refresh_from_db()
+        student.refresh_from_db()
+        assert account.status == StudentAccount.STATUS_ACTIVE
+        assert student.is_active is True
+
+    def test_student_cannot_manage_other_student_account_status(self, authenticated_client, student):
+        response = authenticated_client.post(
+            f'/api/users/students/{student.id}/freeze_account/',
+            {},
+            format='json',
+        )
+        assert response.status_code == status.HTTP_403_FORBIDDEN

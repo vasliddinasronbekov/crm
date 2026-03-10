@@ -198,9 +198,84 @@ export interface RuntimeAssignmentSubmission {
   file?: string | null;
   status: 'draft' | 'submitted' | 'graded' | 'returned';
   submittedAt?: string;
+  gradedAt?: string;
+  attemptNumber?: number;
   pointsEarned?: number;
   feedback?: string;
   isLate: boolean;
+  assignmentId?: number;
+}
+
+export interface RuntimeAssignmentInsights {
+  totalAssignments: number;
+  submittedCount: number;
+  gradedCount: number;
+  awaitingGradeCount: number;
+  lateCount: number;
+  completionRate: number;
+  onTimeRate: number;
+  averageScore: number;
+  weakestModule?: {
+    module: string;
+    assignments: number;
+    averageScore: number;
+  } | null;
+  dueSoon: Array<{
+    assignmentId: number;
+    title: string;
+    dueDate?: string;
+    maxPoints: number;
+  }>;
+  recentSubmissions: Array<{
+    submissionId: number;
+    assignmentId: number;
+    assignmentTitle: string;
+    status: 'draft' | 'submitted' | 'graded' | 'returned';
+    pointsEarned?: number | null;
+    maxPoints: number;
+    isLate: boolean;
+    submittedAt?: string;
+  }>;
+}
+
+export interface RuntimeAssignmentSubmissionReview {
+  submission: {
+    id: number;
+    assignmentId: number;
+    assignmentTitle: string;
+    status: 'draft' | 'submitted' | 'graded' | 'returned';
+    statusDisplay: string;
+    attemptNumber: number;
+    submittedAt?: string;
+    gradedAt?: string;
+    isLate: boolean;
+    textContent?: string;
+    file?: string | null;
+  };
+  assignment: {
+    id: number;
+    title: string;
+    description?: string;
+    instructions?: string;
+    assignmentType: string;
+    assignmentTypeDisplay: string;
+    moduleTitle?: string | null;
+    dueDate?: string;
+    allowResubmission: boolean;
+    maxAttempts: number;
+    maxPoints: number;
+    passingPoints: number;
+  };
+  grading: {
+    pointsEarned?: number | null;
+    pointsAvailable: number;
+    percentageScore?: number | null;
+    passed?: boolean | null;
+    feedback?: string;
+    gradedByName?: string | null;
+  };
+  statusReason: string;
+  tips: string[];
 }
 
 export interface RuntimeQuizInsights {
@@ -431,14 +506,34 @@ const normalizeAssignment = (payload: any): RuntimeAssignmentSummary => ({
 
 const normalizeAssignmentSubmission = (payload: any): RuntimeAssignmentSubmission => ({
   id: Number(payload.id),
+  assignmentId: payload.assignment ? Number(payload.assignment) : undefined,
   textContent: payload.text_content || payload.submission_text,
   file: payload.file || null,
   status: payload.status,
   submittedAt: payload.submitted_at,
+  gradedAt: payload.graded_at,
+  attemptNumber: payload.attempt_number ? Number(payload.attempt_number) : undefined,
   pointsEarned: payload.points_earned ? Number(payload.points_earned) : undefined,
   feedback: payload.feedback,
   isLate: Boolean(payload.is_late),
 });
+
+const normalizeAssignmentSubmissionStatus = (
+  status?: string
+): RuntimeAssignmentSubmission['status'] => {
+  switch (status) {
+    case 'draft':
+      return 'draft';
+    case 'submitted':
+      return 'submitted';
+    case 'graded':
+      return 'graded';
+    case 'returned':
+      return 'returned';
+    default:
+      return 'submitted';
+  }
+};
 
 const normalizeRoadmapLesson = (payload: any): CourseRoadmapLesson => ({
   ...payload,
@@ -846,6 +941,107 @@ export const submitRuntimeAssignment = async (assignmentId: number, textContent:
   } catch (error) {
     throw new Error(getErrorMessage(error));
   }
+};
+
+export const getRuntimeAssignmentsInsights = async (): Promise<RuntimeAssignmentInsights> => {
+  const payload = await apiClient.get<any>('/api/v1/lms/assignments/my_insights/');
+
+  return {
+    totalAssignments: Number(payload.total_assignments ?? 0),
+    submittedCount: Number(payload.submitted_count ?? 0),
+    gradedCount: Number(payload.graded_count ?? 0),
+    awaitingGradeCount: Number(payload.awaiting_grade_count ?? 0),
+    lateCount: Number(payload.late_count ?? 0),
+    completionRate: Number(payload.completion_rate ?? 0),
+    onTimeRate: Number(payload.on_time_rate ?? 0),
+    averageScore: Number(payload.average_score ?? 0),
+    weakestModule: payload.weakest_module
+      ? {
+          module: payload.weakest_module.module || 'General',
+          assignments: Number(payload.weakest_module.assignments ?? 0),
+          averageScore: Number(payload.weakest_module.average_score ?? 0),
+        }
+      : null,
+    dueSoon: Array.isArray(payload.due_soon)
+      ? payload.due_soon.map((item: any) => ({
+          assignmentId: Number(item.assignment_id),
+          title: item.title || 'Assignment',
+          dueDate: item.due_date,
+          maxPoints: Number(item.max_points ?? 0),
+        }))
+      : [],
+    recentSubmissions: Array.isArray(payload.recent_submissions)
+      ? payload.recent_submissions.map((item: any) => ({
+          submissionId: Number(item.submission_id),
+          assignmentId: Number(item.assignment_id),
+          assignmentTitle: item.assignment_title || 'Assignment',
+          status: normalizeAssignmentSubmissionStatus(item.status),
+          pointsEarned:
+            item.points_earned === null || item.points_earned === undefined
+              ? null
+              : Number(item.points_earned),
+          maxPoints: Number(item.max_points ?? 0),
+          isLate: Boolean(item.is_late),
+          submittedAt: item.submitted_at,
+        }))
+      : [],
+  };
+};
+
+export const getRuntimeAssignmentSubmissionReview = async (
+  submissionId: number
+): Promise<RuntimeAssignmentSubmissionReview> => {
+  const payload = await apiClient.get<any>(`/api/v1/lms/assignment-submissions/${submissionId}/review/`);
+
+  return {
+    submission: {
+      id: Number(payload.submission?.id),
+      assignmentId: Number(payload.submission?.assignment_id),
+      assignmentTitle: payload.submission?.assignment_title || 'Assignment',
+      status: normalizeAssignmentSubmissionStatus(payload.submission?.status),
+      statusDisplay: payload.submission?.status_display || payload.submission?.status || 'Submitted',
+      attemptNumber: Number(payload.submission?.attempt_number ?? 1),
+      submittedAt: payload.submission?.submitted_at,
+      gradedAt: payload.submission?.graded_at,
+      isLate: Boolean(payload.submission?.is_late),
+      textContent: payload.submission?.text_content || '',
+      file: payload.submission?.file || null,
+    },
+    assignment: {
+      id: Number(payload.assignment?.id),
+      title: payload.assignment?.title || 'Assignment',
+      description: payload.assignment?.description,
+      instructions: payload.assignment?.instructions,
+      assignmentType: payload.assignment?.assignment_type || 'file_upload',
+      assignmentTypeDisplay:
+        payload.assignment?.assignment_type_display || payload.assignment?.assignment_type || 'Assignment',
+      moduleTitle: payload.assignment?.module_title || null,
+      dueDate: payload.assignment?.due_date,
+      allowResubmission: Boolean(payload.assignment?.allow_resubmission),
+      maxAttempts: Number(payload.assignment?.max_attempts ?? 1),
+      maxPoints: Number(payload.assignment?.max_points ?? 0),
+      passingPoints: Number(payload.assignment?.passing_points ?? 0),
+    },
+    grading: {
+      pointsEarned:
+        payload.grading?.points_earned === null || payload.grading?.points_earned === undefined
+          ? null
+          : Number(payload.grading?.points_earned),
+      pointsAvailable: Number(payload.grading?.points_available ?? 0),
+      percentageScore:
+        payload.grading?.percentage_score === null || payload.grading?.percentage_score === undefined
+          ? null
+          : Number(payload.grading?.percentage_score),
+      passed:
+        payload.grading?.passed === null || payload.grading?.passed === undefined
+          ? null
+          : Boolean(payload.grading?.passed),
+      feedback: payload.grading?.feedback || '',
+      gradedByName: payload.grading?.graded_by_name || null,
+    },
+    statusReason: payload.status_reason || '',
+    tips: Array.isArray(payload.tips) ? payload.tips.filter((tip: any) => typeof tip === 'string') : [],
+  };
 };
 
 export const deriveLessonProgressLabel = (lesson: Lesson) => {

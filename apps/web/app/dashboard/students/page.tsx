@@ -5,11 +5,13 @@ import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import {
   Users, Plus, Edit, Trash2, X, Search, Mail, Phone,
-  Calendar, Download, Upload, Eye, MoreVertical, Activity, CheckCircle
+  Calendar, Download, Upload, Eye, MoreVertical, Activity, CheckCircle,
+  UserCheck, PauseCircle, UserX
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
+import apiService from '@/lib/api'
 import {
   useStudents,
   useCreateStudent,
@@ -22,6 +24,19 @@ import { usePermissions } from '@/lib/permissions'
 import LoadingScreen from '@/components/LoadingScreen'
 
 type ViewMode = 'grid' | 'table'
+type StudentAccountStatus = 'active' | 'frozen' | 'deactivated'
+
+interface StudentAccountStatusEntry {
+  accountId?: number
+  status: StudentAccountStatus
+}
+
+const normalizeStudentAccountStatus = (value: unknown): StudentAccountStatus => {
+  if (value === 'frozen' || value === 'deactivated') {
+    return value
+  }
+  return 'active'
+}
 
 export default function StudentsPage() {
   const router = useRouter()
@@ -41,6 +56,8 @@ export default function StudentsPage() {
   >('all')
   const [recentOnly, setRecentOnly] = useState(false)
   const [selectedIds, setSelectedIds] = useState<number[]>([])
+  const [accountStatusByStudentId, setAccountStatusByStudentId] = useState<Record<number, StudentAccountStatusEntry>>({})
+  const [statusActionStudentId, setStatusActionStudentId] = useState<number | null>(null)
 
   const { data: studentsData, isLoading, isFetching } = useStudents({
     page,
@@ -77,6 +94,8 @@ export default function StudentsPage() {
   })
 
   const students = studentsData?.results || []
+  const studentIdsParam = students.map((student: Student) => student.id).join(',')
+
   const displayStudents = recentOnly
     ? students.filter((student: Student) => {
         if (!student.date_joined) return false
@@ -92,6 +111,132 @@ export default function StudentsPage() {
   useEffect(() => {
     setSelectedIds([])
   }, [page, limit, filterStatus, debouncedSearchQuery, recentOnly])
+
+  useEffect(() => {
+    let cancelled = false
+
+    const loadStudentAccountStatuses = async () => {
+      const currentStudentIds = studentIdsParam
+        .split(',')
+        .map((value) => Number(value))
+        .filter((value) => Number.isFinite(value) && value > 0)
+
+      if (!studentIdsParam) {
+        setAccountStatusByStudentId({})
+        return
+      }
+
+      try {
+        const response = await apiService.getStudentAccounts({
+          student_ids: studentIdsParam,
+          limit: currentStudentIds.length || 10,
+        })
+        const rows = Array.isArray(response) ? response : response?.results || []
+        const nextMap: Record<number, StudentAccountStatusEntry> = {}
+
+        rows.forEach((row: any) => {
+          if (typeof row?.student !== 'number') return
+          const status = normalizeStudentAccountStatus(row?.status)
+          nextMap[row.student] = {
+            accountId: typeof row?.id === 'number' ? row.id : undefined,
+            status,
+          }
+        })
+
+        currentStudentIds.forEach((studentId) => {
+          if (!nextMap[studentId]) {
+            nextMap[studentId] = { status: 'active' }
+          }
+        })
+
+        if (!cancelled) {
+          setAccountStatusByStudentId(nextMap)
+        }
+      } catch (error) {
+        console.error('Failed to load student account statuses:', error)
+      }
+    }
+
+    loadStudentAccountStatuses()
+    return () => {
+      cancelled = true
+    }
+  }, [studentIdsParam])
+
+  const getAccountStatus = (studentId: number): StudentAccountStatus =>
+    accountStatusByStudentId[studentId]?.status || 'active'
+
+  const getAccountStatusBadgeClass = (status: StudentAccountStatus): string => {
+    switch (status) {
+      case 'frozen':
+        return 'bg-warning/10 text-warning border-warning/30'
+      case 'deactivated':
+        return 'bg-error/10 text-error border-error/30'
+      default:
+        return 'bg-success/10 text-success border-success/30'
+    }
+  }
+
+  const getAccountStatusLabel = (status: StudentAccountStatus): string => {
+    switch (status) {
+      case 'frozen':
+        return 'Frozen'
+      case 'deactivated':
+        return 'Deactivated'
+      default:
+        return 'Active'
+    }
+  }
+
+  const handleAccountStatusChange = async (student: Student, nextStatus: StudentAccountStatus) => {
+    if (!canEditStudent) {
+      toast.error('You do not have permission to manage student account status')
+      return
+    }
+
+    const currentStatus = getAccountStatus(student.id)
+    if (currentStatus === nextStatus) {
+      return
+    }
+
+    const fullName = `${student.first_name} ${student.last_name}`.trim() || student.username
+    const confirmed = confirm(
+      `Change ${fullName} account status from ${getAccountStatusLabel(currentStatus)} to ${getAccountStatusLabel(nextStatus)}?`,
+    )
+    if (!confirmed) return
+
+    try {
+      setStatusActionStudentId(student.id)
+
+      let response: any
+      if (nextStatus === 'active') {
+        response = await apiService.activateStudentAccount(student.id)
+      } else if (nextStatus === 'frozen') {
+        response = await apiService.freezeStudentAccount(student.id)
+      } else {
+        response = await apiService.deactivateStudentAccount(student.id)
+      }
+
+      const returnedStatus = normalizeStudentAccountStatus(response?.account_status || nextStatus)
+      setAccountStatusByStudentId((prev) => ({
+        ...prev,
+        [student.id]: {
+          accountId: response?.account_id ?? prev[student.id]?.accountId,
+          status: returnedStatus,
+        },
+      }))
+      toast.success(response?.detail || `Student account marked as ${getAccountStatusLabel(returnedStatus).toLowerCase()}`)
+    } catch (error: any) {
+      console.error('Failed to update student account status:', error)
+      const message =
+        error?.response?.data?.detail ||
+        error?.response?.data?.error ||
+        'Failed to update student account status'
+      toast.error(message)
+    } finally {
+      setStatusActionStudentId(null)
+    }
+  }
 
   const handleDelete = async (student: Student) => {
     if (!canDeleteStudent) {
@@ -537,7 +682,12 @@ export default function StudentsPage() {
                       <h3 className="font-bold text-lg group-hover:text-primary transition-colors">
                         {student.first_name} {student.last_name}
                       </h3>
-                      <p className="text-sm text-text-secondary">@{student.username}</p>
+                      <div className="flex items-center gap-2">
+                        <p className="text-sm text-text-secondary">@{student.username}</p>
+                        <span className={`px-2 py-0.5 rounded-md border text-[10px] font-semibold uppercase tracking-wide ${getAccountStatusBadgeClass(getAccountStatus(student.id))}`}>
+                          {getAccountStatusLabel(getAccountStatus(student.id))}
+                        </span>
+                      </div>
                     </div>
                   </div>
                   <div className="relative">
@@ -579,6 +729,53 @@ export default function StudentsPage() {
                         style={{ width: `${getProfileCompleteness(student)}%` }}
                       />
                     </div>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleAccountStatusChange(student, 'active')
+                      }}
+                      disabled={!canEditStudent || getAccountStatus(student.id) === 'active' || statusActionStudentId === student.id}
+                      className={`px-2 py-1 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1 ${
+                        canEditStudent && getAccountStatus(student.id) !== 'active' && statusActionStudentId !== student.id
+                          ? 'bg-success/10 text-success border-success/30 hover:bg-success/20'
+                          : 'bg-background text-text-secondary/60 border-border cursor-not-allowed'
+                      }`}
+                    >
+                      <UserCheck className="h-3 w-3" />
+                      Activate
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleAccountStatusChange(student, 'frozen')
+                      }}
+                      disabled={!canEditStudent || getAccountStatus(student.id) === 'frozen' || statusActionStudentId === student.id}
+                      className={`px-2 py-1 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1 ${
+                        canEditStudent && getAccountStatus(student.id) !== 'frozen' && statusActionStudentId !== student.id
+                          ? 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/20'
+                          : 'bg-background text-text-secondary/60 border-border cursor-not-allowed'
+                      }`}
+                    >
+                      <PauseCircle className="h-3 w-3" />
+                      Freeze
+                    </button>
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        handleAccountStatusChange(student, 'deactivated')
+                      }}
+                      disabled={!canEditStudent || getAccountStatus(student.id) === 'deactivated' || statusActionStudentId === student.id}
+                      className={`px-2 py-1 rounded-lg border text-xs font-medium transition-colors flex items-center gap-1 ${
+                        canEditStudent && getAccountStatus(student.id) !== 'deactivated' && statusActionStudentId !== student.id
+                          ? 'bg-error/10 text-error border-error/30 hover:bg-error/20'
+                          : 'bg-background text-text-secondary/60 border-border cursor-not-allowed'
+                      }`}
+                    >
+                      <UserX className="h-3 w-3" />
+                      Deactivate
+                    </button>
                   </div>
                   <div className="flex gap-2">
                     <button
@@ -654,6 +851,7 @@ export default function StudentsPage() {
                     <th className="text-left p-4 font-medium text-text-secondary">Email</th>
                     <th className="text-left p-4 font-medium text-text-secondary">Phone</th>
                     <th className="text-left p-4 font-medium text-text-secondary">Joined</th>
+                    <th className="text-left p-4 font-medium text-text-secondary">Account</th>
                     <th className="text-left p-4 font-medium text-text-secondary">Completeness</th>
                     <th className="text-right p-4 font-medium text-text-secondary">Actions</th>
                   </tr>
@@ -707,6 +905,51 @@ export default function StudentsPage() {
                       </td>
                       <td className="p-4 text-text-secondary text-sm">
                         {student.date_joined ? new Date(student.date_joined).toLocaleDateString() : '-'}
+                      </td>
+                      <td className="p-4">
+                        <div className="flex flex-col gap-2">
+                          <span className={`w-fit px-2 py-1 rounded-md border text-[10px] font-semibold uppercase tracking-wide ${getAccountStatusBadgeClass(getAccountStatus(student.id))}`}>
+                            {getAccountStatusLabel(getAccountStatus(student.id))}
+                          </span>
+                          <div className="flex items-center gap-1">
+                            <button
+                              onClick={() => handleAccountStatusChange(student, 'active')}
+                              disabled={!canEditStudent || getAccountStatus(student.id) === 'active' || statusActionStudentId === student.id}
+                              title="Activate"
+                              className={`p-1 rounded-md border transition-colors ${
+                                canEditStudent && getAccountStatus(student.id) !== 'active' && statusActionStudentId !== student.id
+                                  ? 'bg-success/10 text-success border-success/30 hover:bg-success/20'
+                                  : 'bg-background text-text-secondary/60 border-border cursor-not-allowed'
+                              }`}
+                            >
+                              <UserCheck className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleAccountStatusChange(student, 'frozen')}
+                              disabled={!canEditStudent || getAccountStatus(student.id) === 'frozen' || statusActionStudentId === student.id}
+                              title="Freeze"
+                              className={`p-1 rounded-md border transition-colors ${
+                                canEditStudent && getAccountStatus(student.id) !== 'frozen' && statusActionStudentId !== student.id
+                                  ? 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/20'
+                                  : 'bg-background text-text-secondary/60 border-border cursor-not-allowed'
+                              }`}
+                            >
+                              <PauseCircle className="h-3.5 w-3.5" />
+                            </button>
+                            <button
+                              onClick={() => handleAccountStatusChange(student, 'deactivated')}
+                              disabled={!canEditStudent || getAccountStatus(student.id) === 'deactivated' || statusActionStudentId === student.id}
+                              title="Deactivate"
+                              className={`p-1 rounded-md border transition-colors ${
+                                canEditStudent && getAccountStatus(student.id) !== 'deactivated' && statusActionStudentId !== student.id
+                                  ? 'bg-error/10 text-error border-error/30 hover:bg-error/20'
+                                  : 'bg-background text-text-secondary/60 border-border cursor-not-allowed'
+                              }`}
+                            >
+                              <UserX className="h-3.5 w-3.5" />
+                            </button>
+                          </div>
+                        </div>
                       </td>
                       <td className="p-4">
                         <div className="flex items-center gap-2">

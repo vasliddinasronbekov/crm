@@ -14,6 +14,7 @@ import { useAuthStore, useTheme } from '@eduvoice/mobile-shared';
 import { AIScreen } from '../screens/AIScreen';
 import { ArticlesScreen } from '../screens/ArticlesScreen';
 import { AssignmentDetailScreen } from '../screens/AssignmentDetailScreen';
+import { AssignmentReviewScreen } from '../screens/AssignmentReviewScreen';
 import { AssignmentsScreen } from '../screens/AssignmentsScreen';
 import { BooksScreen } from '../screens/BooksScreen';
 import { ChatScreen } from '../screens/ChatScreen';
@@ -216,6 +217,11 @@ export const AppNavigator = () => {
             options={{ title: 'Attempt Review' }}
           />
           <AppStack.Screen name="Assignments" component={AssignmentsScreen} options={{ title: t('assignments.assignments') }} />
+          <AppStack.Screen
+            name="AssignmentReview"
+            component={AssignmentReviewScreen}
+            options={{ title: 'Submission Review' }}
+          />
           <AppStack.Screen name="Messages" component={MessagesScreen} options={{ title: t('messages.messages') }} />
           <AppStack.Screen name="Groups" component={GroupsScreen} options={{ title: t('navigation.groups') }} />
           <AppStack.Screen name="Ranking" component={RankingScreen} options={{ title: t('navigation.ranking') }} />

@@ -54,6 +54,7 @@ export const AssignmentDetailScreen = () => {
       queryClient.invalidateQueries({ queryKey: ['runtime-assignment', assignmentId] });
       queryClient.invalidateQueries({ queryKey: ['runtime-assignment-submission', assignmentId] });
       queryClient.invalidateQueries({ queryKey: ['runtime-assignments'] });
+      queryClient.invalidateQueries({ queryKey: ['runtime-assignment-insights'] });
       Alert.alert('Submitted', 'Your assignment was submitted successfully.');
       setSubmissionText('');
     },
@@ -166,6 +167,15 @@ export const AssignmentDetailScreen = () => {
         {submission?.feedback ? <Text style={styles.feedbackText}>Feedback: {submission.feedback}</Text> : null}
         {typeof submission?.pointsEarned === 'number' ? (
           <Text style={styles.gradeText}>Score: {submission.pointsEarned} / {assignment.maxPoints}</Text>
+        ) : null}
+        {submission?.id ? (
+          <TouchableOpacity
+            style={styles.reviewButton}
+            onPress={() => navigation.navigate('AssignmentReview', { submissionId: submission.id })}
+          >
+            <MaterialCommunityIcons name="clipboard-text-search-outline" size={17} color={theme.text} />
+            <Text style={styles.reviewButtonText}>Open Detailed Review</Text>
+          </TouchableOpacity>
         ) : null}
       </GlassCard>
 
@@ -311,6 +321,24 @@ const createStyles = (theme: any, isDark: boolean) =>
     gradeText: {
       ...theme.typography.body,
       color: '#16a34a',
+      fontWeight: '700',
+    },
+    reviewButton: {
+      marginTop: 8,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 14,
+      paddingVertical: 11,
+      paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.78)',
+    },
+    reviewButtonText: {
+      ...theme.typography.caption,
+      color: theme.text,
       fontWeight: '700',
     },
     linkButton: {

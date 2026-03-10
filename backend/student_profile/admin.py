@@ -1,6 +1,7 @@
 # /mnt/usb/edu-api-project/student_profile/admin.py
 
 from django.contrib import admin
+from django.contrib import messages
 from .models import (
     Branch, Group, Attendance, Event, ExamScore, ShopProduct,
     ShopOrder, Payment, Story, StudentCoins, Ticket, TicketChat,
@@ -13,6 +14,7 @@ from .models import (
     Notification, InboxSettings,
     SATExam, SATModule, SATQuestion, SATAttempt, SATAnswer
 )
+from .services.financial_automation import set_student_account_status
 
 # Har bir modelni FAQAT BIR MARTA ro'yxatdan o'tkazamiz
 admin.site.register(Branch)
@@ -37,7 +39,6 @@ admin.site.register(ExpenseType)
 admin.site.register(Expense)
 admin.site.register(AssistantSlot)
 admin.site.register(Booking)
-admin.site.register(StudentAccount)
 admin.site.register(MonthlySubscriptionCharge)
 admin.site.register(AccountingActivityLog)
 admin.site.register(StudentBalance)
@@ -45,6 +46,80 @@ admin.site.register(TeacherEarnings)
 admin.site.register(StudentFine)
 admin.site.register(AccountTransaction)
 admin.site.register(FinancialSummary)
+
+
+@admin.register(StudentAccount)
+class StudentAccountAdmin(admin.ModelAdmin):
+    list_display = [
+        'student',
+        'status',
+        'student_is_active',
+        'balance_tiyin',
+        'status_changed_at',
+        'updated_at',
+    ]
+    list_filter = ['status', 'student__is_active', 'updated_at']
+    search_fields = ['student__username', 'student__first_name', 'student__last_name']
+    readonly_fields = ['created_at', 'updated_at', 'status_changed_at']
+    actions = ['activate_accounts', 'freeze_accounts', 'deactivate_accounts']
+
+    @admin.display(boolean=True, description='Student Active')
+    def student_is_active(self, obj):
+        return bool(obj.student and obj.student.is_active)
+
+    @admin.action(description='Activate selected student accounts')
+    def activate_accounts(self, request, queryset):
+        self._bulk_update_status(
+            request,
+            queryset,
+            target_status=StudentAccount.STATUS_ACTIVE,
+            action_name='activated',
+        )
+
+    @admin.action(description='Freeze selected student accounts')
+    def freeze_accounts(self, request, queryset):
+        self._bulk_update_status(
+            request,
+            queryset,
+            target_status=StudentAccount.STATUS_FROZEN,
+            action_name='frozen',
+        )
+
+    @admin.action(description='Deactivate selected student accounts')
+    def deactivate_accounts(self, request, queryset):
+        self._bulk_update_status(
+            request,
+            queryset,
+            target_status=StudentAccount.STATUS_DEACTIVATED,
+            action_name='deactivated',
+        )
+
+    def _bulk_update_status(self, request, queryset, *, target_status: str, action_name: str):
+        changed = 0
+        for account in queryset.select_related('student'):
+            before = account.status
+            updated = set_student_account_status(
+                student=account.student,
+                target_status=target_status,
+                actor=request.user,
+                reason='django_admin_bulk_action',
+            )
+            if updated.status != before:
+                changed += 1
+
+        if changed == 0:
+            self.message_user(
+                request,
+                f'No accounts changed. Selected students are already {target_status}.',
+                level=messages.INFO,
+            )
+            return
+
+        self.message_user(
+            request,
+            f'{changed} student account(s) {action_name} successfully.',
+            level=messages.SUCCESS,
+        )
 
 # IELTS models
 admin.site.register(IELTSExam)

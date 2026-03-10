@@ -27,6 +27,7 @@ export type AppStackParamList = {
   QuizPlayer: { quizId: number };
   QuizAttemptReview: { attemptId: number };
   Assignments: undefined;
+  AssignmentReview: { submissionId: number };
   Messages: undefined;
   Groups: undefined;
   Ranking: undefined;

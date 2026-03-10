@@ -245,7 +245,7 @@ SIMPLE_JWT = {
 # drf_spectacular (swagger/openapi)
 # -----------------------
 SPECTACULAR_SETTINGS = {
-    "TITLE": "Edu API",
+    "TITLE": "EDUOS API",
     "DESCRIPTION": "O'quv markazining REST API",
     "VERSION": "1.1.0",
     "SERVE_INCLUDE_SCHEMA": False,

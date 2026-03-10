@@ -8,14 +8,26 @@ import { getBalanceStatus } from '@/lib/utils/money'
 import { cachedFetch, invalidateEntityCache, CACHE_KEYS, CACHE_TTL } from '@/lib/utils/cache'
 import { toast } from 'react-hot-toast'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useAuth } from '@/contexts/AuthContext'
 import {
   Mail, Phone, Calendar,
   DollarSign, TrendingUp, CheckCircle, AlertCircle,
-  Clock, Award, Target, Users, ArrowLeft, Edit,
-  Activity, BarChart3, AlertTriangle, Coins
+  Clock, Award, Target, Users, ArrowLeft,
+  Activity, BarChart3, AlertTriangle, Coins,
+  UserCheck, PauseCircle, UserX
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import LoadingScreen from '@/components/LoadingScreen'
+import { usePermissions } from '@/lib/permissions'
+
+type StudentAccountStatus = 'active' | 'frozen' | 'deactivated'
+
+const normalizeStudentAccountStatus = (value: unknown): StudentAccountStatus => {
+  if (value === 'frozen' || value === 'deactivated') {
+    return value
+  }
+  return 'active'
+}
 
 interface StudentDetailData {
   // Personal info (flat structure from backend)
@@ -127,11 +139,15 @@ interface StudentDetailData {
 export default function StudentDetailPage() {
   const router = useRouter()
   const params = useParams()
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
   const { formatCurrency } = useSettings()
   const studentId = parseInt(params.id as string)
+  const canManageAccountStatus = permissionState.hasPermission('students.edit')
 
   const [student, setStudent] = useState<StudentDetailData | null>(null)
   const [loading, setLoading] = useState(true)
+  const [statusAction, setStatusAction] = useState<StudentAccountStatus | null>(null)
 
   useEffect(() => {
     loadStudentDetail()
@@ -191,6 +207,65 @@ export default function StudentDetailPage() {
     return (f + l).toUpperCase() || (username ? username[0].toUpperCase() : '?')
   }
 
+  const setStudentAccountStatus = (nextStatus: StudentAccountStatus) => {
+    setStudent((prev) => {
+      if (!prev) return prev
+      const account = prev.account || { status: 'active', balance_tiyin: 0, balance: 0 }
+      return {
+        ...prev,
+        account: {
+          ...account,
+          status: nextStatus,
+        },
+      }
+    })
+  }
+
+  const handleAccountStatusChange = async (nextStatus: StudentAccountStatus) => {
+    if (!student) return
+
+    if (!canManageAccountStatus) {
+      toast.error('You do not have permission to manage student account status')
+      return
+    }
+
+    const currentStatus = normalizeStudentAccountStatus(student.account?.status)
+    if (currentStatus === nextStatus) {
+      return
+    }
+
+    const fullName = `${student.first_name} ${student.last_name}`.trim() || student.username
+    const confirmed = confirm(
+      `Change ${fullName} account status from ${currentStatus} to ${nextStatus}?`,
+    )
+    if (!confirmed) return
+
+    try {
+      setStatusAction(nextStatus)
+      let response: any
+      if (nextStatus === 'active') {
+        response = await apiService.activateStudentAccount(student.id)
+      } else if (nextStatus === 'frozen') {
+        response = await apiService.freezeStudentAccount(student.id)
+      } else {
+        response = await apiService.deactivateStudentAccount(student.id)
+      }
+
+      const returnedStatus = normalizeStudentAccountStatus(response?.account_status || nextStatus)
+      setStudentAccountStatus(returnedStatus)
+      invalidateEntityCache(CACHE_KEYS.STUDENTS_LIST)
+      toast.success(response?.detail || `Student account marked as ${returnedStatus}`)
+    } catch (error: any) {
+      const message =
+        error?.response?.data?.detail ||
+        error?.response?.data?.error ||
+        'Failed to update student account status'
+      toast.error(message)
+    } finally {
+      setStatusAction(null)
+    }
+  }
+
   if (loading) {
     return <LoadingScreen message="Loading student details..." />
   }
@@ -207,7 +282,7 @@ export default function StudentDetailPage() {
     coins, risk_assessment, account
   } = student
   const balanceStatus = getBalanceStatus(payments.pending_amount)
-  const accountStatus = account?.status || 'active'
+  const accountStatus = normalizeStudentAccountStatus(account?.status)
   const normalizedExamScore = Math.min(Math.max(exams.average_score || 0, 0), 100)
   const engagementIndex = Math.round((attendance.attendance_rate_30days * 0.6) + (normalizedExamScore * 0.4))
   const engagementTone =
@@ -227,6 +302,7 @@ export default function StudentDetailPage() {
       : accountStatus === 'frozen'
       ? { label: 'Frozen', classes: 'bg-warning/10 text-warning border-warning/30' }
       : { label: 'Active', classes: 'bg-success/10 text-success border-success/30' }
+  const isStatusMutationRunning = statusAction !== null
 
   return (
     <ProtectedRoute>
@@ -292,6 +368,45 @@ export default function StudentDetailPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                onClick={() => handleAccountStatusChange('active')}
+                disabled={!canManageAccountStatus || accountStatus === 'active' || isStatusMutationRunning}
+                title={!canManageAccountStatus ? 'You do not have permission to manage student account status' : undefined}
+                className={`px-4 py-2 rounded-xl border transition-colors text-sm font-medium flex items-center gap-2 ${
+                  canManageAccountStatus && accountStatus !== 'active' && !isStatusMutationRunning
+                    ? 'bg-success/10 text-success border-success/30 hover:bg-success/20'
+                    : 'bg-background border-border text-text-secondary/70 cursor-not-allowed'
+                }`}
+              >
+                <UserCheck className="h-4 w-4" />
+                Activate
+              </button>
+              <button
+                onClick={() => handleAccountStatusChange('frozen')}
+                disabled={!canManageAccountStatus || accountStatus === 'frozen' || isStatusMutationRunning}
+                title={!canManageAccountStatus ? 'You do not have permission to manage student account status' : undefined}
+                className={`px-4 py-2 rounded-xl border transition-colors text-sm font-medium flex items-center gap-2 ${
+                  canManageAccountStatus && accountStatus !== 'frozen' && !isStatusMutationRunning
+                    ? 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/20'
+                    : 'bg-background border-border text-text-secondary/70 cursor-not-allowed'
+                }`}
+              >
+                <PauseCircle className="h-4 w-4" />
+                Freeze
+              </button>
+              <button
+                onClick={() => handleAccountStatusChange('deactivated')}
+                disabled={!canManageAccountStatus || accountStatus === 'deactivated' || isStatusMutationRunning}
+                title={!canManageAccountStatus ? 'You do not have permission to manage student account status' : undefined}
+                className={`px-4 py-2 rounded-xl border transition-colors text-sm font-medium flex items-center gap-2 ${
+                  canManageAccountStatus && accountStatus !== 'deactivated' && !isStatusMutationRunning
+                    ? 'bg-error/10 text-error border-error/30 hover:bg-error/20'
+                    : 'bg-background border-border text-text-secondary/70 cursor-not-allowed'
+                }`}
+              >
+                <UserX className="h-4 w-4" />
+                Deactivate
+              </button>
               <button
                 onClick={() => toast.success('Messaging module coming online for this student.')}
                 className="px-4 py-2 bg-primary text-background rounded-xl hover:bg-primary/90 transition-colors text-sm font-medium"

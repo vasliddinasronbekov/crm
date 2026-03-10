@@ -1,6 +1,6 @@
 # ai/services.py
 """
-Advanced AI services for Edu API:
+Advanced AI services for EDUOS API:
 - STT (faster-whisper) with HF cache control
 - Spell correction (hunspell preferred, fallback heuristics)
 - Hybrid intent extraction (rule-based -> ML pipeline)

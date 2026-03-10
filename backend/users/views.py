@@ -69,6 +69,9 @@ class StudentViewSet(viewsets.ModelViewSet):
         'deactivate': 'students.manage',
         'reactivate': 'students.manage',
         'detail_view': 'students.read',
+        'activate_account': 'students.reactivate',
+        'freeze_account': 'students.manage',
+        'deactivate_account': 'students.manage',
         'reactivate_account': 'students.reactivate',
         'me': 'students.self',
     }
@@ -451,43 +454,100 @@ class StudentViewSet(viewsets.ModelViewSet):
 
         return Response(student_data)
 
-    @action(detail=True, methods=['post'])
-    def reactivate_account(self, request, pk=None):
-        """
-        Management-level manual reactivation for deactivated/frozen students.
-        Optional payload:
-          - group: group id to (re)assign after reactivation
-        """
+    def _resolve_optional_group(self, group_id):
         from student_profile.models import Group
-        from student_profile.services.financial_automation import reactivate_student_account
+
+        if not group_id:
+            return None, None
+
+        try:
+            return Group.objects.get(id=group_id), None
+        except Group.DoesNotExist:
+            return None, Response(
+                {'detail': 'Group not found'},
+                status=status.HTTP_404_NOT_FOUND
+            )
+
+    def _set_manual_account_status(self, request, *, target_status: str, success_detail: str):
+        from student_profile.services.financial_automation import set_student_account_status
 
         student = self.get_object()
         group_id = request.data.get('group')
-        group = None
+        group, error_response = self._resolve_optional_group(group_id)
+        if error_response:
+            return error_response
 
-        if group_id:
-            try:
-                group = Group.objects.get(id=group_id)
-            except Group.DoesNotExist:
-                return Response(
-                    {'detail': 'Group not found'},
-                    status=status.HTTP_404_NOT_FOUND
-                )
-
-        account = reactivate_student_account(
+        account = set_student_account_status(
             student=student,
+            target_status=target_status,
             actor=request.user,
             group=group,
+            reason='manual_staff_action',
         )
 
         return Response({
-            'detail': 'Student reactivated successfully.',
+            'detail': success_detail,
             'student_id': student.id,
             'student_username': student.username,
+            'account_id': account.id,
             'account_status': account.status,
             'balance_tiyin': account.balance_tiyin,
             'group': group.id if group else None,
         })
+
+    @action(detail=True, methods=['post'])
+    def activate_account(self, request, pk=None):
+        """
+        Management-level manual activation for frozen/deactivated students.
+        Optional payload:
+          - group: group id to (re)assign after activation
+        """
+        from student_profile.accounting_models import StudentAccount
+
+        return self._set_manual_account_status(
+            request,
+            target_status=StudentAccount.STATUS_ACTIVE,
+            success_detail='Student account activated successfully.',
+        )
+
+    @action(detail=True, methods=['post'])
+    def freeze_account(self, request, pk=None):
+        """
+        Manual freeze action. Frozen students cannot log in via student portal.
+        """
+        from student_profile.accounting_models import StudentAccount
+
+        return self._set_manual_account_status(
+            request,
+            target_status=StudentAccount.STATUS_FROZEN,
+            success_detail='Student account frozen successfully.',
+        )
+
+    @action(detail=True, methods=['post'])
+    def deactivate_account(self, request, pk=None):
+        """
+        Manual deactivation action. Deactivated students cannot log in.
+        """
+        from student_profile.accounting_models import StudentAccount
+
+        return self._set_manual_account_status(
+            request,
+            target_status=StudentAccount.STATUS_DEACTIVATED,
+            success_detail='Student account deactivated successfully.',
+        )
+
+    @action(detail=True, methods=['post'])
+    def reactivate_account(self, request, pk=None):
+        """
+        Backward-compatible alias for activate_account.
+        """
+        from student_profile.accounting_models import StudentAccount
+
+        return self._set_manual_account_status(
+            request,
+            target_status=StudentAccount.STATUS_ACTIVE,
+            success_detail='Student reactivated successfully.',
+        )
 
 class TeacherViewSet(viewsets.ModelViewSet):
     """

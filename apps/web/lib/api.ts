@@ -445,6 +445,30 @@ class ApiService {
     return response.data;
   }
 
+  async activateStudentAccount(id: number, data?: { group?: number | string }) {
+    const response = await this.api.post(
+      `/users/students/${id}/activate_account/`,
+      data || {},
+    );
+    return response.data;
+  }
+
+  async freezeStudentAccount(id: number) {
+    const response = await this.api.post(
+      `/users/students/${id}/freeze_account/`,
+      {},
+    );
+    return response.data;
+  }
+
+  async deactivateStudentAccount(id: number) {
+    const response = await this.api.post(
+      `/users/students/${id}/deactivate_account/`,
+      {},
+    );
+    return response.data;
+  }
+
   // Teachers
   async getTeachers(params?: {
     page?: number;
@@ -651,6 +675,44 @@ class ApiService {
   async getAssignmentSubmission(id: number) {
     const response = await this.api.get(
       `/v1/lms/assignment-submissions/${id}/`,
+    );
+    return response.data;
+  }
+
+  async getAssignmentSubmissionReview(id: number) {
+    const response = await this.api.get(
+      `/v1/lms/assignment-submissions/${id}/review/`,
+    );
+    return response.data;
+  }
+
+  async getAssignmentSubmissionAuditTimeline(id: number) {
+    const response = await this.api.get(
+      `/v1/lms/assignment-submissions/${id}/audit_timeline/`,
+    );
+    return response.data;
+  }
+
+  async getAssignmentGradingQueue(params?: any) {
+    const response = await this.api.get(
+      "/v1/lms/assignment-submissions/grading_queue/",
+      { params },
+    );
+    return response.data;
+  }
+
+  async bulkGradeSubmissions(data: {
+    submission_ids: number[];
+    grading_mode: "score" | "rubric";
+    points_earned?: number;
+    rubric_percent?: number;
+    rubric_label?: string;
+    feedback?: string;
+    status?: "graded" | "returned";
+  }) {
+    const response = await this.api.post(
+      "/v1/lms/assignment-submissions/bulk_grade/",
+      data,
     );
     return response.data;
   }

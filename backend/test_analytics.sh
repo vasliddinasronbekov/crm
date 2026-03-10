@@ -8,7 +8,7 @@ USERNAME="admin"
 PASSWORD="FkmSzZWprJRFkmSzZWprJRqRKNcIFWakXqCFXHFGRWoFkmSzZWprJRqRFkmSzZWprJRqRKNcIFWakXqCFXHFGRWoFkmSzZWprJRqRKNcIFWakXqCFXHFGRWoKNcIFWakXqCFXHFGRWoqRKNcIFWakXqCFXHFGRWoFkmSzZWprJRqRKNcIFWakXqCFXHFGRWo"
 
 echo "========================================="
-echo " EDU API - ANALYTICS ENDPOINT TESTI"
+echo " EDUOS API - ANALYTICS ENDPOINT TESTI"
 echo "========================================="
 echo ""
 

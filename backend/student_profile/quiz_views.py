@@ -3,6 +3,7 @@ Quiz & Assignment System API Views
 """
 
 from decimal import Decimal, InvalidOperation
+from datetime import timedelta
 
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
@@ -44,6 +45,7 @@ class AssignmentViewSet(viewsets.ModelViewSet):
         'list': 'assignments.view',
         'retrieve': 'assignments.view',
         'submit': 'assignments.view',
+        'my_insights': 'assignments.view',
         'submissions': 'assignments.edit',
         'statistics': 'assignments.edit',
         'create': 'assignments.create',
@@ -149,6 +151,103 @@ class AssignmentViewSet(viewsets.ModelViewSet):
             'max_points': assignment.max_points
         })
 
+    @action(detail=False, methods=['get'])
+    def my_insights(self, request):
+        """Student-focused assignment dashboard metrics."""
+        assignments = self.get_queryset()
+        submissions = AssignmentSubmission.objects.filter(
+            student=request.user
+        ).select_related('assignment', 'assignment__module')
+
+        total_assignments = assignments.count()
+        submitted_count = submissions.filter(status__in=['submitted', 'graded', 'returned']).count()
+        graded_count = submissions.filter(status='graded').count()
+        awaiting_grade_count = submissions.filter(status='submitted').count()
+        late_count = submissions.filter(is_late=True).count()
+        avg_score = submissions.filter(status='graded').aggregate(value=Avg('points_earned'))['value'] or 0
+
+        now = timezone.now()
+        due_soon_window = now + timedelta(days=7)
+        submitted_assignment_ids = submissions.values_list('assignment_id', flat=True)
+        due_soon_assignments = assignments.filter(
+            due_date__gte=now,
+            due_date__lte=due_soon_window,
+        ).exclude(id__in=submitted_assignment_ids).order_by('due_date')[:6]
+
+        module_breakdown_rows = submissions.filter(status='graded').values(
+            'assignment__module__title'
+        ).annotate(
+            assignments=Count('id'),
+            average_score=Avg('points_earned'),
+        ).order_by('-assignments')
+
+        module_breakdown = [
+            {
+                'module': row['assignment__module__title'] or 'General',
+                'assignments': row['assignments'],
+                'average_score': round(float(row['average_score'] or 0), 2),
+            }
+            for row in module_breakdown_rows
+        ]
+
+        weakest_module = None
+        if module_breakdown:
+            weakest_module = min(module_breakdown, key=lambda item: item['average_score'])
+
+        recent_submissions = submissions.order_by('-submitted_at', '-id')[:8]
+        recent_payload = [
+            {
+                'submission_id': submission.id,
+                'assignment_id': submission.assignment_id,
+                'assignment_title': submission.assignment.title,
+                'status': submission.status,
+                'points_earned': float(submission.points_earned) if submission.points_earned is not None else None,
+                'max_points': submission.assignment.max_points,
+                'is_late': submission.is_late,
+                'submitted_at': submission.submitted_at,
+            }
+            for submission in recent_submissions
+        ]
+
+        completion_rate = (
+            round((float(submitted_count) / float(total_assignments)) * 100, 2)
+            if total_assignments
+            else 0
+        )
+        on_time_rate = (
+            round(
+                (
+                    float(submitted_count - late_count) / float(submitted_count)
+                ) * 100,
+                2,
+            )
+            if submitted_count
+            else 0
+        )
+
+        return Response({
+            'total_assignments': total_assignments,
+            'submitted_count': submitted_count,
+            'graded_count': graded_count,
+            'awaiting_grade_count': awaiting_grade_count,
+            'late_count': late_count,
+            'completion_rate': completion_rate,
+            'on_time_rate': on_time_rate,
+            'average_score': round(float(avg_score), 2),
+            'weakest_module': weakest_module,
+            'module_breakdown': module_breakdown,
+            'due_soon': [
+                {
+                    'assignment_id': assignment.id,
+                    'title': assignment.title,
+                    'due_date': assignment.due_date,
+                    'max_points': assignment.max_points,
+                }
+                for assignment in due_soon_assignments
+            ],
+            'recent_submissions': recent_payload,
+        })
+
 
 class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
     """Assignment submission management API"""
@@ -160,6 +259,10 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
         'retrieve': 'assignments.view',
         'create': 'assignments.view',
         'my_submissions': 'assignments.view',
+        'review': 'assignments.view',
+        'audit_timeline': 'assignments.view',
+        'grading_queue': 'assignments.edit',
+        'bulk_grade': 'assignments.edit',
         'grade': 'assignments.edit',
         'update': 'assignments.edit',
         'partial_update': 'assignments.edit',
@@ -201,6 +304,24 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
         if submission_status:
             queryset = queryset.filter(status=submission_status)
 
+        is_late = self.request.query_params.get('is_late')
+        if is_late is not None:
+            normalized_late = str(is_late).strip().lower()
+            if normalized_late in {'true', '1', 'yes'}:
+                queryset = queryset.filter(is_late=True)
+            elif normalized_late in {'false', '0', 'no'}:
+                queryset = queryset.filter(is_late=False)
+
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(student__first_name__icontains=search)
+                | Q(student__last_name__icontains=search)
+                | Q(student__username__icontains=search)
+                | Q(assignment__title__icontains=search)
+                | Q(text_content__icontains=search)
+            )
+
         return queryset.order_by('-submitted_at')
 
     @action(detail=True, methods=['post'])
@@ -220,6 +341,379 @@ class AssignmentSubmissionViewSet(viewsets.ModelViewSet):
             return Response(response_serializer.data)
 
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    @action(detail=True, methods=['get'])
+    def review(self, request, pk=None):
+        """Detailed assignment submission review payload for student mobile UX."""
+        submission = self.get_object()
+        assignment = submission.assignment
+
+        can_view_grading_details = (
+            has_capability(request.user, 'assignments.edit')
+            or submission.student_id == request.user.id
+        )
+
+        max_points = Decimal(str(assignment.max_points or 0))
+        earned_points = Decimal(str(submission.points_earned or 0))
+        percentage_score = (
+            round((float(earned_points) / float(max_points)) * 100, 2)
+            if max_points > 0
+            else 0
+        )
+        passed = bool(submission.points_earned is not None and earned_points >= Decimal(str(assignment.passing_points)))
+
+        status_reason = 'Submission draft is not finalized yet.'
+        if submission.status == 'submitted':
+            status_reason = 'Submitted successfully and waiting for teacher grading.'
+        elif submission.status == 'graded':
+            status_reason = 'Graded by teacher.'
+        elif submission.status == 'returned':
+            status_reason = 'Returned for revision. Please update and resubmit.'
+
+        tips = []
+        if submission.status == 'submitted':
+            tips.append('Your submission is in queue for grading.')
+        if submission.status == 'returned':
+            tips.append('Address teacher feedback before your next submission.')
+        if submission.is_late:
+            tips.append('This submission was late. Plan earlier to avoid penalties.')
+        if submission.status == 'graded' and not passed:
+            tips.append('You did not reach the passing threshold. Revise and try again.')
+        if submission.status == 'graded' and passed:
+            tips.append('Great result. Keep consistency on future assignments.')
+        if not tips:
+            tips.append('Continue following instructions and submit before deadline.')
+
+        return Response({
+            'submission': {
+                'id': submission.id,
+                'assignment_id': assignment.id,
+                'assignment_title': assignment.title,
+                'status': submission.status,
+                'status_display': submission.get_status_display(),
+                'attempt_number': submission.attempt_number,
+                'submitted_at': submission.submitted_at,
+                'graded_at': submission.graded_at,
+                'is_late': submission.is_late,
+                'text_content': submission.text_content,
+                'file': submission.file.url if submission.file else None,
+            },
+            'assignment': {
+                'id': assignment.id,
+                'title': assignment.title,
+                'description': assignment.description,
+                'instructions': assignment.instructions,
+                'assignment_type': assignment.assignment_type,
+                'assignment_type_display': assignment.get_assignment_type_display(),
+                'module_title': assignment.module.title if assignment.module else None,
+                'due_date': assignment.due_date,
+                'allow_resubmission': assignment.allow_resubmission,
+                'max_attempts': assignment.max_attempts,
+                'max_points': assignment.max_points,
+                'passing_points': assignment.passing_points,
+            },
+            'grading': {
+                'points_earned': float(earned_points) if submission.points_earned is not None else None,
+                'points_available': float(max_points),
+                'percentage_score': percentage_score if submission.points_earned is not None else None,
+                'passed': passed if submission.points_earned is not None else None,
+                'feedback': submission.feedback if can_view_grading_details else '',
+                'graded_by_name': (
+                    submission.graded_by.get_full_name() if submission.graded_by_id and can_view_grading_details else None
+                ),
+            },
+            'status_reason': status_reason,
+            'tips': tips,
+        })
+
+    @action(detail=True, methods=['get'])
+    def audit_timeline(self, request, pk=None):
+        """Return an audit-friendly event timeline for one submission."""
+        submission = self.get_object()
+        assignment = submission.assignment
+
+        events = [
+            {
+                'type': 'submission_created',
+                'label': 'Submission Created',
+                'timestamp': submission.created_at,
+                'actor': submission.student.get_full_name() or submission.student.username,
+                'details': f'Attempt #{submission.attempt_number} created.',
+            }
+        ]
+
+        if submission.submitted_at:
+            events.append(
+                {
+                    'type': 'submitted',
+                    'label': 'Submitted',
+                    'timestamp': submission.submitted_at,
+                    'actor': submission.student.get_full_name() or submission.student.username,
+                    'details': 'Submitted after deadline.' if submission.is_late else 'Submitted on time.',
+                }
+            )
+
+        if submission.graded_at:
+            grader_name = (
+                submission.graded_by.get_full_name() or submission.graded_by.username
+                if submission.graded_by_id
+                else 'Unknown grader'
+            )
+            score_text = (
+                f"{float(submission.points_earned)} / {assignment.max_points}"
+                if submission.points_earned is not None
+                else 'No score'
+            )
+            events.append(
+                {
+                    'type': 'graded',
+                    'label': 'Graded',
+                    'timestamp': submission.graded_at,
+                    'actor': grader_name,
+                    'details': f'{submission.get_status_display()} with score {score_text}.',
+                }
+            )
+
+            if submission.feedback:
+                events.append(
+                    {
+                        'type': 'feedback_added',
+                        'label': 'Feedback Added',
+                        'timestamp': submission.graded_at,
+                        'actor': grader_name,
+                        'details': submission.feedback,
+                    }
+                )
+
+        events = sorted(events, key=lambda item: item['timestamp'] or timezone.now())
+
+        return Response(
+            {
+                'submission_id': submission.id,
+                'assignment_id': assignment.id,
+                'assignment_title': assignment.title,
+                'student_name': submission.student.get_full_name() or submission.student.username,
+                'status': submission.status,
+                'status_display': submission.get_status_display(),
+                'snapshot': {
+                    'attempt_number': submission.attempt_number,
+                    'is_late': submission.is_late,
+                    'points_earned': float(submission.points_earned) if submission.points_earned is not None else None,
+                    'max_points': assignment.max_points,
+                    'feedback': submission.feedback,
+                    'graded_by_name': (
+                        submission.graded_by.get_full_name() or submission.graded_by.username
+                        if submission.graded_by_id
+                        else None
+                    ),
+                },
+                'events': events,
+            }
+        )
+
+    @action(detail=False, methods=['get'])
+    def grading_queue(self, request):
+        """Assignment submission queue focused on staff grading workflow."""
+        queryset = self.get_queryset()
+        assignment_id = request.query_params.get('assignment_id')
+        if assignment_id:
+            queryset = queryset.filter(assignment_id=assignment_id)
+
+        include_graded = str(request.query_params.get('include_graded', 'false')).strip().lower() in {'1', 'true', 'yes'}
+        if not include_graded:
+            queryset = queryset.exclude(status='graded')
+
+        submissions = list(queryset[:500])
+        if assignment_id:
+            assignment = Assignment.objects.filter(id=assignment_id).first()
+        else:
+            assignment = None
+
+        total = len(submissions)
+        pending = sum(1 for submission in submissions if submission.status == 'submitted')
+        returned = sum(1 for submission in submissions if submission.status == 'returned')
+        graded = sum(1 for submission in submissions if submission.status == 'graded')
+        late = sum(1 for submission in submissions if submission.is_late)
+        scored_submissions = [submission for submission in submissions if submission.points_earned is not None]
+        average_score = (
+            round(sum(float(submission.points_earned) for submission in scored_submissions) / len(scored_submissions), 2)
+            if scored_submissions
+            else 0
+        )
+
+        serializer = AssignmentSubmissionSerializer(submissions, many=True, context={'request': request})
+
+        rubric_suggestions = [
+            {
+                'key': 'excellent',
+                'label': 'Excellent',
+                'score_percent': 95,
+                'feedback_template': 'Excellent work. You demonstrated strong understanding and clear execution.',
+            },
+            {
+                'key': 'good',
+                'label': 'Good',
+                'score_percent': 80,
+                'feedback_template': 'Good work overall. Improve depth and examples for an even stronger result.',
+            },
+            {
+                'key': 'needs_revision',
+                'label': 'Needs Revision',
+                'score_percent': 60,
+                'feedback_template': 'Core requirements are partially met. Please revise and resubmit.',
+            },
+        ]
+
+        return Response(
+            {
+                'summary': {
+                    'assignment_id': assignment.id if assignment else None,
+                    'assignment_title': assignment.title if assignment else None,
+                    'max_points': assignment.max_points if assignment else None,
+                    'total': total,
+                    'pending': pending,
+                    'returned': returned,
+                    'graded': graded,
+                    'late': late,
+                    'average_score': average_score,
+                },
+                'rubric_suggestions': rubric_suggestions,
+                'results': serializer.data,
+            }
+        )
+
+    @action(detail=False, methods=['post'])
+    def bulk_grade(self, request):
+        """Apply one grading decision to multiple submissions in one operation."""
+        submission_ids = request.data.get('submission_ids') or []
+        if not isinstance(submission_ids, list) or not submission_ids:
+            return Response(
+                {'submission_ids': 'Provide at least one submission id.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        submissions = list(self.get_queryset().filter(id__in=submission_ids))
+        found_ids = {submission.id for submission in submissions}
+        missing_ids = [submission_id for submission_id in submission_ids if submission_id not in found_ids]
+        if missing_ids:
+            return Response(
+                {'submission_ids': f'Unknown or inaccessible submissions: {missing_ids}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        grading_mode = str(request.data.get('grading_mode', 'score')).strip().lower()
+        status_value = str(request.data.get('status', 'graded')).strip().lower()
+        if status_value not in {'graded', 'returned'}:
+            return Response(
+                {'status': 'Status must be either graded or returned.'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        feedback = str(request.data.get('feedback', '')).strip()
+        rubric_label = str(request.data.get('rubric_label', '')).strip()
+        if rubric_label:
+            feedback = f'[{rubric_label}] {feedback}'.strip()
+
+        direct_score = None
+        rubric_percent = None
+
+        if grading_mode == 'score':
+            score_raw = request.data.get('points_earned')
+            if score_raw is None:
+                return Response(
+                    {'points_earned': 'points_earned is required for score grading mode.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                direct_score = Decimal(str(score_raw))
+            except (InvalidOperation, ValueError):
+                return Response(
+                    {'points_earned': 'Enter a valid numeric score.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if direct_score < 0:
+                return Response(
+                    {'points_earned': 'Score cannot be negative.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        elif grading_mode == 'rubric':
+            rubric_raw = request.data.get('rubric_percent')
+            if rubric_raw is None:
+                return Response(
+                    {'rubric_percent': 'rubric_percent is required for rubric grading mode.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            try:
+                rubric_percent = Decimal(str(rubric_raw))
+            except (InvalidOperation, ValueError):
+                return Response(
+                    {'rubric_percent': 'Enter a valid numeric rubric percentage.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if rubric_percent < 0 or rubric_percent > 100:
+                return Response(
+                    {'rubric_percent': 'rubric_percent must be between 0 and 100.'},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+        else:
+            return Response(
+                {'grading_mode': "grading_mode must be 'score' or 'rubric'."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        updated = []
+        now = timezone.now()
+        for submission in submissions:
+            max_points = Decimal(str(submission.assignment.max_points))
+            if grading_mode == 'score':
+                if direct_score > max_points:
+                    return Response(
+                        {
+                            'points_earned': (
+                                f'Score {direct_score} exceeds max points {submission.assignment.max_points} '
+                                f'for submission {submission.id}.'
+                            )
+                        },
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                final_score = direct_score
+            else:
+                final_score = (max_points * rubric_percent) / Decimal('100')
+                final_score = final_score.quantize(Decimal('0.01'))
+
+            submission.points_earned = final_score
+            submission.feedback = feedback
+            submission.status = status_value
+            submission.graded_by = request.user
+            submission.graded_at = now
+            submission.save(
+                update_fields=[
+                    'points_earned',
+                    'feedback',
+                    'status',
+                    'graded_by',
+                    'graded_at',
+                    'updated_at',
+                ]
+            )
+            updated.append(
+                {
+                    'submission_id': submission.id,
+                    'student_name': submission.student.get_full_name() or submission.student.username,
+                    'status': submission.status,
+                    'points_earned': float(submission.points_earned) if submission.points_earned is not None else None,
+                    'max_points': submission.assignment.max_points,
+                }
+            )
+
+        return Response(
+            {
+                'updated_count': len(updated),
+                'grading_mode': grading_mode,
+                'status': status_value,
+                'updated': updated,
+            }
+        )
 
     @action(detail=False, methods=['get'])
     def my_submissions(self, request):

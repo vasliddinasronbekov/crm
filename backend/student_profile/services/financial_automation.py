@@ -490,6 +490,65 @@ def _effective_charge_tiyin(charge: MonthlySubscriptionCharge) -> int:
     return max(int(charge.charged_tiyin) - int(charge.refunded_tiyin), 0)
 
 
+@transaction.atomic
+def set_student_account_status(
+    *,
+    student: User,
+    target_status: str,
+    actor: Optional[User] = None,
+    group: Optional[Group] = None,
+    reason: Optional[str] = None,
+) -> StudentAccount:
+    if target_status not in {
+        StudentAccount.STATUS_ACTIVE,
+        StudentAccount.STATUS_FROZEN,
+        StudentAccount.STATUS_DEACTIVATED,
+    }:
+        raise ValueError(f"Unsupported student account status: {target_status}")
+
+    account = get_or_create_student_account(student)
+    previous_status = account.status
+
+    if previous_status != target_status:
+        account.status = target_status
+        account.save(update_fields=['status', 'updated_at', 'status_changed_at'])
+
+    should_be_active = target_status == StudentAccount.STATUS_ACTIVE
+    if student.is_active != should_be_active:
+        student.is_active = should_be_active
+        student.save(update_fields=['is_active'])
+
+    if should_be_active and group:
+        group.students.add(student)
+
+    if previous_status != target_status:
+        actor_name = actor.username if actor else 'System'
+        action_type = {
+            StudentAccount.STATUS_ACTIVE: AccountingActivityLog.ACTION_ACCOUNT_REACTIVATED,
+            StudentAccount.STATUS_FROZEN: AccountingActivityLog.ACTION_ACCOUNT_FROZEN,
+            StudentAccount.STATUS_DEACTIVATED: AccountingActivityLog.ACTION_ACCOUNT_DEACTIVATED,
+        }[target_status]
+        create_activity_log(
+            action_type=action_type,
+            message=(
+                f"{actor_name} changed {student.username} account status "
+                f"from {previous_status} to {target_status}."
+            ),
+            actor=actor,
+            student=student,
+            group=group,
+            balance_after_tiyin=account.balance_tiyin,
+            metadata={
+                'manual': True,
+                'reason': reason or 'manual_status_change',
+                'previous_status': previous_status,
+                'target_status': target_status,
+            },
+        )
+
+    return account
+
+
 def calculate_group_teacher_payroll_tiyin(group: Group, share_percent: int = TEACHER_SHARE_PERCENT) -> int:
     charges = MonthlySubscriptionCharge.objects.filter(group=group)
     total = 0
