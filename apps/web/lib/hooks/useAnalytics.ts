@@ -123,6 +123,45 @@ export interface Report {
   csv_file?: string | null
 }
 
+export interface ScheduledReport {
+  id: number
+  report_type: string
+  frequency: 'daily' | 'weekly' | 'monthly'
+  day_of_week?: string | null
+  time: string
+  recipients: string
+  recipients_list?: string[]
+  enabled: boolean
+  created_by?: number | null
+  created_by_name?: string
+  created_at: string
+  updated_at: string
+  last_run?: string | null
+  next_run?: string | null
+  parameters?: Record<string, any>
+  status_display?: string
+}
+
+export interface ReportGeneration {
+  id: number
+  scheduled_report?: number | null
+  scheduled_report_info?: {
+    id: number
+    type: string
+    frequency: string
+  } | null
+  report_type: string
+  status: 'pending' | 'processing' | 'completed' | 'failed' | string
+  started_at: string
+  completed_at?: string | null
+  duration?: number | null
+  file_path?: string
+  file_url?: string
+  error_message?: string
+  parameters?: Record<string, any>
+  result_data?: Record<string, any>
+}
+
 // Query keys factory for consistent cache management
 export const analyticsKeys = {
   all: ['analytics'] as const,
@@ -131,6 +170,10 @@ export const analyticsKeys = {
   reports: () => [...analyticsKeys.all, 'reports'] as const,
   reportsList: (filters: { page?: number; limit?: number; [key: string]: any } = {}) =>
     [...analyticsKeys.reports(), filters] as const,
+  scheduledReports: (filters: { page?: number; limit?: number; [key: string]: any } = {}) =>
+    [...analyticsKeys.reports(), 'scheduled', filters] as const,
+  reportGenerations: (filters: { page?: number; limit?: number; [key: string]: any } = {}) =>
+    [...analyticsKeys.reports(), 'generations', filters] as const,
 }
 
 /**
@@ -193,6 +236,118 @@ export function useReport(reportId: string | null) {
     },
     enabled: Boolean(reportId),
     staleTime: 60 * 1000,
+  })
+}
+
+/**
+ * Hook to fetch scheduled reports
+ */
+export function useScheduledReports(filters: { page?: number; limit?: number; [key: string]: any } = {}) {
+  return useQuery<PaginatedResponse<ScheduledReport>, Error>({
+    queryKey: analyticsKeys.scheduledReports(filters),
+    queryFn: async () => {
+      const data = await apiService.getScheduledReports(filters)
+      return data as PaginatedResponse<ScheduledReport>
+    },
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+/**
+ * Hook to fetch report generation history
+ */
+export function useReportGenerations(filters: { page?: number; limit?: number; [key: string]: any } = {}) {
+  return useQuery<PaginatedResponse<ReportGeneration>, Error>({
+    queryKey: analyticsKeys.reportGenerations(filters),
+    queryFn: async () => {
+      const data = await apiService.getReportGenerations(filters)
+      return data as PaginatedResponse<ReportGeneration>
+    },
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+export function useCreateScheduledReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: {
+      report_type: string
+      frequency: 'daily' | 'weekly' | 'monthly'
+      day_of_week?: string | null
+      time: string
+      recipients: string
+      enabled?: boolean
+      parameters?: Record<string, any>
+    }) => {
+      const data = await apiService.createScheduledReport(payload)
+      return data as ScheduledReport
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...analyticsKeys.reports(), 'scheduled'] })
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || 'Failed to create scheduled report'
+      toast.error(message)
+    },
+  })
+}
+
+export function useToggleScheduledReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const data = await apiService.toggleScheduledReport(id)
+      return data as ScheduledReport
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...analyticsKeys.reports(), 'scheduled'] })
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || 'Failed to update scheduled report'
+      toast.error(message)
+    },
+  })
+}
+
+export function useDeleteScheduledReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      await apiService.deleteScheduledReport(id)
+      return id
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...analyticsKeys.reports(), 'scheduled'] })
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || 'Failed to delete scheduled report'
+      toast.error(message)
+    },
+  })
+}
+
+export function useRunScheduledReport() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (id: number) => {
+      const data = await apiService.runScheduledReportNow(id)
+      return data as { message?: string; generation_id?: number }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: [...analyticsKeys.reports(), 'generations'] })
+      queryClient.invalidateQueries({ queryKey: analyticsKeys.reports() })
+      queryClient.invalidateQueries({ queryKey: [...analyticsKeys.reports(), 'scheduled'] })
+    },
+    onError: (error: any) => {
+      const message = error.response?.data?.detail || 'Failed to trigger report generation'
+      toast.error(message)
+    },
   })
 }
 

@@ -4,16 +4,20 @@ import { useMemo, useState } from 'react'
 import {
   AlertCircle,
   ArrowRight,
+  CalendarClock,
   CheckCircle2,
   Clock3,
+  Play,
   Download,
   Eye,
   FileDown,
   FileText,
   Filter,
   Loader2,
+  Plus,
   Search,
   Sparkles,
+  Trash2,
   X,
 } from 'lucide-react'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -22,9 +26,17 @@ import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import {
   Report,
+  ReportGeneration,
+  ScheduledReport,
+  useCreateScheduledReport,
+  useDeleteScheduledReport,
+  useReportGenerations,
   useGenerateReport,
   useReport,
   useReports,
+  useRunScheduledReport,
+  useScheduledReports,
+  useToggleScheduledReport,
 } from '@/lib/hooks/useAnalytics'
 import { usePermissions } from '@/lib/permissions'
 import apiService from '@/lib/api'
@@ -39,6 +51,18 @@ type ReportTemplate = {
   accent: string
   icon: string
   cta: string
+}
+
+type ScheduleFrequency = 'daily' | 'weekly' | 'monthly'
+type ScheduleEnabledFilter = 'all' | 'enabled' | 'disabled'
+
+type ScheduleFormState = {
+  templateId: string
+  frequency: ScheduleFrequency
+  dayOfWeek: string
+  time: string
+  recipients: string
+  enabled: boolean
 }
 
 const REPORT_TEMPLATES: ReportTemplate[] = [
@@ -131,6 +155,46 @@ const PERIOD_LABELS: Record<ReportPeriod, string> = {
   year: 'Last 365 days',
 }
 
+const SCHEDULED_REPORT_TYPE_LABELS: Record<string, string> = {
+  attendance: 'Attendance Summary',
+  enrollment: 'Enrollment Trends',
+  performance: 'Student Performance',
+  revenue: 'Financial Report',
+  lead_conversion: 'Lead Conversion',
+  profit_loss: 'Profit & Loss',
+  cash_flow: 'Cash Flow',
+  accounts_receivable: 'Accounts Receivable',
+  teacher_compensation: 'Teacher Compensation',
+  custom: 'Custom Report',
+}
+
+const TEMPLATE_TO_SCHEDULED_TYPE: Record<string, string> = {
+  'attendance-summary': 'attendance',
+  'enrollment-trends': 'enrollment',
+  'student-performance': 'performance',
+  'financial-report': 'revenue',
+  'profit-loss': 'profit_loss',
+  'cash-flow': 'cash_flow',
+  'accounts-receivable': 'accounts_receivable',
+  'teacher-compensation': 'teacher_compensation',
+}
+
+const FREQUENCY_OPTIONS: Array<{ value: ScheduleFrequency; label: string }> = [
+  { value: 'daily', label: 'Daily' },
+  { value: 'weekly', label: 'Weekly' },
+  { value: 'monthly', label: 'Monthly' },
+]
+
+const DAY_OF_WEEK_OPTIONS = [
+  { value: 'monday', label: 'Monday' },
+  { value: 'tuesday', label: 'Tuesday' },
+  { value: 'wednesday', label: 'Wednesday' },
+  { value: 'thursday', label: 'Thursday' },
+  { value: 'friday', label: 'Friday' },
+  { value: 'saturday', label: 'Saturday' },
+  { value: 'sunday', label: 'Sunday' },
+]
+
 const MONEY_KEY_HINTS = [
   'amount',
   'revenue',
@@ -187,6 +251,39 @@ function statusBadge(status: string | undefined): string {
     default:
       return 'bg-warning/10 text-warning border-warning/20'
   }
+}
+
+function generationStatusBadge(status: string | undefined): string {
+  switch (status) {
+    case 'completed':
+      return 'bg-success/10 text-success border-success/20'
+    case 'failed':
+      return 'bg-error/10 text-error border-error/20'
+    case 'processing':
+      return 'bg-primary/10 text-primary border-primary/20'
+    default:
+      return 'bg-warning/10 text-warning border-warning/20'
+  }
+}
+
+function getScheduledReportDisplayName(item: ScheduledReport): string {
+  const templateId = typeof item.parameters?.template_id === 'string' ? item.parameters.template_id : null
+  if (templateId) {
+    const template = REPORT_TEMPLATES.find((entry) => entry.id === templateId)
+    if (template) return template.title
+  }
+
+  return SCHEDULED_REPORT_TYPE_LABELS[item.report_type] || item.report_type
+}
+
+function getGenerationReportDisplayName(item: ReportGeneration): string {
+  const templateId = typeof item.parameters?.template_id === 'string' ? item.parameters.template_id : null
+  if (templateId) {
+    const template = REPORT_TEMPLATES.find((entry) => entry.id === templateId)
+    if (template) return template.title
+  }
+
+  return SCHEDULED_REPORT_TYPE_LABELS[item.report_type] || item.report_type
 }
 
 function SimpleBarChart({ data }: { data: Array<Record<string, unknown>> }) {
@@ -451,9 +548,27 @@ export default function ReportsPage() {
   const [endDate, setEndDate] = useState('')
   const [previewReportId, setPreviewReportId] = useState<string | null>(null)
   const [activeTemplateId, setActiveTemplateId] = useState<string>(REPORT_TEMPLATES[0].id)
+  const [scheduledPage, setScheduledPage] = useState(1)
+  const [scheduledLimit, setScheduledLimit] = useState(5)
+  const [scheduledEnabledFilter, setScheduledEnabledFilter] = useState<ScheduleEnabledFilter>('all')
+  const [scheduledFrequencyFilter, setScheduledFrequencyFilter] = useState('')
+  const [scheduledTypeFilter, setScheduledTypeFilter] = useState('')
+  const [generationPage, setGenerationPage] = useState(1)
+  const [generationLimit, setGenerationLimit] = useState(8)
+  const [generationStatusFilter, setGenerationStatusFilter] = useState('')
+  const [generationTypeFilter, setGenerationTypeFilter] = useState('')
+  const [scheduleForm, setScheduleForm] = useState<ScheduleFormState>({
+    templateId: REPORT_TEMPLATES[0].id,
+    frequency: 'daily',
+    dayOfWeek: 'monday',
+    time: '08:00',
+    recipients: '',
+    enabled: true,
+  })
 
   const canGenerate = permissions.hasPermission('reports.create')
   const canExport = permissions.hasPermission('reports.export')
+  const canManageSchedules = canGenerate
 
   const reportFilters = useMemo(
     () => ({
@@ -472,7 +587,47 @@ export default function ReportsPage() {
     isError: isReportsError,
   } = useReports(reportFilters)
 
+  const scheduledFilters = useMemo(
+    () => ({
+      page: scheduledPage,
+      limit: scheduledLimit,
+      enabled:
+        scheduledEnabledFilter === 'all'
+          ? undefined
+          : scheduledEnabledFilter === 'enabled',
+      frequency: scheduledFrequencyFilter || undefined,
+      report_type: scheduledTypeFilter || undefined,
+    }),
+    [scheduledEnabledFilter, scheduledFrequencyFilter, scheduledLimit, scheduledPage, scheduledTypeFilter],
+  )
+
+  const {
+    data: scheduledReportsData,
+    isLoading: isLoadingScheduledReports,
+    isError: isScheduledReportsError,
+  } = useScheduledReports(scheduledFilters)
+
+  const generationFilters = useMemo(
+    () => ({
+      page: generationPage,
+      limit: generationLimit,
+      status: generationStatusFilter || undefined,
+      report_type: generationTypeFilter || undefined,
+    }),
+    [generationLimit, generationPage, generationStatusFilter, generationTypeFilter],
+  )
+
+  const {
+    data: reportGenerationData,
+    isLoading: isLoadingGenerations,
+    isError: isReportGenerationsError,
+  } = useReportGenerations(generationFilters)
+
   const generateReportMutation = useGenerateReport()
+  const createScheduledReportMutation = useCreateScheduledReport()
+  const toggleScheduledReportMutation = useToggleScheduledReport()
+  const deleteScheduledReportMutation = useDeleteScheduledReport()
+  const runScheduledReportMutation = useRunScheduledReport()
 
   const {
     data: previewReport,
@@ -480,6 +635,14 @@ export default function ReportsPage() {
   } = useReport(previewReportId)
 
   const reportRows = useMemo(() => reportsData?.results ?? [], [reportsData?.results])
+  const scheduledRows = useMemo(
+    () => scheduledReportsData?.results ?? [],
+    [scheduledReportsData?.results],
+  )
+  const generationRows = useMemo(
+    () => reportGenerationData?.results ?? [],
+    [reportGenerationData?.results],
+  )
 
   const reportStats = useMemo(() => {
     const completed = reportRows.filter((item) => item.status === 'completed').length
@@ -522,6 +685,79 @@ export default function ReportsPage() {
       toast.success('Report generated and saved successfully.')
     } catch (error: any) {
       toast.error(error?.response?.data?.detail || 'Failed to generate report.')
+    }
+  }
+
+  const handleCreateScheduledReport = async () => {
+    if (!canManageSchedules) {
+      toast.error('You do not have permission to schedule reports.')
+      return
+    }
+
+    if (!scheduleForm.recipients.trim()) {
+      toast.error('Please add at least one recipient email.')
+      return
+    }
+
+    const mappedReportType = TEMPLATE_TO_SCHEDULED_TYPE[scheduleForm.templateId] || 'custom'
+    const selectedTemplate = REPORT_TEMPLATES.find((item) => item.id === scheduleForm.templateId)
+
+    try {
+      await createScheduledReportMutation.mutateAsync({
+        report_type: mappedReportType,
+        frequency: scheduleForm.frequency,
+        day_of_week: scheduleForm.frequency === 'weekly' ? scheduleForm.dayOfWeek : null,
+        time: scheduleForm.time,
+        recipients: scheduleForm.recipients,
+        enabled: scheduleForm.enabled,
+        parameters: {
+          template_id: scheduleForm.templateId,
+          template_title: selectedTemplate?.title || scheduleForm.templateId,
+          period,
+          start_date: startDate || null,
+          end_date: endDate || null,
+        },
+      })
+
+      toast.success('Scheduled report created.')
+      setScheduledPage(1)
+      setScheduleForm((prev) => ({
+        ...prev,
+        recipients: '',
+      }))
+    } catch {
+      // Error toast is handled by mutation hook.
+    }
+  }
+
+  const handleToggleScheduledReport = async (id: number) => {
+    try {
+      await toggleScheduledReportMutation.mutateAsync(id)
+      toast.success('Schedule status updated.')
+    } catch {
+      // Error toast is handled by mutation hook.
+    }
+  }
+
+  const handleRunScheduledReportNow = async (id: number) => {
+    try {
+      const response = await runScheduledReportMutation.mutateAsync(id)
+      toast.success(response?.message || 'Report generation triggered.')
+      setGenerationPage(1)
+    } catch {
+      // Error toast is handled by mutation hook.
+    }
+  }
+
+  const handleDeleteScheduledReport = async (id: number) => {
+    const confirmed = window.confirm('Delete this scheduled report?')
+    if (!confirmed) return
+
+    try {
+      await deleteScheduledReportMutation.mutateAsync(id)
+      toast.success('Scheduled report deleted.')
+    } catch {
+      // Error toast is handled by mutation hook.
     }
   }
 
@@ -768,6 +1004,378 @@ export default function ReportsPage() {
                 </button>
               ))}
             </div>
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 gap-6 xl:grid-cols-12">
+          <div className="rounded-2xl border border-border bg-surface/90 p-5 backdrop-blur-md xl:col-span-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="flex items-center gap-2 text-lg font-semibold">
+                <CalendarClock className="h-5 w-5 text-primary" />
+                Scheduled Reports
+              </h2>
+              <span className="rounded-full border border-border px-2 py-0.5 text-xs text-text-secondary">
+                Backend synced
+              </span>
+            </div>
+
+            <div className="space-y-3 rounded-xl border border-border/70 bg-background/50 p-4">
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wide text-text-secondary">Template</label>
+                  <select
+                    value={scheduleForm.templateId}
+                    onChange={(event) =>
+                      setScheduleForm((prev) => ({ ...prev, templateId: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                  >
+                    {REPORT_TEMPLATES.map((template) => (
+                      <option key={template.id} value={template.id}>
+                        {template.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wide text-text-secondary">Frequency</label>
+                  <select
+                    value={scheduleForm.frequency}
+                    onChange={(event) =>
+                      setScheduleForm((prev) => ({ ...prev, frequency: event.target.value as ScheduleFrequency }))
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                  >
+                    {FREQUENCY_OPTIONS.map((option) => (
+                      <option key={option.value} value={option.value}>
+                        {option.label}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
+                {scheduleForm.frequency === 'weekly' && (
+                  <div>
+                    <label className="mb-1 block text-xs uppercase tracking-wide text-text-secondary">Day</label>
+                    <select
+                      value={scheduleForm.dayOfWeek}
+                      onChange={(event) =>
+                        setScheduleForm((prev) => ({ ...prev, dayOfWeek: event.target.value }))
+                      }
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                    >
+                      {DAY_OF_WEEK_OPTIONS.map((option) => (
+                        <option key={option.value} value={option.value}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+                <div>
+                  <label className="mb-1 block text-xs uppercase tracking-wide text-text-secondary">Time</label>
+                  <input
+                    type="time"
+                    value={scheduleForm.time}
+                    onChange={(event) =>
+                      setScheduleForm((prev) => ({ ...prev, time: event.target.value }))
+                    }
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                  />
+                </div>
+                <label className="mt-6 inline-flex items-center gap-2 text-sm">
+                  <input
+                    type="checkbox"
+                    checked={scheduleForm.enabled}
+                    onChange={(event) =>
+                      setScheduleForm((prev) => ({ ...prev, enabled: event.target.checked }))
+                    }
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                  />
+                  Enabled
+                </label>
+              </div>
+
+              <div>
+                <label className="mb-1 block text-xs uppercase tracking-wide text-text-secondary">Recipients</label>
+                <input
+                  value={scheduleForm.recipients}
+                  onChange={(event) =>
+                    setScheduleForm((prev) => ({ ...prev, recipients: event.target.value }))
+                  }
+                  placeholder="finance@school.uz, owner@school.uz"
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                />
+              </div>
+
+              <button
+                onClick={handleCreateScheduledReport}
+                disabled={!canManageSchedules || createScheduledReportMutation.isPending}
+                className="inline-flex items-center gap-2 rounded-lg border border-primary/40 bg-primary/10 px-3 py-2 text-sm font-medium text-primary transition-colors hover:bg-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                {createScheduledReportMutation.isPending ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <Plus className="h-4 w-4" />
+                )}
+                Save schedule
+              </button>
+            </div>
+
+            <div className="mt-4 flex flex-wrap items-center gap-2">
+              <select
+                value={scheduledEnabledFilter}
+                onChange={(event) => {
+                  setScheduledPage(1)
+                  setScheduledEnabledFilter(event.target.value as ScheduleEnabledFilter)
+                }}
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              >
+                <option value="all">All status</option>
+                <option value="enabled">Enabled</option>
+                <option value="disabled">Disabled</option>
+              </select>
+              <select
+                value={scheduledFrequencyFilter}
+                onChange={(event) => {
+                  setScheduledPage(1)
+                  setScheduledFrequencyFilter(event.target.value)
+                }}
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              >
+                <option value="">All frequencies</option>
+                {FREQUENCY_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+              <select
+                value={scheduledTypeFilter}
+                onChange={(event) => {
+                  setScheduledPage(1)
+                  setScheduledTypeFilter(event.target.value)
+                }}
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              >
+                <option value="">All types</option>
+                {Object.entries(SCHEDULED_REPORT_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {isScheduledReportsError && (
+              <p className="mt-3 text-sm text-error">Failed to load scheduled reports.</p>
+            )}
+
+            <div className="mt-3 overflow-x-auto rounded-xl border border-border/70">
+              <table className="w-full min-w-[640px] text-sm">
+                <thead className="bg-background/70">
+                  <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wide text-text-secondary">
+                    <th className="px-3 py-2">Report</th>
+                    <th className="px-3 py-2">Schedule</th>
+                    <th className="px-3 py-2">Recipients</th>
+                    <th className="px-3 py-2">Next run</th>
+                    <th className="px-3 py-2 text-right">Actions</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoadingScheduledReports && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-8 text-center text-text-secondary">
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading schedules...
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                  {!isLoadingScheduledReports && scheduledRows.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-8 text-center text-text-secondary">
+                        No scheduled reports found.
+                      </td>
+                    </tr>
+                  )}
+                  {scheduledRows.map((item) => (
+                    <tr key={item.id} className="border-b border-border/40 hover:bg-background/30">
+                      <td className="px-3 py-3">
+                        <p className="font-medium">{getScheduledReportDisplayName(item)}</p>
+                        <p className="text-xs text-text-secondary">#{item.id}</p>
+                      </td>
+                      <td className="px-3 py-3 text-text-secondary">
+                        <p className="capitalize">{item.frequency}</p>
+                        {item.day_of_week && <p className="text-xs capitalize">{item.day_of_week}</p>}
+                      </td>
+                      <td className="px-3 py-3 text-text-secondary">
+                        <p className="line-clamp-2">{item.recipients_list?.join(', ') || item.recipients}</p>
+                      </td>
+                      <td className="px-3 py-3 text-text-secondary">
+                        {item.next_run ? new Date(item.next_run).toLocaleString() : '—'}
+                      </td>
+                      <td className="px-3 py-3">
+                        <div className="flex items-center justify-end gap-2">
+                          <button
+                            onClick={() => handleRunScheduledReportNow(item.id)}
+                            disabled={!canManageSchedules || runScheduledReportMutation.isPending}
+                            className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-border/50 disabled:cursor-not-allowed disabled:opacity-50"
+                            title="Run now"
+                          >
+                            <Play className="h-3.5 w-3.5" />
+                          </button>
+                          <button
+                            onClick={() => handleToggleScheduledReport(item.id)}
+                            disabled={!canManageSchedules || toggleScheduledReportMutation.isPending}
+                            className="rounded-lg border border-border px-2 py-1 text-xs hover:bg-border/50 disabled:cursor-not-allowed disabled:opacity-50"
+                          >
+                            {item.enabled ? 'Disable' : 'Enable'}
+                          </button>
+                          <button
+                            onClick={() => handleDeleteScheduledReport(item.id)}
+                            disabled={!canManageSchedules || deleteScheduledReportMutation.isPending}
+                            className="rounded-lg border border-error/40 px-2 py-1 text-xs text-error hover:bg-error/10 disabled:cursor-not-allowed disabled:opacity-50"
+                            title="Delete"
+                          >
+                            <Trash2 className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {scheduledReportsData && scheduledReportsData.count > scheduledLimit && (
+              <div className="mt-3">
+                <PaginationControls
+                  totalItems={scheduledReportsData.count}
+                  itemsPerPage={scheduledLimit}
+                  currentPage={scheduledPage}
+                  onPageChange={setScheduledPage}
+                  onItemsPerPageChange={setScheduledLimit}
+                />
+              </div>
+            )}
+          </div>
+
+          <div className="rounded-2xl border border-border bg-surface/90 p-5 backdrop-blur-md xl:col-span-6">
+            <div className="mb-4 flex items-center justify-between">
+              <h2 className="text-lg font-semibold">Report Generation History</h2>
+              <span className="rounded-full border border-border px-2 py-0.5 text-xs text-text-secondary">
+                Live backend records
+              </span>
+            </div>
+
+            <div className="mb-3 flex flex-wrap items-center gap-2">
+              <select
+                value={generationStatusFilter}
+                onChange={(event) => {
+                  setGenerationPage(1)
+                  setGenerationStatusFilter(event.target.value)
+                }}
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              >
+                <option value="">All statuses</option>
+                <option value="pending">Pending</option>
+                <option value="processing">Processing</option>
+                <option value="completed">Completed</option>
+                <option value="failed">Failed</option>
+              </select>
+              <select
+                value={generationTypeFilter}
+                onChange={(event) => {
+                  setGenerationPage(1)
+                  setGenerationTypeFilter(event.target.value)
+                }}
+                className="rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+              >
+                <option value="">All types</option>
+                {Object.entries(SCHEDULED_REPORT_TYPE_LABELS).map(([value, label]) => (
+                  <option key={value} value={value}>
+                    {label}
+                  </option>
+                ))}
+              </select>
+            </div>
+
+            {isReportGenerationsError && (
+              <p className="mb-3 text-sm text-error">Failed to load generation history.</p>
+            )}
+
+            <div className="overflow-x-auto rounded-xl border border-border/70">
+              <table className="w-full min-w-[620px] text-sm">
+                <thead className="bg-background/70">
+                  <tr className="border-b border-border/70 text-left text-xs uppercase tracking-wide text-text-secondary">
+                    <th className="px-3 py-2">Report</th>
+                    <th className="px-3 py-2">Started</th>
+                    <th className="px-3 py-2">Duration</th>
+                    <th className="px-3 py-2">Status</th>
+                    <th className="px-3 py-2">Error</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {isLoadingGenerations && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-8 text-center text-text-secondary">
+                        <span className="inline-flex items-center gap-2">
+                          <Loader2 className="h-4 w-4 animate-spin" />
+                          Loading generation history...
+                        </span>
+                      </td>
+                    </tr>
+                  )}
+                  {!isLoadingGenerations && generationRows.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="px-3 py-8 text-center text-text-secondary">
+                        No generation records yet.
+                      </td>
+                    </tr>
+                  )}
+                  {generationRows.map((item) => (
+                    <tr key={item.id} className="border-b border-border/40 hover:bg-background/30">
+                      <td className="px-3 py-3">
+                        <p className="font-medium">{getGenerationReportDisplayName(item)}</p>
+                        <p className="text-xs text-text-secondary">
+                          {item.scheduled_report_info?.frequency || 'manual trigger'}
+                        </p>
+                      </td>
+                      <td className="px-3 py-3 text-text-secondary">
+                        {new Date(item.started_at).toLocaleString()}
+                      </td>
+                      <td className="px-3 py-3 text-text-secondary">
+                        {item.duration ? `${item.duration}s` : '—'}
+                      </td>
+                      <td className="px-3 py-3">
+                        <span className={`inline-flex rounded-full border px-2 py-0.5 text-xs font-medium capitalize ${generationStatusBadge(item.status)}`}>
+                          {item.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-3 text-xs text-text-secondary">
+                        {item.error_message || '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {reportGenerationData && reportGenerationData.count > generationLimit && (
+              <div className="mt-3">
+                <PaginationControls
+                  totalItems={reportGenerationData.count}
+                  itemsPerPage={generationLimit}
+                  currentPage={generationPage}
+                  onPageChange={setGenerationPage}
+                  onItemsPerPageChange={setGenerationLimit}
+                />
+              </div>
+            )}
           </div>
         </div>
 

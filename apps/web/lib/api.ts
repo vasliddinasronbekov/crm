@@ -960,6 +960,64 @@ class ApiService {
     return response.data;
   }
 
+  async getScheduledReports(params?: {
+    page?: number;
+    limit?: number;
+    enabled?: boolean;
+    report_type?: string;
+    frequency?: string;
+    [key: string]: any;
+  }) {
+    const response = await this.api.get('/v1/student-profile/reports/scheduled-reports/', { params });
+    return response.data;
+  }
+
+  async createScheduledReport(data: {
+    report_type: string;
+    frequency: 'daily' | 'weekly' | 'monthly';
+    day_of_week?: string | null;
+    time: string;
+    recipients: string;
+    enabled?: boolean;
+    parameters?: Record<string, any>;
+  }) {
+    const response = await this.api.post('/v1/student-profile/reports/scheduled-reports/', data);
+    return response.data;
+  }
+
+  async updateScheduledReport(id: number, data: Record<string, any>) {
+    const response = await this.api.patch(`/v1/student-profile/reports/scheduled-reports/${id}/`, data);
+    return response.data;
+  }
+
+  async deleteScheduledReport(id: number) {
+    const response = await this.api.delete(`/v1/student-profile/reports/scheduled-reports/${id}/`);
+    return response.data;
+  }
+
+  async toggleScheduledReport(id: number) {
+    const response = await this.api.post(`/v1/student-profile/reports/scheduled-reports/${id}/toggle/`);
+    return response.data;
+  }
+
+  async runScheduledReportNow(id: number) {
+    const response = await this.api.post(`/v1/student-profile/reports/scheduled-reports/${id}/run_now/`);
+    return response.data;
+  }
+
+  async getReportGenerations(params?: {
+    page?: number;
+    limit?: number;
+    status?: string;
+    report_type?: string;
+    date_from?: string;
+    date_to?: string;
+    [key: string]: any;
+  }) {
+    const response = await this.api.get('/v1/student-profile/reports/report-generations/', { params });
+    return response.data;
+  }
+
   // Messaging
   async getMessages(params?: any) {
     const response = await this.api.get("/messaging/messages/", { params });
