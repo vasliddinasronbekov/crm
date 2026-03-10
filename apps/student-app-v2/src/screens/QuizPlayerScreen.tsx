@@ -21,10 +21,11 @@ import { ExamHeroCard } from '../components/exam/ExamHeroCard';
 import { QuestionPalette } from '../components/exam/QuestionPalette';
 import {
   completeRuntimeQuizAttempt,
-  createRuntimeQuizAttempt,
   getRuntimeQuizDetail,
   getRuntimeQuizQuestions,
   type RuntimeQuizAttemptResult,
+  type RuntimeQuizQuestion,
+  startOrResumeRuntimeQuizAttempt,
   submitRuntimeQuizAnswer,
 } from '../lib/lmsRuntime';
 import type { AppStackParamList } from '../navigation/types';
@@ -45,6 +46,8 @@ export const QuizPlayerScreen = () => {
   const [answers, setAnswers] = useState<Record<number, string | number>>({});
   const [timeRemaining, setTimeRemaining] = useState(0);
   const [completedAttempt, setCompletedAttempt] = useState<RuntimeQuizAttemptResult | null>(null);
+  const [resumedAttempt, setResumedAttempt] = useState(false);
+  const [syncingAnswersCount, setSyncingAnswersCount] = useState(0);
 
   const quizQuery = useQuery({
     queryKey: ['runtime-quiz-detail', quizId],
@@ -57,15 +60,55 @@ export const QuizPlayerScreen = () => {
   });
 
   const startAttemptMutation = useMutation({
-    mutationFn: () => createRuntimeQuizAttempt(quizId),
+    mutationFn: () => startOrResumeRuntimeQuizAttempt(quizId),
     onSuccess: (attempt) => {
       setAttemptId(attempt.id);
-      setTimeRemaining((quizQuery.data?.timeLimitMinutes || 0) * 60);
+      const restoredAnswers = (attempt.answers || []).reduce<Record<number, string | number>>((accumulator, answer) => {
+        if (answer.selectedOption !== undefined && answer.selectedOption !== null) {
+          accumulator[answer.question] = Number(answer.selectedOption);
+        } else if (answer.textAnswer) {
+          accumulator[answer.question] = answer.textAnswer;
+        }
+        return accumulator;
+      }, {});
+      setAnswers(restoredAnswers);
+      setResumedAttempt(Object.keys(restoredAnswers).length > 0);
+
+      const quizTimeLimitSeconds = (quizQuery.data?.timeLimitMinutes || 0) * 60;
+      if (!quizTimeLimitSeconds) {
+        setTimeRemaining(0);
+        return;
+      }
+
+      const startedAt = attempt.startedAt ? new Date(attempt.startedAt).getTime() : Date.now();
+      const elapsedSeconds = Math.max(0, Math.floor((Date.now() - startedAt) / 1000));
+      setTimeRemaining(Math.max(quizTimeLimitSeconds - elapsedSeconds, 0));
     },
     onError: (error) => {
       Alert.alert('Quiz start failed', getErrorMessage(error), [
         { text: 'Go Back', onPress: () => navigation.goBack() },
       ]);
+    },
+  });
+
+  const saveAnswerMutation = useMutation({
+    mutationFn: async ({
+      question,
+      value,
+    }: {
+      question: RuntimeQuizQuestion;
+      value: string | number;
+    }) => {
+      if (!attemptId) {
+        throw new Error('Quiz attempt is not ready.');
+      }
+      return submitRuntimeQuizAnswer(attemptId, question, value);
+    },
+    onMutate: () => {
+      setSyncingAnswersCount((current) => current + 1);
+    },
+    onSettled: () => {
+      setSyncingAnswersCount((current) => Math.max(0, current - 1));
     },
   });
 
@@ -89,6 +132,7 @@ export const QuizPlayerScreen = () => {
     onSuccess: (attempt) => {
       setCompletedAttempt(attempt);
       queryClient.invalidateQueries({ queryKey: ['runtime-quizzes'] });
+      queryClient.invalidateQueries({ queryKey: ['runtime-quiz-insights'] });
       queryClient.invalidateQueries({ queryKey: ['quizzes'] });
     },
     onError: (error) => {
@@ -131,8 +175,32 @@ export const QuizPlayerScreen = () => {
     return `${minutes}:${remainingSeconds.toString().padStart(2, '0')}`;
   };
 
+  const persistAnswer = async (
+    question: RuntimeQuizQuestion,
+    explicitValue?: string | number
+  ) => {
+    if (!attemptId) return;
+
+    const value = explicitValue ?? answers[question.id];
+    if (value === undefined || value === '') return;
+
+    try {
+      await saveAnswerMutation.mutateAsync({ question, value });
+    } catch {
+      // Keep answer locally; final submission retries every answer.
+    }
+  };
+
   const handleAnswerChange = (questionId: number, value: string | number) => {
     setAnswers((current) => ({ ...current, [questionId]: value }));
+
+    const question = questionsQuery.data?.find((item) => item.id === questionId);
+    if (!question) return;
+
+    const isObjective = question.questionType === 'multiple_choice' || question.questionType === 'true_false';
+    if (isObjective) {
+      void persistAnswer(question, value);
+    }
   };
 
   const handleFinishQuiz = () => {
@@ -224,6 +292,12 @@ export const QuizPlayerScreen = () => {
         </GlassCard>
 
         <View style={styles.actionsRow}>
+          <TouchableOpacity
+            style={styles.secondaryAction}
+            onPress={() => navigation.navigate('QuizAttemptReview', { attemptId: completedAttempt.id })}
+          >
+            <Text style={styles.secondaryActionText}>Detailed Review</Text>
+          </TouchableOpacity>
           <TouchableOpacity style={styles.primaryAction} onPress={() => navigation.replace('QuizPlayer', { quizId })}>
             <MaterialCommunityIcons name="refresh" size={18} color={theme.colors.white} />
             <Text style={styles.primaryActionText}>Retake Quiz</Text>
@@ -272,6 +346,14 @@ export const QuizPlayerScreen = () => {
             { icon: 'clock-outline', label: 'Timer', value: quizQuery.data.timeLimitMinutes ? formatTime(timeRemaining) : 'No limit' },
           ]}
         />
+        <GlassCard style={styles.metaCard}>
+          <Text style={styles.metaCardText}>
+            {quizQuery.data.subjectDisplay} • {quizQuery.data.difficultyLevelDisplay} • Pass at {quizQuery.data.passingScore}%
+          </Text>
+          {resumedAttempt ? (
+            <Text style={styles.metaCardHint}>Resumed previous in-progress attempt with saved answers.</Text>
+          ) : null}
+        </GlassCard>
         <QuestionPalette
           total={questionsQuery.data.length}
           currentIndex={currentQuestionIndex}
@@ -346,13 +428,22 @@ export const QuizPlayerScreen = () => {
         ) : (
           <TouchableOpacity
             style={styles.submitButton}
-            onPress={() => setCurrentQuestionIndex((current) => Math.min(questionsQuery.data.length - 1, current + 1))}
+            onPress={() => {
+              void persistAnswer(currentQuestion);
+              setCurrentQuestionIndex((current) => Math.min(questionsQuery.data.length - 1, current + 1));
+            }}
           >
             <Text style={styles.submitButtonText}>Next</Text>
             <MaterialCommunityIcons name="chevron-right" size={20} color={theme.colors.white} />
           </TouchableOpacity>
         )}
       </GlassCard>
+      {syncingAnswersCount > 0 ? (
+        <View style={styles.syncBadge}>
+          <ActivityIndicator size="small" color={theme.colors.primary500} />
+          <Text style={styles.syncBadgeText}>Syncing answers...</Text>
+        </View>
+      ) : null}
     </View>
   );
 };
@@ -374,6 +465,21 @@ const createStyles = (theme: any, isDark: boolean) =>
       paddingHorizontal: 20,
       paddingTop: 12,
       gap: 12,
+    },
+    metaCard: {
+      paddingHorizontal: 14,
+      paddingVertical: 10,
+      borderRadius: 16,
+      gap: 2,
+    },
+    metaCardText: {
+      ...theme.typography.caption,
+      color: theme.text,
+      fontWeight: '700',
+    },
+    metaCardHint: {
+      ...theme.typography.caption,
+      color: theme.textSecondary,
     },
     stateContainer: {
       flex: 1,
@@ -523,6 +629,25 @@ const createStyles = (theme: any, isDark: boolean) =>
     },
     buttonDisabled: {
       opacity: 0.6,
+    },
+    syncBadge: {
+      position: 'absolute',
+      top: 12,
+      right: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      borderRadius: 999,
+      paddingHorizontal: 12,
+      paddingVertical: 8,
+      backgroundColor: isDark ? 'rgba(15,23,42,0.92)' : 'rgba(255,255,255,0.92)',
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)',
+    },
+    syncBadgeText: {
+      ...theme.typography.caption,
+      color: theme.textSecondary,
+      fontWeight: '700',
     },
     resultCard: {
       padding: 20,

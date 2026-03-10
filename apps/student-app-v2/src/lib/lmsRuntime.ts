@@ -103,6 +103,10 @@ export interface RuntimeQuizSummary {
   description?: string;
   instructions?: string;
   quizType: 'practice' | 'graded' | 'exam' | 'survey';
+  subject: string;
+  subjectDisplay: string;
+  difficultyLevel: string;
+  difficultyLevelDisplay: string;
   questionCount: number;
   totalPoints: number;
   timeLimitMinutes?: number;
@@ -157,6 +161,7 @@ export interface RuntimeQuizAttemptResult {
   id: number;
   status: 'in_progress' | 'submitted' | 'graded';
   attemptNumber: number;
+  startedAt?: string;
   totalPoints: number;
   pointsEarned: number;
   percentageScore: number;
@@ -198,8 +203,116 @@ export interface RuntimeAssignmentSubmission {
   isLate: boolean;
 }
 
+export interface RuntimeQuizInsights {
+  totalAttempts: number;
+  quizzesAttempted: number;
+  passedAttempts: number;
+  passRate: number;
+  averageScore: number;
+  weakSubject?: {
+    subject: string;
+    attempts: number;
+    averageScore: number;
+    passRate: number;
+  } | null;
+  subjectBreakdown: Array<{
+    subject: string;
+    attempts: number;
+    averageScore: number;
+    passRate: number;
+  }>;
+  recentAttempts: Array<{
+    attemptId: number;
+    quizId: number;
+    quizTitle: string;
+    subject: string;
+    difficultyLevel: string;
+    score: number;
+    passed: boolean;
+    submittedAt?: string;
+  }>;
+}
+
+export interface RuntimeQuizAttemptReviewQuestion {
+  questionId: number;
+  order: number;
+  questionText: string;
+  questionType: string;
+  questionTypeDisplay: string;
+  points: number;
+  pointsEarned: number;
+  selectedAnswer?: string | null;
+  correctAnswer?: string | null;
+  feedback?: string;
+  status: 'correct' | 'incorrect' | 'pending_manual' | 'unanswered';
+  statusReason: string;
+  needsFocus: boolean;
+  explanation?: string | null;
+}
+
+export interface RuntimeQuizAttemptReview {
+  attempt: {
+    id: number;
+    status: 'in_progress' | 'submitted' | 'graded';
+    attemptNumber: number;
+    startedAt?: string;
+    submittedAt?: string;
+    timeTakenSeconds: number;
+    percentageScore: number;
+    pointsEarned: number;
+    totalPoints: number;
+    passed: boolean;
+  };
+  quiz: {
+    id: number;
+    title: string;
+    subject: string;
+    subjectDisplay: string;
+    difficultyLevel: string;
+    difficultyLevelDisplay: string;
+    passingScore: number;
+    showCorrectAnswers: boolean;
+  };
+  metrics: {
+    totalQuestions: number;
+    answeredQuestions: number;
+    correctQuestions: number;
+    incorrectQuestions: number;
+    pendingManualQuestions: number;
+    unansweredQuestions: number;
+    accuracyRate: number;
+    completionRate: number;
+    pointsEarned: number;
+    pointsAvailable: number;
+  };
+  focusQuestions: Array<{
+    questionId: number;
+    order: number;
+    status: 'correct' | 'incorrect' | 'pending_manual' | 'unanswered';
+    reason: string;
+  }>;
+  tips: string[];
+  questions: RuntimeQuizAttemptReviewQuestion[];
+}
+
+const normalizeReviewQuestionStatus = (
+  status?: string
+): RuntimeQuizAttemptReviewQuestion['status'] => {
+  switch (status) {
+    case 'correct':
+      return 'correct';
+    case 'incorrect':
+      return 'incorrect';
+    case 'pending_manual':
+      return 'pending_manual';
+    default:
+      return 'unanswered';
+  }
+};
+
 const normalizeQuizType = (quizType?: string): RuntimeQuizSummary['quizType'] => {
   switch (quizType) {
+    case 'exam':
     case 'final_exam':
       return 'exam';
     case 'survey':
@@ -217,6 +330,10 @@ const normalizeQuiz = (payload: any): RuntimeQuizSummary => ({
   description: payload.description,
   instructions: payload.instructions,
   quizType: normalizeQuizType(payload.quiz_type),
+  subject: payload.subject || 'general',
+  subjectDisplay: payload.subject_display || payload.subject || 'General',
+  difficultyLevel: payload.difficulty_level || 'medium',
+  difficultyLevelDisplay: payload.difficulty_level_display || payload.difficulty_level || 'Medium',
   questionCount: Number(payload.question_count ?? payload.questions_count ?? 0),
   totalPoints: Number(payload.total_points ?? 0),
   timeLimitMinutes: payload.time_limit_minutes ? Number(payload.time_limit_minutes) : undefined,
@@ -255,6 +372,7 @@ const normalizeQuizAttempt = (payload: any): RuntimeQuizAttemptResult => ({
   id: Number(payload.id),
   status: payload.status,
   attemptNumber: Number(payload.attempt_number ?? 1),
+  startedAt: payload.started_at,
   totalPoints: Number(payload.total_points ?? 0),
   pointsEarned: Number(payload.points_earned ?? 0),
   percentageScore: Number(payload.percentage_score ?? payload.percentage ?? 0),
@@ -494,8 +612,7 @@ export const getBackendContinueLearningLesson = async (courseId?: number) => {
 };
 
 export const listRuntimeQuizzes = async (quizType?: RuntimeQuizSummary['quizType'] | 'all') => {
-  const requestedQuizType =
-    quizType && quizType !== 'all' ? (quizType === 'exam' ? 'final_exam' : quizType) : undefined;
+  const requestedQuizType = quizType && quizType !== 'all' ? quizType : undefined;
 
   const payload = await apiClient.get<any>('/api/v1/lms/quizzes/', {
     params: requestedQuizType ? { quiz_type: requestedQuizType } : undefined,
@@ -517,6 +634,34 @@ export const getRuntimeQuizQuestions = async (quizId: number) => {
 export const createRuntimeQuizAttempt = async (quizId: number) => {
   const payload = await apiClient.post<any>('/api/v1/lms/quiz-attempts/', { quiz: quizId });
   return normalizeQuizAttempt(payload);
+};
+
+export const listRuntimeQuizAttempts = async (quizId: number, status?: 'in_progress' | 'submitted' | 'graded') => {
+  const payload = await apiClient.get<any>('/api/v1/lms/quiz-attempts/', {
+    params: {
+      quiz_id: quizId,
+      status,
+      limit: 20,
+    },
+  });
+
+  return extractResults(payload).map(normalizeQuizAttempt);
+};
+
+export const startOrResumeRuntimeQuizAttempt = async (quizId: number) => {
+  const inProgressAttempts = await listRuntimeQuizAttempts(quizId, 'in_progress');
+  if (inProgressAttempts.length > 0) {
+    const latestAttempt = inProgressAttempts.sort((left, right) => {
+      const leftTimestamp = left.startedAt ? new Date(left.startedAt).getTime() : 0;
+      const rightTimestamp = right.startedAt ? new Date(right.startedAt).getTime() : 0;
+      return rightTimestamp - leftTimestamp;
+    })[0];
+    if (latestAttempt) {
+      return latestAttempt;
+    }
+  }
+
+  return createRuntimeQuizAttempt(quizId);
 };
 
 export const submitRuntimeQuizAnswer = async (
@@ -546,6 +691,119 @@ export const completeRuntimeQuizAttempt = async (attemptId: number) => {
 export const getRuntimeQuizAttempt = async (attemptId: number) => {
   const payload = await apiClient.get<any>(`/api/v1/lms/quiz-attempts/${attemptId}/`);
   return normalizeQuizAttempt(payload);
+};
+
+export const getRuntimeQuizAttemptReview = async (attemptId: number): Promise<RuntimeQuizAttemptReview> => {
+  const payload = await apiClient.get<any>(`/api/v1/lms/quiz-attempts/${attemptId}/review/`);
+
+  const questions: RuntimeQuizAttemptReviewQuestion[] = Array.isArray(payload.questions)
+    ? payload.questions.map((question: any) => ({
+        questionId: Number(question.question_id),
+        order: Number(question.order ?? 0),
+        questionText: question.question_text || 'Question',
+        questionType: question.question_type || 'multiple_choice',
+        questionTypeDisplay: question.question_type_display || question.question_type || 'Question',
+        points: Number(question.points ?? 0),
+        pointsEarned: Number(question.points_earned ?? 0),
+        selectedAnswer: question.selected_answer ?? null,
+        correctAnswer: question.correct_answer ?? null,
+        feedback: question.feedback || '',
+        status: normalizeReviewQuestionStatus(question.status),
+        statusReason: question.status_reason || '',
+        needsFocus: Boolean(question.needs_focus),
+        explanation: question.explanation ?? null,
+      }))
+    : [];
+
+  return {
+    attempt: {
+      id: Number(payload.attempt?.id),
+      status: payload.attempt?.status || 'in_progress',
+      attemptNumber: Number(payload.attempt?.attempt_number ?? 1),
+      startedAt: payload.attempt?.started_at,
+      submittedAt: payload.attempt?.submitted_at,
+      timeTakenSeconds: Number(payload.attempt?.time_taken_seconds ?? 0),
+      percentageScore: Number(payload.attempt?.percentage_score ?? 0),
+      pointsEarned: Number(payload.attempt?.points_earned ?? 0),
+      totalPoints: Number(payload.attempt?.total_points ?? 0),
+      passed: Boolean(payload.attempt?.passed),
+    },
+    quiz: {
+      id: Number(payload.quiz?.id),
+      title: payload.quiz?.title || 'Quiz',
+      subject: payload.quiz?.subject || 'general',
+      subjectDisplay: payload.quiz?.subject_display || payload.quiz?.subject || 'General',
+      difficultyLevel: payload.quiz?.difficulty_level || 'medium',
+      difficultyLevelDisplay:
+        payload.quiz?.difficulty_level_display || payload.quiz?.difficulty_level || 'Medium',
+      passingScore: Number(payload.quiz?.passing_score ?? 0),
+      showCorrectAnswers: Boolean(payload.quiz?.show_correct_answers),
+    },
+    metrics: {
+      totalQuestions: Number(payload.metrics?.total_questions ?? 0),
+      answeredQuestions: Number(payload.metrics?.answered_questions ?? 0),
+      correctQuestions: Number(payload.metrics?.correct_questions ?? 0),
+      incorrectQuestions: Number(payload.metrics?.incorrect_questions ?? 0),
+      pendingManualQuestions: Number(payload.metrics?.pending_manual_questions ?? 0),
+      unansweredQuestions: Number(payload.metrics?.unanswered_questions ?? 0),
+      accuracyRate: Number(payload.metrics?.accuracy_rate ?? 0),
+      completionRate: Number(payload.metrics?.completion_rate ?? 0),
+      pointsEarned: Number(payload.metrics?.points_earned ?? 0),
+      pointsAvailable: Number(payload.metrics?.points_available ?? 0),
+    },
+    focusQuestions: Array.isArray(payload.focus_questions)
+      ? payload.focus_questions.map((question: any) => ({
+          questionId: Number(question.question_id),
+          order: Number(question.order ?? 0),
+          status: normalizeReviewQuestionStatus(question.status),
+          reason: question.reason || '',
+        }))
+      : [],
+    tips: Array.isArray(payload.tips) ? payload.tips.filter((tip: any) => typeof tip === 'string') : [],
+    questions,
+  };
+};
+
+export const getRuntimeQuizInsights = async (): Promise<RuntimeQuizInsights> => {
+  const payload = await apiClient.get<any>('/api/v1/lms/quizzes/my_insights/');
+
+  const subjectBreakdown = Array.isArray(payload.subject_breakdown)
+    ? payload.subject_breakdown.map((row: any) => ({
+        subject: row.subject || 'general',
+        attempts: Number(row.attempts ?? 0),
+        averageScore: Number(row.average_score ?? 0),
+        passRate: Number(row.pass_rate ?? 0),
+      }))
+    : [];
+
+  return {
+    totalAttempts: Number(payload.total_attempts ?? 0),
+    quizzesAttempted: Number(payload.quizzes_attempted ?? 0),
+    passedAttempts: Number(payload.passed_attempts ?? 0),
+    passRate: Number(payload.pass_rate ?? 0),
+    averageScore: Number(payload.average_score ?? 0),
+    weakSubject: payload.weak_subject
+      ? {
+          subject: payload.weak_subject.subject || 'general',
+          attempts: Number(payload.weak_subject.attempts ?? 0),
+          averageScore: Number(payload.weak_subject.average_score ?? 0),
+          passRate: Number(payload.weak_subject.pass_rate ?? 0),
+        }
+      : null,
+    subjectBreakdown,
+    recentAttempts: Array.isArray(payload.recent_attempts)
+      ? payload.recent_attempts.map((attempt: any) => ({
+          attemptId: Number(attempt.attempt_id),
+          quizId: Number(attempt.quiz_id),
+          quizTitle: attempt.quiz_title || 'Quiz',
+          subject: attempt.subject || 'general',
+          difficultyLevel: attempt.difficulty_level || 'medium',
+          score: Number(attempt.score ?? 0),
+          passed: Boolean(attempt.passed),
+          submittedAt: attempt.submitted_at,
+        }))
+      : [],
+  };
 };
 
 export const listRuntimeAssignments = async (

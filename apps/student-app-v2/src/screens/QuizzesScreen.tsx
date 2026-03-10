@@ -17,7 +17,9 @@ import { useTheme } from '@eduvoice/mobile-shared';
 
 import { GlassCard } from '../components/app/GlassCard';
 import {
+  getRuntimeQuizInsights,
   listRuntimeQuizzes,
+  type RuntimeQuizInsights,
   type RuntimeQuizSummary,
 } from '../lib/lmsRuntime';
 import type { AppStackParamList } from '../navigation/types';
@@ -36,6 +38,11 @@ export const QuizzesScreen = () => {
     queryFn: () => listRuntimeQuizzes(filter),
   });
 
+  const insightsQuery = useQuery({
+    queryKey: ['runtime-quiz-insights'],
+    queryFn: getRuntimeQuizInsights,
+  });
+
   const filters: { key: QuizFilter; label: string; icon: keyof typeof MaterialCommunityIcons.glyphMap; color: string }[] = [
     { key: 'all', label: 'All', icon: 'view-grid-outline', color: theme.colors.primary500 },
     { key: 'practice', label: 'Practice', icon: 'pencil-outline', color: '#2563eb' },
@@ -45,10 +52,12 @@ export const QuizzesScreen = () => {
   ];
 
   const quizzes = quizzesQuery.data || [];
+  const insights: RuntimeQuizInsights | undefined = insightsQuery.data;
   const stats = {
     total: quizzes.length,
     available: quizzes.filter((quiz) => quiz.maxAttempts === 0 || quiz.userAttemptsCount < quiz.maxAttempts).length,
-    passed: quizzes.filter((quiz) => quiz.bestAttempt?.passed).length,
+    passed: insights?.passedAttempts ?? quizzes.filter((quiz) => quiz.bestAttempt?.passed).length,
+    averageScore: insights?.averageScore ?? 0,
   };
 
   if (quizzesQuery.isLoading) {
@@ -109,7 +118,64 @@ export const QuizzesScreen = () => {
             <Text style={styles.statLabel}>Passed</Text>
           </GlassCard>
         </View>
+        <View style={styles.heroInsightsRow}>
+          <View style={styles.heroInsightPill}>
+            <Text style={styles.heroInsightLabel}>Avg Score</Text>
+            <Text style={styles.heroInsightValue}>{stats.averageScore.toFixed(1)}%</Text>
+          </View>
+          <View style={styles.heroInsightPill}>
+            <Text style={styles.heroInsightLabel}>Pass Rate</Text>
+            <Text style={styles.heroInsightValue}>{(insights?.passRate ?? 0).toFixed(1)}%</Text>
+          </View>
+          <View style={styles.heroInsightPill}>
+            <Text style={styles.heroInsightLabel}>Weak Subject</Text>
+            <Text style={styles.heroInsightValue}>
+              {insights?.weakSubject?.subject ? insights.weakSubject.subject.toUpperCase() : '—'}
+            </Text>
+          </View>
+        </View>
       </GlassCard>
+
+      {insightsQuery.isLoading ? (
+        <GlassCard style={styles.insightsLoadingCard}>
+          <ActivityIndicator size="small" color={theme.colors.primary500} />
+          <Text style={styles.insightsLoadingText}>Preparing personalized quiz insights...</Text>
+        </GlassCard>
+      ) : insights && insights.recentAttempts.length > 0 ? (
+        <GlassCard style={styles.insightsCard}>
+          <Text style={styles.insightsTitle}>Recent Attempts</Text>
+          <View style={styles.insightsList}>
+            {insights.recentAttempts.slice(0, 3).map((attempt) => (
+              <TouchableOpacity
+                key={attempt.attemptId}
+                style={styles.insightItem}
+                onPress={() => navigation.navigate('QuizAttemptReview', { attemptId: attempt.attemptId })}
+                activeOpacity={0.88}
+              >
+                <View style={styles.insightItemMain}>
+                  <Text style={styles.insightQuizTitle} numberOfLines={1}>
+                    {attempt.quizTitle}
+                  </Text>
+                  <Text style={styles.insightMeta} numberOfLines={1}>
+                    {attempt.subject.toUpperCase()} • {attempt.difficultyLevel.toUpperCase()}
+                  </Text>
+                </View>
+                <View style={styles.insightScoreWrap}>
+                  <Text
+                    style={[
+                      styles.insightScore,
+                      { color: attempt.passed ? '#16a34a' : theme.colors.error500 },
+                    ]}
+                  >
+                    {attempt.score.toFixed(0)}%
+                  </Text>
+                  <Text style={styles.insightStatus}>{attempt.passed ? 'Passed' : 'Retry'}</Text>
+                </View>
+              </TouchableOpacity>
+            ))}
+          </View>
+        </GlassCard>
+      ) : null}
 
       <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.filterRow}>
         {filters.map((item) => {
@@ -143,13 +209,21 @@ export const QuizzesScreen = () => {
         </GlassCard>
       ) : (
         <View style={styles.list}>
-          {quizzes.map((quiz) => (
-            <QuizCard
-              key={quiz.id}
-              quiz={quiz}
-              onPress={() => navigation.navigate('QuizPlayer', { quizId: quiz.id })}
-            />
-          ))}
+          {quizzes.map((quiz) => {
+            const bestAttemptId = quiz.bestAttempt?.id;
+            return (
+              <QuizCard
+                key={quiz.id}
+                quiz={quiz}
+                onPress={() => navigation.navigate('QuizPlayer', { quizId: quiz.id })}
+                onOpenReview={
+                  bestAttemptId
+                    ? () => navigation.navigate('QuizAttemptReview', { attemptId: bestAttemptId })
+                    : undefined
+                }
+              />
+            );
+          })}
         </View>
       )}
     </ScrollView>
@@ -159,9 +233,11 @@ export const QuizzesScreen = () => {
 const QuizCard = ({
   quiz,
   onPress,
+  onOpenReview,
 }: {
   quiz: RuntimeQuizSummary;
   onPress: () => void;
+  onOpenReview?: () => void;
 }) => {
   const { theme, isDark } = useTheme();
   const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]);
@@ -202,6 +278,14 @@ const QuizCard = ({
 
       <View style={styles.quizMetaRow}>
         <View style={styles.metaChip}>
+          <MaterialCommunityIcons name="book-open-variant" size={14} color={theme.textSecondary} />
+          <Text style={styles.metaChipText}>{quiz.subjectDisplay}</Text>
+        </View>
+        <View style={styles.metaChip}>
+          <MaterialCommunityIcons name="stairs" size={14} color={theme.textSecondary} />
+          <Text style={styles.metaChipText}>{quiz.difficultyLevelDisplay}</Text>
+        </View>
+        <View style={styles.metaChip}>
           <MaterialCommunityIcons name="history" size={14} color={theme.textSecondary} />
           <Text style={styles.metaChipText}>
             {quiz.userAttemptsCount}/{quiz.maxAttempts || '∞'} attempts
@@ -220,6 +304,11 @@ const QuizCard = ({
           <Text style={styles.bestAttemptText}>
             Best: {quiz.bestAttempt.percentageScore.toFixed(0)}% • {quiz.bestAttempt.passed ? 'Passed' : 'Not yet passed'}
           </Text>
+          {quiz.bestAttempt.submittedAt ? (
+            <Text style={styles.bestAttemptDate}>
+              Last attempt: {new Date(quiz.bestAttempt.submittedAt).toLocaleDateString()}
+            </Text>
+          ) : null}
         </View>
       ) : null}
 
@@ -235,6 +324,12 @@ const QuizCard = ({
           color={theme.colors.white}
         />
       </TouchableOpacity>
+      {onOpenReview ? (
+        <TouchableOpacity style={styles.reviewButton} onPress={onOpenReview}>
+          <MaterialCommunityIcons name="clipboard-text-search-outline" size={17} color={theme.text} />
+          <Text style={styles.reviewButtonText}>Review best attempt</Text>
+        </TouchableOpacity>
+      ) : null}
     </GlassCard>
   );
 };
@@ -305,6 +400,31 @@ const createStyles = (theme: any, isDark: boolean) =>
       flexDirection: 'row',
       gap: 10,
     },
+    heroInsightsRow: {
+      flexDirection: 'row',
+      gap: 8,
+      flexWrap: 'wrap',
+    },
+    heroInsightPill: {
+      flex: 1,
+      minWidth: 100,
+      borderRadius: 12,
+      paddingHorizontal: 10,
+      paddingVertical: 8,
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.12)' : 'rgba(15,23,42,0.12)',
+      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.72)',
+    },
+    heroInsightLabel: {
+      ...theme.typography.caption,
+      color: theme.textSecondary,
+    },
+    heroInsightValue: {
+      ...theme.typography.body,
+      marginTop: 2,
+      color: theme.text,
+      fontWeight: '700',
+    },
     statCard: {
       flex: 1,
       padding: 14,
@@ -349,6 +469,65 @@ const createStyles = (theme: any, isDark: boolean) =>
       borderRadius: 28,
       alignItems: 'center',
       gap: 8,
+    },
+    insightsLoadingCard: {
+      padding: 16,
+      borderRadius: 20,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+    },
+    insightsLoadingText: {
+      ...theme.typography.body,
+      color: theme.textSecondary,
+    },
+    insightsCard: {
+      padding: 16,
+      borderRadius: 22,
+      gap: 10,
+    },
+    insightsTitle: {
+      ...theme.typography.h4,
+      color: theme.text,
+    },
+    insightsList: {
+      gap: 10,
+    },
+    insightItem: {
+      borderWidth: 1,
+      borderColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(15,23,42,0.08)',
+      borderRadius: 14,
+      padding: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(255,255,255,0.6)',
+    },
+    insightItemMain: {
+      flex: 1,
+      gap: 2,
+    },
+    insightQuizTitle: {
+      ...theme.typography.body,
+      color: theme.text,
+      fontWeight: '700',
+    },
+    insightMeta: {
+      ...theme.typography.caption,
+      color: theme.textSecondary,
+    },
+    insightScoreWrap: {
+      alignItems: 'flex-end',
+      minWidth: 66,
+    },
+    insightScore: {
+      ...theme.typography.body,
+      fontWeight: '800',
+    },
+    insightStatus: {
+      ...theme.typography.caption,
+      color: theme.textSecondary,
+      marginTop: 2,
     },
     quizCard: {
       padding: 18,
@@ -420,6 +599,11 @@ const createStyles = (theme: any, isDark: boolean) =>
       color: theme.text,
       fontWeight: '600',
     },
+    bestAttemptDate: {
+      ...theme.typography.caption,
+      marginTop: 3,
+      color: theme.textSecondary,
+    },
     startButton: {
       flexDirection: 'row',
       alignItems: 'center',
@@ -435,5 +619,23 @@ const createStyles = (theme: any, isDark: boolean) =>
     startButtonText: {
       ...theme.typography.button,
       color: '#ffffff',
+    },
+    reviewButton: {
+      marginTop: 10,
+      borderWidth: 1,
+      borderColor: theme.border,
+      borderRadius: 14,
+      paddingVertical: 11,
+      paddingHorizontal: 12,
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      backgroundColor: isDark ? 'rgba(255,255,255,0.04)' : 'rgba(255,255,255,0.78)',
+    },
+    reviewButtonText: {
+      ...theme.typography.caption,
+      color: theme.text,
+      fontWeight: '700',
     },
   });

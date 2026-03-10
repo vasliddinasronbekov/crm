@@ -36,6 +36,7 @@ import { LessonViewerScreen } from '../screens/LessonViewerScreen';
 import { LoginScreen } from '../screens/LoginScreen';
 import { MessagesScreen } from '../screens/MessagesScreen';
 import { PaymentsScreen } from '../screens/PaymentsScreen';
+import { QuizAttemptReviewScreen } from '../screens/QuizAttemptReviewScreen';
 import { QuizPlayerScreen } from '../screens/QuizPlayerScreen';
 import { QuizzesScreen } from '../screens/QuizzesScreen';
 import { RankingScreen } from '../screens/RankingScreen';
@@ -209,6 +210,11 @@ export const AppNavigator = () => {
           <AppStack.Screen name="Articles" component={ArticlesScreen} options={{ title: t('widgets.articles') }} />
           <AppStack.Screen name="Quizzes" component={QuizzesScreen} options={{ title: t('widgets.quizzes') }} />
           <AppStack.Screen name="QuizPlayer" component={QuizPlayerScreen} options={{ headerShown: false }} />
+          <AppStack.Screen
+            name="QuizAttemptReview"
+            component={QuizAttemptReviewScreen}
+            options={{ title: 'Attempt Review' }}
+          />
           <AppStack.Screen name="Assignments" component={AssignmentsScreen} options={{ title: t('assignments.assignments') }} />
           <AppStack.Screen name="Messages" component={MessagesScreen} options={{ title: t('messages.messages') }} />
           <AppStack.Screen name="Groups" component={GroupsScreen} options={{ title: t('navigation.groups') }} />
