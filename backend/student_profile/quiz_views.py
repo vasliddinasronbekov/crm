@@ -245,6 +245,7 @@ class QuizViewSet(viewsets.ModelViewSet):
         'start_attempt': 'quizzes.view',
         'statistics': 'quizzes.view',
         'leaderboard': 'quizzes.view',
+        'question_analytics': 'quizzes.view',
         'dashboard_summary': 'quizzes.view',
         'create': 'quizzes.create',
         'create_with_questions': 'quizzes.create',
@@ -410,6 +411,69 @@ class QuizViewSet(viewsets.ModelViewSet):
             })
 
         return Response(leaderboard)
+
+    @action(detail=True, methods=['get'])
+    def question_analytics(self, request, pk=None):
+        """Per-question analytics drilldown for staff quiz review."""
+        quiz = self.get_object()
+        attempts = QuizAttempt.objects.filter(
+            quiz=quiz,
+            status__in=['submitted', 'graded'],
+        )
+        total_attempts = attempts.count()
+
+        answers = QuizAnswer.objects.filter(
+            attempt_id__in=attempts.values('id'),
+        ).select_related('selected_option')
+
+        payload = []
+        for question in quiz.questions.prefetch_related('options').order_by('order'):
+            question_answers = answers.filter(question=question)
+            answered_count = question_answers.count()
+            correct_count = question_answers.filter(is_correct=True).count()
+            average_points = question_answers.aggregate(value=Avg('points_earned'))['value'] or 0
+
+            option_breakdown = []
+            pending_manual_reviews = 0
+            manual_graded_count = 0
+            if question.question_type in ['essay', 'short_answer']:
+                pending_manual_reviews = question_answers.filter(graded_by__isnull=True).count()
+                manual_graded_count = question_answers.exclude(graded_by__isnull=True).count()
+            else:
+                option_breakdown = [
+                    {
+                        'option_id': row['selected_option_id'],
+                        'option_text': row['selected_option__option_text'] or 'No answer',
+                        'count': row['count'],
+                    }
+                    for row in question_answers.values(
+                        'selected_option_id',
+                        'selected_option__option_text',
+                    ).annotate(count=Count('id')).order_by('-count')
+                ]
+
+            payload.append({
+                'question_id': question.id,
+                'order': question.order,
+                'question_text': question.question_text,
+                'question_type': question.question_type,
+                'question_type_display': question.get_question_type_display(),
+                'points': question.points,
+                'answered_count': answered_count,
+                'correct_count': correct_count,
+                'submission_rate': round((answered_count / total_attempts) * 100, 2) if total_attempts else 0,
+                'accuracy_rate': round((correct_count / answered_count) * 100, 2) if answered_count else 0,
+                'average_points': round(float(average_points), 2) if answered_count else 0,
+                'pending_manual_reviews': pending_manual_reviews,
+                'manual_graded_count': manual_graded_count,
+                'option_breakdown': option_breakdown,
+            })
+
+        return Response({
+            'quiz_id': quiz.id,
+            'total_attempts': total_attempts,
+            'questions': payload,
+        })
 
     @action(detail=False, methods=['get'])
     def dashboard_summary(self, request):

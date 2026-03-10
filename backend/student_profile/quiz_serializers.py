@@ -356,14 +356,19 @@ class QuizAnswerSerializer(serializers.ModelSerializer):
     """Quiz answer serializer"""
     question_text = serializers.CharField(source='question.question_text', read_only=True)
     question_type = serializers.CharField(source='question.question_type', read_only=True)
+    question_order = serializers.IntegerField(source='question.order', read_only=True)
+    question_points = serializers.IntegerField(source='question.points', read_only=True)
+    selected_option_text = serializers.CharField(source='selected_option.option_text', read_only=True, allow_null=True)
+    graded_by_name = serializers.CharField(source='graded_by.get_full_name', read_only=True)
     correct_answer_text = serializers.SerializerMethodField()
 
     class Meta:
         model = QuizAnswer
         fields = [
             'id', 'attempt', 'question', 'question_text', 'question_type',
-            'selected_option', 'text_answer', 'is_correct',
-            'points_earned', 'feedback', 'graded_by',
+            'question_order', 'question_points',
+            'selected_option', 'selected_option_text', 'text_answer', 'is_correct',
+            'points_earned', 'feedback', 'graded_by', 'graded_by_name',
             'correct_answer_text', 'created_at'
         ]
         read_only_fields = ['created_at', 'is_correct', 'points_earned']

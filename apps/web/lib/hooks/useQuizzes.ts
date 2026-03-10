@@ -84,6 +84,70 @@ export interface QuizQuestion {
   }>
 }
 
+export interface QuizAttemptRow {
+  id: number
+  quiz: number
+  quiz_title: string
+  student: number
+  student_name: string
+  attempt_number: number
+  status: 'in_progress' | 'submitted' | 'graded'
+  status_display: string
+  started_at: string
+  submitted_at: string | null
+  time_taken_seconds: number
+  total_points: number | string
+  points_earned: number | string
+  percentage_score: number | string
+  passed: boolean
+  created_at: string
+  updated_at: string
+}
+
+export interface QuizAnswerRow {
+  id: number
+  attempt: number
+  question: number
+  question_text: string
+  question_type: string
+  question_order: number
+  question_points: number
+  selected_option: number | null
+  selected_option_text: string | null
+  text_answer: string
+  is_correct: boolean
+  points_earned: number | string
+  feedback: string
+  graded_by: number | null
+  graded_by_name: string
+  created_at: string
+}
+
+export interface QuizQuestionAnalytics {
+  quiz_id: number
+  total_attempts: number
+  questions: Array<{
+    question_id: number
+    order: number
+    question_text: string
+    question_type: string
+    question_type_display: string
+    points: number
+    answered_count: number
+    correct_count: number
+    submission_rate: number
+    accuracy_rate: number
+    average_points: number
+    pending_manual_reviews: number
+    manual_graded_count: number
+    option_breakdown: Array<{
+      option_id: number | null
+      option_text: string
+      count: number
+    }>
+  }>
+}
+
 export interface PaginatedResponse<T> {
   count: number
   next: string | null
@@ -100,6 +164,9 @@ export const quizKeys = {
   questions: (id: number | null) => [...quizKeys.all, 'questions', id] as const,
   statistics: (id: number | null) => [...quizKeys.all, 'statistics', id] as const,
   leaderboard: (id: number | null) => [...quizKeys.all, 'leaderboard', id] as const,
+  questionAnalytics: (id: number | null) => [...quizKeys.all, 'question-analytics', id] as const,
+  attempts: (filters: Record<string, unknown>) => [...quizKeys.all, 'attempts', filters] as const,
+  answers: (filters: Record<string, unknown>) => [...quizKeys.all, 'answers', filters] as const,
 }
 
 export function useQuizzes(filters: Record<string, unknown>) {
@@ -194,6 +261,70 @@ export function useQuizLeaderboard(id: number | null) {
   })
 }
 
+export function useQuizQuestionAnalytics(id: number | null) {
+  return useQuery<QuizQuestionAnalytics, Error>({
+    queryKey: quizKeys.questionAnalytics(id),
+    queryFn: async () => {
+      if (!id) {
+        throw new Error('Quiz id is required')
+      }
+      const data = await apiService.getQuizQuestionAnalytics(id)
+      return data as QuizQuestionAnalytics
+    },
+    enabled: Boolean(id),
+    staleTime: 30 * 1000,
+  })
+}
+
+export function useQuizAttempts(filters: Record<string, unknown>) {
+  return useQuery<PaginatedResponse<QuizAttemptRow>, Error>({
+    queryKey: quizKeys.attempts(filters),
+    queryFn: async () => {
+      const data = await apiService.getQuizAttempts(filters)
+      if (Array.isArray(data)) {
+        return {
+          count: data.length,
+          next: null,
+          previous: null,
+          results: data,
+        }
+      }
+      return data as PaginatedResponse<QuizAttemptRow>
+    },
+    staleTime: 15 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+export function useQuizAnswers(filters: Record<string, unknown> | null) {
+  return useQuery<PaginatedResponse<QuizAnswerRow>, Error>({
+    queryKey: quizKeys.answers(filters || {}),
+    queryFn: async () => {
+      if (!filters) {
+        return {
+          count: 0,
+          next: null,
+          previous: null,
+          results: [],
+        }
+      }
+      const data = await apiService.getQuizAnswers(filters)
+      if (Array.isArray(data)) {
+        return {
+          count: data.length,
+          next: null,
+          previous: null,
+          results: data,
+        }
+      }
+      return data as PaginatedResponse<QuizAnswerRow>
+    },
+    enabled: Boolean(filters),
+    staleTime: 10 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
 export function useDeleteQuiz() {
   const queryClient = useQueryClient()
 
@@ -243,6 +374,34 @@ export function useToggleQuizPublished() {
     },
     onError: (error: any) => {
       toast.error(error?.response?.data?.detail || 'Failed to update quiz status')
+    },
+  })
+}
+
+export function useGradeQuizAnswer() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async ({
+      answerId,
+      pointsAwarded,
+      feedback,
+    }: {
+      answerId: number
+      pointsAwarded: number
+      feedback?: string
+    }) => {
+      const data = await apiService.gradeQuizAnswer(answerId, {
+        points_awarded: pointsAwarded,
+        manual_feedback: feedback || '',
+      })
+      return data as QuizAnswerRow
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: quizKeys.all })
+    },
+    onError: (error: any) => {
+      toast.error(error?.response?.data?.error || 'Failed to grade answer')
     },
   })
 }

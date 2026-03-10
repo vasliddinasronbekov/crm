@@ -1406,8 +1406,23 @@ class ApiService {
     return response.data;
   }
 
+  async getQuizQuestionAnalytics(id: number) {
+    const response = await this.api.get(`/v1/lms/quizzes/${id}/question_analytics/`);
+    return response.data;
+  }
+
   async getQuizAttempts(params?: any) {
     const response = await this.api.get('/v1/lms/quiz-attempts/', { params });
+    return response.data;
+  }
+
+  async getQuizAnswers(params?: any) {
+    const response = await this.api.get('/v1/lms/quiz-answers/', { params });
+    return response.data;
+  }
+
+  async gradeQuizAnswer(id: number, data: any) {
+    const response = await this.api.post(`/v1/lms/quiz-answers/${id}/grade_manually/`, data);
     return response.data;
   }
 
