@@ -1,11 +1,16 @@
 # /mnt/usb/edu-api-project/analytics/views.py
 
+import csv
+import json
+import secrets
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework import permissions, generics, status
+from rest_framework.pagination import PageNumberPagination
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
-from datetime import timedelta
+from datetime import datetime, timedelta
+from django.http import HttpResponse
 from django.utils import timezone
 from django.db.models import Sum, Avg, Count, Q, OuterRef, Subquery, Value, IntegerField, FloatField
 from django.db.models.functions import Coalesce, TruncMonth
@@ -29,6 +34,14 @@ from student_profile.accounting_models import StudentBalance, TeacherEarnings
 from student_profile.content_models import StudentProgress
 from crm.models import Lead
 from gamification.models import UserLevel, UserBadge, UserAchievement
+from users.permissions import HasRoleCapability
+from .models import Report
+from .serializers import (
+    LeaderboardSerializer,
+    ReportDetailSerializer,
+    ReportGenerateRequestSerializer,
+    ReportListSerializer,
+)
 
 @extend_schema(responses=OpenApiTypes.OBJECT)
 class AnalyticsView(APIView):
@@ -416,8 +429,6 @@ class AnalyticsView(APIView):
 
         cache.set(cache_key, data, timeout=60 * 15)
         return Response(data)
-from .serializers import LeaderboardSerializer, ReportSerializer # Yangi serializer'ni import qilamiz
-from django.utils.timezone import now
 
 @extend_schema(responses=OpenApiTypes.OBJECT)
 class DashboardStatsView(APIView):
@@ -425,7 +436,8 @@ class DashboardStatsView(APIView):
     Dashboard statistics for admin panel.
     GET /api/analytics/dashboard-stats/
     """
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    required_capability = 'analytics.view'
 
     def get(self, request):
         """Get dashboard statistics"""
@@ -465,6 +477,12 @@ class DashboardStatsView(APIView):
         return Response(data)
 
 
+class ReportPagination(PageNumberPagination):
+    page_size = 10
+    page_size_query_param = 'limit'
+    max_page_size = 100
+
+
 @extend_schema(request=OpenApiTypes.OBJECT, responses=OpenApiTypes.OBJECT)
 class ReportListView(APIView):
     """
@@ -472,91 +490,142 @@ class ReportListView(APIView):
     GET /api/analytics/reports/ - List recent reports
     POST /api/analytics/reports/generate/ - Generate new report
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    method_capabilities = {
+        'get': 'reports.view',
+        'post': 'reports.create',
+    }
 
-    def get(self, request):
-        """Get list of recent reports"""
-        # For now, return empty list
-        # In production, you'd store reports in a Report model and query them
-        reports = []
-        return Response({'results': reports})
+    REPORT_TYPE_ALIASES = {
+        'student-performance': 'student-performance',
+        'attendance-summary': 'attendance-summary',
+        'financial-report': 'financial-report',
+        'teacher-workload': 'teacher-workload',
+        'course-completion': 'course-completion',
+        'enrollment-trends': 'enrollment-trends',
+        'profit-loss': 'profit-loss',
+        'profit_loss': 'profit-loss',
+        'cash-flow': 'cash-flow',
+        'cash_flow': 'cash-flow',
+        'accounts-receivable': 'accounts-receivable',
+        'accounts_receivable': 'accounts-receivable',
+        'teacher-compensation': 'teacher-compensation',
+        'teacher_compensation': 'teacher-compensation',
+    }
 
-    def post(self, request):
-        """Generate a new report with real data"""
-        from datetime import datetime, timedelta
-        from django.db.models import Avg, Count, Q, Sum, F
-        from student_profile.models import Course, Attendance, ExamScore
-        # Group is already imported at the top of this file
-
-        report_type = request.data.get('report_type')
-        period = request.data.get('period', 'month')
-        start_date = request.data.get('start_date')
-        end_date = request.data.get('end_date')
-
+    def _normalize_report_type(self, report_type: str) -> str | None:
         if not report_type:
-            return Response({
-                'detail': 'report_type is required'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            return None
+        return self.REPORT_TYPE_ALIASES.get(report_type.strip().lower())
 
-        # Calculate date range based on period
-        end = timezone.now()
+    def _resolve_period_range(self, period: str, start_date=None, end_date=None):
+        end_dt = timezone.now()
         if end_date:
-            try:
-                end = timezone.make_aware(datetime.strptime(end_date, '%Y-%m-%d'))
-            except:
-                pass
+            end_dt = timezone.make_aware(datetime.combine(end_date, datetime.max.time()))
 
         if start_date:
-            try:
-                start = timezone.make_aware(datetime.strptime(start_date, '%Y-%m-%d'))
-            except:
-                if period == 'week':
-                    start = end - timedelta(days=7)
-                elif period == 'month':
-                    start = end - timedelta(days=30)
-                elif period == 'quarter':
-                    start = end - timedelta(days=90)
-                elif period == 'year':
-                    start = end - timedelta(days=365)
-                else:
-                    start = end - timedelta(days=30)
-        else:
-            if period == 'week':
-                start = end - timedelta(days=7)
-            elif period == 'month':
-                start = end - timedelta(days=30)
-            elif period == 'quarter':
-                start = end - timedelta(days=90)
-            elif period == 'year':
-                start = end - timedelta(days=365)
-            else:
-                start = end - timedelta(days=30)
+            start_dt = timezone.make_aware(datetime.combine(start_date, datetime.min.time()))
+            return start_dt, end_dt
 
-        # Generate report based on type
-        if report_type == 'student-performance':
-            return self._generate_student_performance_report(start, end, period)
-        elif report_type == 'attendance-summary':
-            return self._generate_attendance_report(start, end, period)
-        elif report_type == 'financial-report':
-            return self._generate_financial_report(start, end, period)
-        elif report_type == 'teacher-workload':
-            return self._generate_teacher_workload_report(start, end, period)
-        elif report_type == 'course-completion':
-            return self._generate_course_completion_report(start, end, period)
-        elif report_type == 'enrollment-trends':
-            return self._generate_enrollment_trends_report(start, end, period)
-        elif report_type == 'profit_loss' or report_type == 'profit-loss':
-            return self._generate_profit_loss_report(start, end, period)
-        elif report_type == 'cash_flow' or report_type == 'cash-flow':
-            return self._generate_cash_flow_report(start, end, period)
-        elif report_type == 'accounts_receivable' or report_type == 'accounts-receivable':
-            return self._generate_accounts_receivable_report(start, end, period)
-        elif report_type == 'teacher_compensation' or report_type == 'teacher-compensation':
-            return self._generate_teacher_compensation_report(start, end, period)
+        if period == 'week':
+            start_dt = end_dt - timedelta(days=7)
+        elif period == 'quarter':
+            start_dt = end_dt - timedelta(days=90)
+        elif period == 'year':
+            start_dt = end_dt - timedelta(days=365)
         else:
-            return Response({
-                'detail': f'Unknown report type: {report_type}'
-            }, status=status.HTTP_400_BAD_REQUEST)
+            start_dt = end_dt - timedelta(days=30)
+
+        return start_dt, end_dt
+
+    def _build_report_id(self) -> str:
+        return f"RPT-{timezone.now().strftime('%Y%m%d-%H%M%S')}-{secrets.randbelow(10000):04d}"
+
+    def get(self, request):
+        """Get list of generated reports."""
+        queryset = Report.objects.all().select_related('generated_by').order_by('-generated_at')
+
+        report_type = request.query_params.get('report_type')
+        if report_type:
+            normalized_type = self._normalize_report_type(report_type) or report_type
+            queryset = queryset.filter(report_type=normalized_type)
+
+        report_status = request.query_params.get('status')
+        if report_status:
+            queryset = queryset.filter(status=report_status)
+
+        period = request.query_params.get('period')
+        if period:
+            queryset = queryset.filter(period=period)
+
+        search = request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search)
+                | Q(description__icontains=search)
+                | Q(report_id__icontains=search)
+            )
+
+        paginator = ReportPagination()
+        page = paginator.paginate_queryset(queryset, request, view=self)
+        serializer = ReportListSerializer(page, many=True)
+        return paginator.get_paginated_response(serializer.data)
+
+    def post(self, request):
+        """Generate a report, persist it, and return saved report payload."""
+        request_serializer = ReportGenerateRequestSerializer(data=request.data)
+        request_serializer.is_valid(raise_exception=True)
+        payload = request_serializer.validated_data
+
+        requested_type = payload.get('report_type', '')
+        normalized_type = self._normalize_report_type(requested_type)
+        if not normalized_type:
+            return Response(
+                {'detail': f'Unknown report type: {requested_type}'},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        period = payload.get('period', 'month')
+        start_dt, end_dt = self._resolve_period_range(
+            period=period,
+            start_date=payload.get('start_date'),
+            end_date=payload.get('end_date'),
+        )
+
+        generator_map = {
+            'student-performance': self._generate_student_performance_report,
+            'attendance-summary': self._generate_attendance_report,
+            'financial-report': self._generate_financial_report,
+            'teacher-workload': self._generate_teacher_workload_report,
+            'course-completion': self._generate_course_completion_report,
+            'enrollment-trends': self._generate_enrollment_trends_report,
+            'profit-loss': self._generate_profit_loss_report,
+            'cash-flow': self._generate_cash_flow_report,
+            'accounts-receivable': self._generate_accounts_receivable_report,
+            'teacher-compensation': self._generate_teacher_compensation_report,
+        }
+
+        report_response = generator_map[normalized_type](start_dt, end_dt, period)
+        if report_response.status_code >= 400:
+            return report_response
+
+        generated_data = report_response.data or {}
+        report = Report.objects.create(
+            report_id=self._build_report_id(),
+            report_type=normalized_type,
+            title=generated_data.get('title') or normalized_type.replace('-', ' ').title(),
+            description=generated_data.get('description') or '',
+            period=period,
+            start_date=start_dt.date(),
+            end_date=end_dt.date(),
+            summary=generated_data.get('summary') or {},
+            data=generated_data.get('data') or [],
+            charts=generated_data.get('charts') or [],
+            status='completed',
+            generated_by=request.user if request.user.is_authenticated else None,
+        )
+
+        return Response(ReportDetailSerializer(report).data, status=status.HTTP_201_CREATED)
 
     def _generate_student_performance_report(self, start, end, period):
         """Generate student performance report with real data"""
@@ -1412,6 +1481,58 @@ class ReportListView(APIView):
         }
 
         return Response(report_data, status=status.HTTP_201_CREATED)
+
+
+@extend_schema(responses=OpenApiTypes.OBJECT)
+class ReportDetailView(APIView):
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    required_capability = 'reports.view'
+
+    def get(self, request, report_id):
+        report = Report.objects.filter(report_id=report_id).select_related('generated_by').first()
+        if report is None:
+            return Response({'detail': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
+        return Response(ReportDetailSerializer(report).data)
+
+
+@extend_schema(responses=OpenApiTypes.OBJECT)
+class ReportDownloadView(APIView):
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    required_capability = 'reports.export'
+
+    def get(self, request, report_id):
+        report = Report.objects.filter(report_id=report_id).first()
+        if report is None:
+            return Response({'detail': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
+
+        download_format = (request.query_params.get('format') or 'csv').lower()
+        if download_format == 'json':
+            response = HttpResponse(
+                json.dumps(ReportDetailSerializer(report).data),
+                content_type='application/json',
+            )
+            response['Content-Disposition'] = f'attachment; filename="{report.report_id}.json"'
+            return response
+
+        if download_format != 'csv':
+            return Response({'detail': 'Unsupported format. Use csv or json.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        rows = report.data or []
+        response = HttpResponse(content_type='text/csv')
+        response['Content-Disposition'] = f'attachment; filename="{report.report_id}.csv"'
+        writer = csv.writer(response)
+
+        if rows and isinstance(rows, list) and isinstance(rows[0], dict):
+            headers = list(rows[0].keys())
+            writer.writerow(headers)
+            for row in rows:
+                writer.writerow([row.get(header, '') for header in headers])
+        else:
+            writer.writerow(['key', 'value'])
+            for key, value in (report.summary or {}).items():
+                writer.writerow([key, value])
+
+        return response
 
 
 class LeaderboardView(generics.ListAPIView):

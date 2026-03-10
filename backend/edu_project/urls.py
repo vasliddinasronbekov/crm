@@ -57,7 +57,14 @@ from hr.views import TeacherSalaryViewSet, SalaryViewSet
 from core.views import RegionViewSet, CommentViewSet, health_check, liveness_check, readiness_check, global_search, currency_rates
 
 # `analytics` app'idan
-from analytics.views import AnalyticsView, LeaderboardView, DashboardStatsView, ReportListView
+from analytics.views import (
+    AnalyticsView,
+    LeaderboardView,
+    DashboardStatsView,
+    ReportListView,
+    ReportDetailView,
+    ReportDownloadView,
+)
 
 
 # --- Markaziy Router ---
@@ -194,6 +201,8 @@ urlpatterns = [
     path('api/analytics/dashboard-stats/', DashboardStatsView.as_view(), name='dashboard-stats'),
     path('api/analytics/reports/', ReportListView.as_view(), name='reports-list'),
     path('api/analytics/reports/generate/', ReportListView.as_view(), name='reports-generate'),
+    path('api/analytics/reports/<str:report_id>/', ReportDetailView.as_view(), name='reports-detail'),
+    path('api/analytics/reports/<str:report_id>/download/', ReportDownloadView.as_view(), name='reports-download'),
     path('api/v1/ranking/leaderboard/', LeaderboardView.as_view(), name='leaderboard'),
     path('api/crm/insights/', CRMInsightsView.as_view(), name='crm-insights'),
 

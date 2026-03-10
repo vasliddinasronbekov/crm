@@ -100,15 +100,27 @@ export interface AnalyticsData {
 
 export interface Report {
   id: string
+  report_id?: string
   type: string
+  report_type?: string
   title: string
+  description?: string
   generated_at: string
+  updated_at?: string
   period: string
+  start_date?: string
+  end_date?: string
+  status?: 'generating' | 'completed' | 'failed' | string
+  generated_by?: number | null
+  generated_by_name?: string
   summary: {
     [key: string]: any
   }
   data?: any[]
   charts?: any[]
+  error_message?: string
+  pdf_file?: string | null
+  csv_file?: string | null
 }
 
 // Query keys factory for consistent cache management
@@ -167,6 +179,24 @@ export function useReports(filters: { page?: number; limit?: number; [key: strin
 }
 
 /**
+ * Hook to fetch single report detail
+ */
+export function useReport(reportId: string | null) {
+  return useQuery<Report, Error>({
+    queryKey: [...analyticsKeys.reports(), 'detail', reportId],
+    queryFn: async () => {
+      if (!reportId) {
+        throw new Error('reportId is required')
+      }
+      const data = await apiService.getReport(reportId)
+      return data as Report
+    },
+    enabled: Boolean(reportId),
+    staleTime: 60 * 1000,
+  })
+}
+
+/**
  * Hook to generate a new report
  */
 export function useGenerateReport() {
@@ -183,17 +213,8 @@ export function useGenerateReport() {
       const report = await apiService.generateReport(reportType, options)
       return report as Report
     },
-    onSuccess: (newReport) => {
-      // Optimistically add to reports list
-      queryClient.setQueryData<Report[]>(analyticsKeys.reportsList(), (old) => {
-        if (!old) return [newReport]
-        return [newReport, ...old]
-      })
-
-      // Invalidate reports list to refetch
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: analyticsKeys.reports() })
-
-      toast.success('Report generated successfully')
     },
     onError: (error: any) => {
       console.error('Failed to generate report:', error)
@@ -248,7 +269,7 @@ export function usePrefetchAnalytics() {
       queryKey: analyticsKeys.reportsList(),
       queryFn: async () => {
         const data = await apiService.getReports()
-        return (data.results || []) as Report[]
+        return data as PaginatedResponse<Report>
       },
       staleTime: 1 * 60 * 1000,
     })

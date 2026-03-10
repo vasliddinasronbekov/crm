@@ -75,6 +75,22 @@ LMS_DELETE_ROLES = {
     UserRoleEnum.SUPERADMIN.value,
 }
 
+ANALYTICS_VIEW_ROLES = set(STAFF_SIDE_ROLES)
+
+REPORTS_VIEW_ROLES = set(STAFF_SIDE_ROLES)
+
+REPORTS_CREATE_ROLES = {
+    UserRoleEnum.STAFF.value,
+    UserRoleEnum.CRM_MANAGER.value,
+    UserRoleEnum.LMS_MANAGER.value,
+    UserRoleEnum.MANAGER.value,
+    UserRoleEnum.DIRECTOR.value,
+    UserRoleEnum.ADMIN.value,
+    UserRoleEnum.SUPERADMIN.value,
+}
+
+REPORTS_EXPORT_ROLES = set(REPORTS_VIEW_ROLES)
+
 CAPABILITY_MATRIX: dict[str, set[str]] = {
     # Portal routing
     'portal.staff.access': set(STAFF_SIDE_ROLES),
@@ -154,6 +170,11 @@ CAPABILITY_MATRIX: dict[str, set[str]] = {
     'quizzes.create': set(LMS_EDIT_ROLES),
     'quizzes.edit': set(LMS_EDIT_ROLES),
     'quizzes.delete': set(LMS_DELETE_ROLES),
+    # Analytics and reporting
+    'analytics.view': set(ANALYTICS_VIEW_ROLES),
+    'reports.view': set(REPORTS_VIEW_ROLES),
+    'reports.create': set(REPORTS_CREATE_ROLES),
+    'reports.export': set(REPORTS_EXPORT_ROLES),
 }
 
 

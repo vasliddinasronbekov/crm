@@ -947,6 +947,19 @@ class ApiService {
     return response.data;
   }
 
+  async getReport(reportId: string) {
+    const response = await this.api.get(`/analytics/reports/${reportId}/`);
+    return response.data;
+  }
+
+  async downloadReport(reportId: string, format: "csv" | "json" = "csv") {
+    const response = await this.api.get(`/analytics/reports/${reportId}/download/`, {
+      params: { format },
+      responseType: "blob",
+    });
+    return response.data;
+  }
+
   // Messaging
   async getMessages(params?: any) {
     const response = await this.api.get("/messaging/messages/", { params });

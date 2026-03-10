@@ -23,9 +23,14 @@ class HasRoleCapability(BasePermission):
         if not user or not user.is_authenticated:
             return False
 
+        method = request.method.lower()
+        method_map = getattr(view, 'method_capabilities', {}) or {}
+        capability = method_map.get(method)
+
         action = getattr(view, 'action', None)
         action_map = getattr(view, 'action_capabilities', {}) or {}
-        capability = action_map.get(action) if action else None
+        if capability is None:
+            capability = action_map.get(action) if action else None
         if capability is None:
             capability = getattr(view, 'required_capability', None)
 
