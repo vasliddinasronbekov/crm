@@ -1358,6 +1358,11 @@ class ApiService {
     return response.data;
   }
 
+  async getQuizDashboardSummary(params?: any) {
+    const response = await this.api.get("/v1/lms/quizzes/dashboard_summary/", { params });
+    return response.data;
+  }
+
   async getQuiz(id: number) {
     const response = await this.api.get(`/v1/lms/quizzes/${id}/`);
     return response.data;
@@ -1393,6 +1398,16 @@ class ApiService {
 
   async getQuizStatistics(id: number) {
     const response = await this.api.get(`/v1/lms/quizzes/${id}/statistics/`);
+    return response.data;
+  }
+
+  async getQuizLeaderboard(id: number) {
+    const response = await this.api.get(`/v1/lms/quizzes/${id}/leaderboard/`);
+    return response.data;
+  }
+
+  async getQuizAttempts(params?: any) {
+    const response = await this.api.get('/v1/lms/quiz-attempts/', { params });
     return response.data;
   }
 

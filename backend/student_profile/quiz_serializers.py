@@ -213,21 +213,36 @@ class QuestionCreateSerializer(serializers.ModelSerializer):
 class QuizSerializer(serializers.ModelSerializer):
     """Quiz serializer"""
     module_title = serializers.CharField(source='module.title', read_only=True)
+    course_name = serializers.CharField(source='course.name', read_only=True)
     quiz_type_display = serializers.CharField(source='get_quiz_type_display', read_only=True)
+    subject_display = serializers.CharField(source='get_subject_display', read_only=True)
+    difficulty_level_display = serializers.CharField(source='get_difficulty_level_display', read_only=True)
     question_count = serializers.SerializerMethodField()
     total_points = serializers.SerializerMethodField()
     user_best_attempt = serializers.SerializerMethodField()
     user_attempts_count = serializers.SerializerMethodField()
+    attempts_total = serializers.IntegerField(read_only=True, required=False)
+    attempts_passed = serializers.IntegerField(read_only=True, required=False)
+    average_score = serializers.DecimalField(
+        max_digits=6,
+        decimal_places=2,
+        read_only=True,
+        required=False,
+        allow_null=True,
+    )
+    last_attempt_at = serializers.DateTimeField(read_only=True, required=False, allow_null=True)
 
     class Meta:
         model = Quiz
         fields = [
-            'id', 'course', 'module', 'lesson', 'module_title', 'title',
-            'description', 'quiz_type', 'quiz_type_display',
+            'id', 'course', 'course_name', 'module', 'lesson', 'module_title', 'title',
+            'description', 'quiz_type', 'quiz_type_display', 'subject',
+            'subject_display', 'difficulty_level', 'difficulty_level_display',
             'time_limit_minutes', 'passing_score', 'show_correct_answers',
             'shuffle_questions', 'shuffle_answers', 'max_attempts',
             'allow_review', 'available_from', 'available_until',
             'is_published', 'question_count', 'total_points',
+            'attempts_total', 'attempts_passed', 'average_score', 'last_attempt_at',
             'user_best_attempt', 'user_attempts_count',
             'created_by', 'created_at', 'updated_at'
         ]

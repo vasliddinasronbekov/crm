@@ -125,6 +125,19 @@ class Quiz(models.Model):
         ('survey', 'Survey'),
     ]
 
+    SUBJECT_CHOICES = [
+        ('general', 'General'),
+        ('math', 'Mathematics'),
+        ('english', 'English'),
+        ('science', 'Science'),
+    ]
+
+    DIFFICULTY_LEVEL_CHOICES = [
+        ('easy', 'Easy'),
+        ('medium', 'Medium'),
+        ('hard', 'Hard'),
+    ]
+
     course = models.ForeignKey('student_profile.Course', on_delete=models.CASCADE, related_name='quizzes')
     module = models.ForeignKey('student_profile.CourseModule', on_delete=models.CASCADE, null=True, blank=True, related_name='quizzes')
     lesson = models.ForeignKey('student_profile.Lesson', on_delete=models.CASCADE, null=True, blank=True, related_name='quizzes')
@@ -132,6 +145,12 @@ class Quiz(models.Model):
     title = models.CharField(max_length=255)
     description = models.TextField(blank=True)
     quiz_type = models.CharField(max_length=50, choices=QUIZ_TYPES, default='practice')
+    subject = models.CharField(max_length=30, choices=SUBJECT_CHOICES, default='general')
+    difficulty_level = models.CharField(
+        max_length=20,
+        choices=DIFFICULTY_LEVEL_CHOICES,
+        default='medium',
+    )
 
     # Settings
     time_limit_minutes = models.PositiveIntegerField(default=0, help_text="0 = no time limit")
@@ -158,6 +177,10 @@ class Quiz(models.Model):
     class Meta:
         ordering = ['-created_at']
         verbose_name_plural = 'Quizzes'
+        indexes = [
+            models.Index(fields=['subject', 'difficulty_level', 'is_published']),
+            models.Index(fields=['quiz_type']),
+        ]
 
     def __str__(self):
         return f"{self.course.name} - {self.title}"

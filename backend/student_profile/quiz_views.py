@@ -245,6 +245,7 @@ class QuizViewSet(viewsets.ModelViewSet):
         'start_attempt': 'quizzes.view',
         'statistics': 'quizzes.view',
         'leaderboard': 'quizzes.view',
+        'dashboard_summary': 'quizzes.view',
         'create': 'quizzes.create',
         'create_with_questions': 'quizzes.create',
         'duplicate': 'quizzes.create',
@@ -253,25 +254,79 @@ class QuizViewSet(viewsets.ModelViewSet):
         'destroy': 'quizzes.delete',
     }
 
-    def get_queryset(self):
-        """Filter quizzes"""
-        queryset = Quiz.objects.select_related('module')
-
+    def _apply_quiz_filters(self, queryset):
         # Filter by module
         module_id = self.request.query_params.get('module_id')
         if module_id:
             queryset = queryset.filter(module_id=module_id)
+
+        # Filter by course
+        course_id = self.request.query_params.get('course_id')
+        if course_id:
+            queryset = queryset.filter(course_id=course_id)
 
         # Filter by quiz type
         quiz_type = self.request.query_params.get('quiz_type')
         if quiz_type:
             queryset = queryset.filter(quiz_type=quiz_type)
 
+        # Filter by subject
+        subject = self.request.query_params.get('subject')
+        if subject:
+            queryset = queryset.filter(subject=subject)
+
+        # Filter by difficulty
+        difficulty_level = self.request.query_params.get('difficulty_level')
+        if difficulty_level:
+            queryset = queryset.filter(difficulty_level=difficulty_level)
+
+        # Filter by published status
+        is_published = self.request.query_params.get('is_published')
+        if is_published is not None:
+            queryset = queryset.filter(is_published=is_published.lower() == 'true')
+
+        # Search title/description/course
+        search = self.request.query_params.get('search')
+        if search:
+            queryset = queryset.filter(
+                Q(title__icontains=search)
+                | Q(description__icontains=search)
+                | Q(course__name__icontains=search)
+            )
+
+        return queryset
+
+    def get_queryset(self):
+        """Filter quizzes"""
+        queryset = Quiz.objects.select_related('course', 'module', 'lesson', 'created_by')
+        queryset = self._apply_quiz_filters(queryset)
+
         # Students only see published quizzes
         if not has_capability(self.request.user, 'quizzes.edit'):
             queryset = queryset.filter(is_published=True)
 
-        return queryset.order_by('created_at')
+        queryset = queryset.annotate(
+            attempts_total=Count(
+                'attempts',
+                filter=Q(attempts__status__in=['submitted', 'graded']),
+                distinct=True,
+            ),
+            attempts_passed=Count(
+                'attempts',
+                filter=Q(attempts__status__in=['submitted', 'graded'], attempts__passed=True),
+                distinct=True,
+            ),
+            average_score=Avg(
+                'attempts__percentage_score',
+                filter=Q(attempts__status__in=['submitted', 'graded']),
+            ),
+            last_attempt_at=Max(
+                'attempts__submitted_at',
+                filter=Q(attempts__status__in=['submitted', 'graded']),
+            ),
+        )
+
+        return queryset.order_by('-created_at')
 
     def get_permissions(self):
         return [IsAuthenticated(), HasRoleCapability()]
@@ -356,6 +411,72 @@ class QuizViewSet(viewsets.ModelViewSet):
 
         return Response(leaderboard)
 
+    @action(detail=False, methods=['get'])
+    def dashboard_summary(self, request):
+        """Aggregated quiz metrics for dashboard/operations UI."""
+        queryset = self._apply_quiz_filters(Quiz.objects.all())
+
+        if not has_capability(request.user, 'quizzes.edit'):
+            queryset = queryset.filter(is_published=True)
+
+        total_quizzes = queryset.count()
+        published_quizzes = queryset.filter(is_published=True).count()
+        draft_quizzes = total_quizzes - published_quizzes
+
+        attempts_qs = QuizAttempt.objects.filter(
+            quiz_id__in=queryset.values('id'),
+            status__in=['submitted', 'graded'],
+        )
+
+        attempts_total = attempts_qs.count()
+        attempts_passed = attempts_qs.filter(passed=True).count()
+        avg_score = attempts_qs.aggregate(value=Avg('percentage_score'))['value'] or 0
+
+        by_subject = queryset.values('subject').annotate(count=Count('id')).order_by('-count')
+        by_difficulty = queryset.values('difficulty_level').annotate(count=Count('id')).order_by('-count')
+        by_type = queryset.values('quiz_type').annotate(count=Count('id')).order_by('-count')
+
+        top_quizzes = queryset.annotate(
+            question_count=Count('questions', distinct=True),
+            attempts_total=Count(
+                'attempts',
+                filter=Q(attempts__status__in=['submitted', 'graded']),
+                distinct=True,
+            ),
+            avg_score=Avg(
+                'attempts__percentage_score',
+                filter=Q(attempts__status__in=['submitted', 'graded']),
+            ),
+        ).order_by('-attempts_total', 'title')[:5]
+
+        top_quizzes_payload = [
+            {
+                'id': quiz.id,
+                'title': quiz.title,
+                'quiz_type': quiz.quiz_type,
+                'subject': quiz.subject,
+                'difficulty_level': quiz.difficulty_level,
+                'is_published': quiz.is_published,
+                'question_count': quiz.question_count or 0,
+                'attempts_total': quiz.attempts_total or 0,
+                'avg_score': round(float(quiz.avg_score or 0), 2),
+            }
+            for quiz in top_quizzes
+        ]
+
+        return Response({
+            'total_quizzes': total_quizzes,
+            'published_quizzes': published_quizzes,
+            'draft_quizzes': draft_quizzes,
+            'attempts_total': attempts_total,
+            'pass_rate': round((attempts_passed / attempts_total) * 100, 2) if attempts_total else 0,
+            'average_score': round(float(avg_score), 2),
+            'by_subject': list(by_subject),
+            'by_difficulty': list(by_difficulty),
+            'by_type': list(by_type),
+            'top_quizzes': top_quizzes_payload,
+        })
+
     @action(detail=False, methods=['post'])
     def create_with_questions(self, request):
         """Create quiz with questions and options in one call"""
@@ -408,6 +529,8 @@ class QuizViewSet(viewsets.ModelViewSet):
             title=f"{original_quiz.title} (Copy)",
             description=original_quiz.description,
             quiz_type=original_quiz.quiz_type,
+            subject=original_quiz.subject,
+            difficulty_level=original_quiz.difficulty_level,
             time_limit_minutes=original_quiz.time_limit_minutes,
             passing_score=original_quiz.passing_score,
             show_correct_answers=original_quiz.show_correct_answers,

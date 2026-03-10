@@ -42,6 +42,8 @@ export default function CreateQuizPage() {
   const [description, setDescription] = useState('')
   const [course, setCourse] = useState('')
   const [quizType, setQuizType] = useState('practice')
+  const [subject, setSubject] = useState('general')
+  const [difficultyLevel, setDifficultyLevel] = useState('medium')
   const [timeLimit, setTimeLimit] = useState(15)
   const [passingScore, setPassingScore] = useState(70)
   const [maxAttempts, setMaxAttempts] = useState(0)
@@ -208,6 +210,8 @@ export default function CreateQuizPage() {
         title,
         description,
         quiz_type: quizType,
+        subject,
+        difficulty_level: difficultyLevel,
         time_limit_minutes: timeLimit,
         passing_score: passingScore,
         max_attempts: maxAttempts,
@@ -308,6 +312,39 @@ export default function CreateQuizPage() {
                 <option value="graded">Graded Quiz</option>
                 <option value="exam">Exam</option>
                 <option value="survey">Survey</option>
+              </select>
+            </div>
+
+            {/* Subject */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Subject
+              </label>
+              <select
+                value={subject}
+                onChange={(e) => setSubject(e.target.value)}
+                className="w-full px-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:border-primary transition-colors"
+              >
+                <option value="general">General</option>
+                <option value="english">English</option>
+                <option value="math">Mathematics</option>
+                <option value="science">Science</option>
+              </select>
+            </div>
+
+            {/* Difficulty Level */}
+            <div>
+              <label className="block text-sm font-medium mb-2">
+                Difficulty Level
+              </label>
+              <select
+                value={difficultyLevel}
+                onChange={(e) => setDifficultyLevel(e.target.value)}
+                className="w-full px-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:border-primary transition-colors"
+              >
+                <option value="easy">Easy</option>
+                <option value="medium">Medium</option>
+                <option value="hard">Hard</option>
               </select>
             </div>
 
