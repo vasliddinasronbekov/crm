@@ -1,3 +1,4 @@
+/* eslint-disable react-native/no-unused-styles */
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -14,6 +15,7 @@ import { useQuery } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { useTheme } from '@eduvoice/mobile-shared';
+import type { ExtendedTheme } from '@eduvoice/mobile-shared';
 
 import { GlassCard } from '../components/app/GlassCard';
 import {
@@ -26,6 +28,8 @@ import type { AppStackParamList } from '../navigation/types';
 
 type AssignmentFilter = 'all' | 'pending' | 'submitted' | 'graded';
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
+const hasValue = (value: string | null | undefined): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
 
 export const AssignmentsScreen = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -33,17 +37,17 @@ export const AssignmentsScreen = () => {
   const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]);
   const [filter, setFilter] = useState<AssignmentFilter>('all');
 
-  const assignmentsQuery = useQuery({
+  const assignmentsQuery = useQuery<RuntimeAssignmentSummary[]>({
     queryKey: ['runtime-assignments', filter],
-    queryFn: () => listRuntimeAssignments(filter),
+    queryFn: async () => listRuntimeAssignments(filter),
   });
 
-  const insightsQuery = useQuery({
+  const insightsQuery = useQuery<RuntimeAssignmentInsights>({
     queryKey: ['runtime-assignment-insights'],
-    queryFn: getRuntimeAssignmentsInsights,
+    queryFn: async () => getRuntimeAssignmentsInsights(),
   });
 
-  const assignments = assignmentsQuery.data || [];
+  const assignments = assignmentsQuery.data ?? [];
   const insights: RuntimeAssignmentInsights | undefined = insightsQuery.data;
   const stats = {
     total: insights?.totalAssignments ?? assignments.length,
@@ -74,7 +78,7 @@ export const AssignmentsScreen = () => {
         <MaterialCommunityIcons name="alert-circle-outline" size={56} color={theme.colors.error500} />
         <Text style={styles.stateTitle}>Assignments unavailable</Text>
         <Text style={styles.stateText}>The assignment feed could not be loaded.</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => assignmentsQuery.refetch()}>
+        <TouchableOpacity style={styles.retryButton} onPress={() => { void assignmentsQuery.refetch(); }}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -138,7 +142,7 @@ export const AssignmentsScreen = () => {
           <ActivityIndicator size="small" color={theme.colors.primary500} />
           <Text style={styles.insightsLoadingText}>Preparing assignment insights...</Text>
         </GlassCard>
-      ) : insights && insights.recentSubmissions.length > 0 ? (
+      ) : insights !== undefined && insights.recentSubmissions.length > 0 ? (
         <GlassCard style={styles.recentCard}>
           <Text style={styles.recentTitle}>Recent Submissions</Text>
           <View style={styles.recentList}>
@@ -203,7 +207,7 @@ export const AssignmentsScreen = () => {
                 assignment={assignment}
                 onPress={() => navigation.navigate('AssignmentDetail', { assignmentId: assignment.id })}
                 onOpenReview={
-                  submissionId
+                  typeof submissionId === 'number'
                     ? () => navigation.navigate('AssignmentReview', { submissionId })
                     : undefined
                 }
@@ -243,7 +247,11 @@ const AssignmentCard = ({
         <View style={styles.assignmentCopy}>
           <Text style={styles.assignmentTitle}>{assignment.title}</Text>
           <Text style={styles.assignmentSubtitle}>
-            {assignment.moduleTitle || assignment.assignmentType || 'Assignment'}
+            {hasValue(assignment.moduleTitle)
+              ? assignment.moduleTitle
+              : hasValue(assignment.assignmentType)
+              ? assignment.assignmentType
+              : 'Assignment'}
           </Text>
         </View>
         <View style={[styles.statusBadge, { backgroundColor: `${statusColor}18` }]}>
@@ -251,7 +259,7 @@ const AssignmentCard = ({
         </View>
       </View>
 
-      {assignment.description ? (
+      {hasValue(assignment.description) ? (
         <Text style={styles.assignmentDescription} numberOfLines={2}>
           {assignment.description}
         </Text>
@@ -261,7 +269,7 @@ const AssignmentCard = ({
         <View style={styles.metaChip}>
           <MaterialCommunityIcons name="calendar-clock-outline" size={14} color={theme.textSecondary} />
           <Text style={styles.metaText}>
-            {assignment.dueDate ? new Date(assignment.dueDate).toLocaleDateString() : 'No due date'}
+            {hasValue(assignment.dueDate) ? new Date(assignment.dueDate).toLocaleDateString() : 'No due date'}
           </Text>
         </View>
         <View style={styles.metaChip}>
@@ -269,7 +277,7 @@ const AssignmentCard = ({
           <Text style={styles.metaText}>{assignment.maxPoints} pts</Text>
         </View>
       </View>
-      {onOpenReview ? (
+      {onOpenReview !== undefined ? (
         <TouchableOpacity style={styles.reviewButton} onPress={onOpenReview}>
           <MaterialCommunityIcons name="clipboard-text-search-outline" size={17} color={theme.text} />
           <Text style={styles.reviewButtonText}>Open Submission Review</Text>
@@ -279,7 +287,7 @@ const AssignmentCard = ({
   );
 };
 
-const createStyles = (theme: any, isDark: boolean) =>
+const createStyles = (theme: ExtendedTheme, isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -303,7 +311,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       marginTop: 12,
     },
     stateText: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
       marginTop: 8,
       textAlign: 'center',
@@ -337,7 +345,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       color: theme.text,
     },
     heroSubtitle: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
       lineHeight: 22,
     },
@@ -365,7 +373,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       color: theme.textSecondary,
     },
     heroInsightValue: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       marginTop: 2,
       color: theme.text,
       fontWeight: '700',
@@ -420,7 +428,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       gap: 10,
     },
     insightsLoadingText: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
     },
     recentCard: {
@@ -450,7 +458,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       gap: 2,
     },
     recentItemTitle: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.text,
       fontWeight: '700',
     },
@@ -459,7 +467,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       color: theme.textSecondary,
     },
     recentItemScore: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.text,
       fontWeight: '700',
     },
@@ -503,7 +511,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       textTransform: 'uppercase',
     },
     assignmentDescription: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
       lineHeight: 22,
     },

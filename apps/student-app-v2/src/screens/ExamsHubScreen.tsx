@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -21,31 +22,40 @@ import { GlassCard } from '../components/app/GlassCard';
 import type { AppStackParamList } from '../navigation/types';
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
+type IELTSSection = 'reading' | 'listening' | 'writing' | 'speaking';
 
-const extractResults = (payload: any) => {
+type ExamSummary = {
+  id: number;
+  title?: string;
+  section?: IELTSSection;
+  question_count?: number;
+  total_points?: number;
+};
+
+const extractResults = (payload: any): ExamSummary[] => {
   if (Array.isArray(payload)) {
-    return payload;
+    return payload as ExamSummary[];
   }
   if (Array.isArray(payload?.results)) {
-    return payload.results;
+    return payload.results as ExamSummary[];
   }
   if (Array.isArray(payload?.data?.results)) {
-    return payload.data.results;
+    return payload.data.results as ExamSummary[];
   }
   return [];
 };
 
 export const ExamsHubScreen = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { t } = useTranslation();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]);
 
   const studentStatsQuery = useQuery({
     queryKey: ['exam-hub-stats'],
     queryFn: async () => {
       const response = await apiClient.getStudentStatistics();
-      return response.data || {};
+      return response.data ?? {};
     },
   });
 
@@ -96,12 +106,16 @@ export const ExamsHubScreen = () => {
     ieltsAttemptsQuery.isRefetching;
 
   const firstIELTSExamBySection = useMemo(() => {
-    const map: Record<string, any> = {};
-    for (const exam of ieltsExamsQuery.data || []) {
-      if (!map[exam.section]) {
-        map[exam.section] = exam;
+    const map: Partial<Record<IELTSSection, ExamSummary>> = {};
+
+    for (const exam of ieltsExamsQuery.data ?? []) {
+      if (exam.section === undefined) continue;
+      const sectionKey = exam.section;
+      if (map[sectionKey] === undefined) {
+        map[sectionKey] = exam;
       }
     }
+
     return map;
   }, [ieltsExamsQuery.data]);
 
@@ -114,15 +128,18 @@ export const ExamsHubScreen = () => {
     );
   }
 
-  const totalAttempts =
-    (satAttemptsQuery.data || []).length + (ieltsAttemptsQuery.data || []).length;
+  const satExams = satExamsQuery.data ?? [];
+  const ieltsExams = ieltsExamsQuery.data ?? [];
+  const satAttempts = satAttemptsQuery.data ?? [];
+  const ieltsAttempts = ieltsAttemptsQuery.data ?? [];
 
-  const openIELTSSection = (
-    section: 'reading' | 'listening' | 'writing' | 'speaking'
-  ) => {
+  const totalAttempts = satAttempts.length + ieltsAttempts.length;
+  const coins = studentStatsQuery.data?.total_coins ?? 0;
+
+  const openIELTSSection = (section: IELTSSection) => {
     const exam = firstIELTSExamBySection[section];
 
-    if (!exam) {
+    if (exam === undefined) {
       navigation.navigate('IELTSPrep');
       return;
     }
@@ -161,38 +178,78 @@ export const ExamsHubScreen = () => {
         />
       }
     >
-      <GlassCard style={styles.hero}>
-        <View style={styles.heroBadge}>
-          <MaterialCommunityIcons
-            name="school-outline"
-            size={28}
-            color={theme.colors.primary500}
-          />
+      <GlassCard style={styles.heroCard}>
+        <View style={styles.heroTopRow}>
+          <View style={styles.heroBadge}>
+            <MaterialCommunityIcons
+              name="clipboard-text-clock-outline"
+              size={16}
+              color={theme.colors.primary500}
+            />
+            <Text style={styles.heroBadgeText}>Exam Workspace</Text>
+          </View>
+          <View style={styles.coinPill}>
+            <MaterialCommunityIcons
+              name="star-circle-outline"
+              size={14}
+              color={theme.colors.warning500}
+            />
+            <Text style={styles.coinPillText}>{coins}</Text>
+          </View>
         </View>
+
         <Text style={styles.heroTitle}>{t('exams.title')}</Text>
         <Text style={styles.heroSubtitle}>{t('exams.subtitle')}</Text>
-        <View style={styles.metricRow}>
-          <View style={styles.metricPill}>
-            <Text style={styles.metricValue}>{studentStatsQuery.data?.total_coins || 0}</Text>
-            <Text style={styles.metricLabel}>{t('exams.coins')}</Text>
+
+        <View style={styles.heroStatsRow}>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{satExams.length}</Text>
+            <Text style={styles.heroStatLabel}>SAT exams</Text>
           </View>
-          <View style={styles.metricPill}>
-            <Text style={styles.metricValue}>{totalAttempts}</Text>
-            <Text style={styles.metricLabel}>{t('exams.attempts')}</Text>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{ieltsExams.length}</Text>
+            <Text style={styles.heroStatLabel}>IELTS sections</Text>
+          </View>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{totalAttempts}</Text>
+            <Text style={styles.heroStatLabel}>{t('exams.attempts')}</Text>
           </View>
         </View>
       </GlassCard>
 
-      <View style={styles.statsRow}>
-        <GlassCard style={styles.statCard}>
-          <Text style={styles.statValue}>{(satExamsQuery.data || []).length}</Text>
-          <Text style={styles.statLabel}>{t('exams.availableSAT')}</Text>
-        </GlassCard>
-        <GlassCard style={styles.statCard}>
-          <Text style={styles.statValue}>{(ieltsExamsQuery.data || []).length}</Text>
-          <Text style={styles.statLabel}>{t('exams.availableIELTS')}</Text>
-        </GlassCard>
-      </View>
+      <GlassCard style={styles.readinessCard}>
+        <View style={styles.readinessHeader}>
+          <View style={styles.readinessIcon}>
+            <MaterialCommunityIcons
+              name="rocket-launch-outline"
+              size={18}
+              color={theme.colors.primary500}
+            />
+          </View>
+          <View style={styles.readinessCopy}>
+            <Text style={styles.readinessTitle}>Next best action</Text>
+            <Text style={styles.readinessSubtitle}>
+              {satExams.length > 0
+                ? 'Start a SAT full mock with strict timing.'
+                : 'Open IELTS section practice and build momentum.'}
+            </Text>
+          </View>
+        </View>
+
+        <TouchableOpacity
+          style={styles.readinessButton}
+          onPress={() => {
+            if (satExams.length > 0) {
+              navigation.navigate('SATPrep');
+              return;
+            }
+            navigation.navigate('IELTSPrep');
+          }}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.readinessButtonText}>Open now</Text>
+        </TouchableOpacity>
+      </GlassCard>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>{t('exams.fullMock')}</Text>
@@ -205,7 +262,7 @@ export const ExamsHubScreen = () => {
           description={t('exams.satDescription')}
           icon="timer-sand-complete"
           accentColor={theme.colors.primary500}
-          badge={`${(satExamsQuery.data || []).length}`}
+          badge={`${satExams.length}`}
           onPress={() => navigation.navigate('SATPrep')}
           style={styles.gridItem}
         />
@@ -214,7 +271,7 @@ export const ExamsHubScreen = () => {
           description={t('exams.ieltsDescription')}
           icon="headphones-box"
           accentColor={theme.colors.warning500}
-          badge={`${(ieltsExamsQuery.data || []).length}`}
+          badge={`${ieltsExams.length}`}
           onPress={() => navigation.navigate('IELTSPrep')}
           style={styles.gridItem}
         />
@@ -222,7 +279,7 @@ export const ExamsHubScreen = () => {
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>{t('exams.sectionPractice')}</Text>
-        <Text style={styles.sectionSubtitle}>{t('exams.realAtmosphere')}</Text>
+        <Text style={styles.sectionSubtitle}>Open a section directly and keep exam rhythm.</Text>
       </View>
 
       <View style={styles.grid}>
@@ -260,27 +317,31 @@ export const ExamsHubScreen = () => {
         />
       </View>
 
-      <GlassCard style={styles.atmosphereCard}>
-        <View style={styles.atmosphereHeader}>
+      <GlassCard style={styles.insightCard}>
+        <View style={styles.insightHeader}>
           <MaterialCommunityIcons
             name="shield-check-outline"
-            size={20}
+            size={18}
             color={theme.colors.primary500}
           />
-          <Text style={styles.atmosphereTitle}>{t('exams.realAtmosphere')}</Text>
+          <Text style={styles.insightTitle}>{t('exams.realAtmosphere')}</Text>
         </View>
-        <Text style={styles.atmosphereItem}>- {t('exams.atmosphereRuleTiming')}</Text>
-        <Text style={styles.atmosphereItem}>- {t('exams.atmosphereRuleRecovery')}</Text>
-        <Text style={styles.atmosphereItem}>- {t('exams.atmosphereRuleAdaptive')}</Text>
+        <Text style={styles.insightItem}>- {t('exams.atmosphereRuleTiming')}</Text>
+        <Text style={styles.insightItem}>- {t('exams.atmosphereRuleRecovery')}</Text>
+        <Text style={styles.insightItem}>- {t('exams.atmosphereRuleAdaptive')}</Text>
       </GlassCard>
 
-      <GlassCard style={styles.attemptsCard}>
-        <View style={styles.atmosphereHeader}>
-          <MaterialCommunityIcons name="history" size={20} color={theme.colors.primary500} />
-          <Text style={styles.atmosphereTitle}>{t('exams.attempts')}</Text>
+      <GlassCard style={styles.attemptCard}>
+        <View style={styles.insightHeader}>
+          <MaterialCommunityIcons
+            name="history"
+            size={18}
+            color={theme.colors.primary500}
+          />
+          <Text style={styles.insightTitle}>{t('exams.attempts')}</Text>
         </View>
-        <Text style={styles.attemptsValue}>{totalAttempts}</Text>
-        <Text style={styles.attemptsHint}>
+        <Text style={styles.attemptValue}>{totalAttempts}</Text>
+        <Text style={styles.attemptHint}>
           {totalAttempts > 0 ? t('exams.attemptsReady') : t('exams.noAttemptsYet')}
         </Text>
       </GlassCard>
@@ -288,7 +349,7 @@ export const ExamsHubScreen = () => {
   );
 };
 
-const createStyles = (theme: any) =>
+const createStyles = (theme: any, isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -311,72 +372,130 @@ const createStyles = (theme: any) =>
       color: theme.textSecondary,
       fontSize: 15,
     },
-    hero: {
+    heroCard: {
       padding: theme.spacing.lg,
+      gap: theme.spacing.md,
+    },
+    heroTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
     },
     heroBadge: {
-      width: 56,
-      height: 56,
-      borderRadius: 20,
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: theme.primaryContainer,
-      marginBottom: theme.spacing.md,
+      gap: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: isDark ? 'rgba(59,130,246,0.18)' : 'rgba(219,234,254,0.85)',
+    },
+    heroBadgeText: {
+      color: theme.colors.primary500,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.2,
+    },
+    coinPill: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 4,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: isDark ? 'rgba(30,41,59,0.62)' : 'rgba(241,245,249,0.92)',
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    coinPillText: {
+      color: theme.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
     },
     heroTitle: {
       color: theme.text,
-      fontSize: 28,
+      fontSize: 27,
       fontWeight: '800',
     },
     heroSubtitle: {
       color: theme.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
-      marginTop: theme.spacing.sm,
+      fontSize: 14,
+      lineHeight: 21,
+      marginTop: -4,
     },
-    metricRow: {
+    heroStatsRow: {
       flexDirection: 'row',
-      gap: theme.spacing.sm,
-      marginTop: theme.spacing.lg,
+      gap: 10,
+      marginTop: theme.spacing.xs,
     },
-    metricPill: {
+    heroStat: {
       flex: 1,
-      borderRadius: 18,
-      padding: theme.spacing.md,
-      backgroundColor: 'rgba(59,130,246,0.08)',
+      borderRadius: 16,
+      backgroundColor: isDark ? 'rgba(15,23,42,0.55)' : 'rgba(248,250,252,0.9)',
       borderWidth: 1,
-      borderColor: 'rgba(59,130,246,0.16)',
+      borderColor: theme.border,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
     },
-    metricValue: {
+    heroStatValue: {
       color: theme.text,
-      fontSize: 20,
+      fontSize: 17,
       fontWeight: '800',
     },
-    metricLabel: {
+    heroStatLabel: {
       color: theme.textSecondary,
-      fontSize: 12,
+      fontSize: 11,
+      fontWeight: '600',
       marginTop: 4,
     },
-    statsRow: {
-      flexDirection: 'row',
+    readinessCard: {
+      padding: theme.spacing.md,
       gap: theme.spacing.md,
     },
-    statCard: {
+    readinessHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+    },
+    readinessIcon: {
+      width: 42,
+      height: 42,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(59,130,246,0.18)' : 'rgba(219,234,254,0.88)',
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    readinessCopy: {
       flex: 1,
-      padding: theme.spacing.md,
     },
-    statValue: {
+    readinessTitle: {
       color: theme.text,
-      fontSize: 24,
-      fontWeight: '800',
+      fontSize: 14,
+      fontWeight: '700',
     },
-    statLabel: {
+    readinessSubtitle: {
       color: theme.textSecondary,
       fontSize: 13,
-      marginTop: 6,
+      lineHeight: 19,
+      marginTop: 4,
+    },
+    readinessButton: {
+      alignSelf: 'flex-start',
+      paddingHorizontal: theme.spacing.md,
+      paddingVertical: 9,
+      borderRadius: 12,
+      backgroundColor: theme.colors.primary500,
+    },
+    readinessButtonText: {
+      color: '#ffffff',
+      fontSize: 13,
+      fontWeight: '700',
     },
     sectionHeader: {
       marginTop: theme.spacing.sm,
+      gap: 4,
     },
     sectionTitle: {
       color: theme.text,
@@ -386,7 +505,6 @@ const createStyles = (theme: any) =>
     sectionSubtitle: {
       color: theme.textSecondary,
       fontSize: 13,
-      marginTop: 4,
     },
     grid: {
       flexDirection: 'row',
@@ -396,39 +514,38 @@ const createStyles = (theme: any) =>
     gridItem: {
       width: '47%',
     },
-    atmosphereCard: {
+    insightCard: {
       padding: theme.spacing.lg,
       gap: theme.spacing.sm,
     },
-    atmosphereHeader: {
+    insightHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: theme.spacing.sm,
-      marginBottom: theme.spacing.xs,
+      gap: 8,
     },
-    atmosphereTitle: {
+    insightTitle: {
       color: theme.text,
       fontSize: 16,
       fontWeight: '700',
     },
-    atmosphereItem: {
-      color: theme.textSecondary,
-      fontSize: 14,
-      lineHeight: 21,
-    },
-    attemptsCard: {
-      padding: theme.spacing.lg,
-    },
-    attemptsValue: {
-      color: theme.text,
-      fontSize: 30,
-      fontWeight: '800',
-      marginTop: theme.spacing.sm,
-    },
-    attemptsHint: {
+    insightItem: {
       color: theme.textSecondary,
       fontSize: 13,
       lineHeight: 20,
-      marginTop: theme.spacing.xs,
+    },
+    attemptCard: {
+      padding: theme.spacing.lg,
+      gap: theme.spacing.sm,
+    },
+    attemptValue: {
+      color: theme.text,
+      fontSize: 28,
+      fontWeight: '800',
+      marginTop: 4,
+    },
+    attemptHint: {
+      color: theme.textSecondary,
+      fontSize: 13,
+      lineHeight: 20,
     },
   });

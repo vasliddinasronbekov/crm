@@ -1,3 +1,4 @@
+/* eslint-disable react-native/no-unused-styles */
 import React, { useMemo } from 'react';
 import {
   ActivityIndicator,
@@ -13,13 +14,16 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useQuery } from '@tanstack/react-query';
 
 import { useTheme } from '@eduvoice/mobile-shared';
+import type { ExtendedTheme } from '@eduvoice/mobile-shared';
 
 import { GlassCard } from '../components/app/GlassCard';
 import { ExamHeroCard } from '../components/exam/ExamHeroCard';
-import { getRuntimeAssignmentSubmissionReview } from '../lib/lmsRuntime';
+import { getRuntimeAssignmentSubmissionReview, type RuntimeAssignmentSubmissionReview } from '../lib/lmsRuntime';
 import type { AppStackParamList } from '../navigation/types';
 
 type RouteParams = RouteProp<AppStackParamList, 'AssignmentReview'>;
+const hasValue = (value: string | null | undefined): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
 
 const getStatusColor = (status: string) => {
   switch (status) {
@@ -41,9 +45,9 @@ export const AssignmentReviewScreen = () => {
   const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]);
   const { submissionId } = route.params;
 
-  const reviewQuery = useQuery({
+  const reviewQuery = useQuery<RuntimeAssignmentSubmissionReview>({
     queryKey: ['runtime-assignment-review', submissionId],
-    queryFn: () => getRuntimeAssignmentSubmissionReview(submissionId),
+    queryFn: async () => getRuntimeAssignmentSubmissionReview(submissionId),
   });
 
   if (reviewQuery.isLoading) {
@@ -55,13 +59,13 @@ export const AssignmentReviewScreen = () => {
     );
   }
 
-  if (reviewQuery.isError || !reviewQuery.data) {
+  if (reviewQuery.isError || reviewQuery.data === undefined) {
     return (
       <View style={styles.stateContainer}>
         <MaterialCommunityIcons name="alert-circle-outline" size={52} color={theme.colors.error500} />
         <Text style={styles.stateTitle}>Review unavailable</Text>
         <Text style={styles.stateText}>We could not load this submission review.</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={() => reviewQuery.refetch()}>
+        <TouchableOpacity style={styles.retryButton} onPress={() => { void reviewQuery.refetch(); }}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -73,6 +77,9 @@ export const AssignmentReviewScreen = () => {
   const score = review.grading.percentageScore ?? 0;
   const passed = review.grading.passed === true;
   const percentageScore = review.grading.percentageScore ?? null;
+  const subtitle = hasValue(review.assignment.moduleTitle)
+    ? review.assignment.moduleTitle
+    : review.assignment.assignmentTypeDisplay;
   const scoreLabel =
     review.grading.pointsEarned === null
       ? 'Pending'
@@ -83,7 +90,7 @@ export const AssignmentReviewScreen = () => {
       <ExamHeroCard
         eyebrow="Assignment Review"
         title={review.assignment.title}
-        subtitle={review.assignment.moduleTitle || review.assignment.assignmentTypeDisplay}
+        subtitle={subtitle}
         accentColor={statusColor}
         progress={score}
         metrics={[
@@ -139,13 +146,13 @@ export const AssignmentReviewScreen = () => {
             {percentageScore === null ? 'Pending' : `${percentageScore.toFixed(1)}%`}
           </Text>
         </View>
-        {review.grading.gradedByName ? (
+        {hasValue(review.grading.gradedByName) ? (
           <View style={styles.gradingRow}>
             <Text style={styles.gradingLabel}>Graded by</Text>
             <Text style={styles.gradingValue}>{review.grading.gradedByName}</Text>
           </View>
         ) : null}
-        {review.grading.feedback ? (
+        {hasValue(review.grading.feedback) ? (
           <View style={styles.feedbackWrap}>
             <Text style={styles.feedbackTitle}>Teacher Feedback</Text>
             <Text style={styles.feedbackText}>{review.grading.feedback}</Text>
@@ -153,7 +160,7 @@ export const AssignmentReviewScreen = () => {
         ) : null}
       </GlassCard>
 
-      {review.submission.textContent ? (
+      {hasValue(review.submission.textContent) ? (
         <GlassCard style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Your Submission</Text>
           <Text style={styles.sectionBody}>{review.submission.textContent}</Text>
@@ -190,7 +197,7 @@ export const AssignmentReviewScreen = () => {
   );
 };
 
-const createStyles = (theme: any, isDark: boolean) =>
+const createStyles = (theme: ExtendedTheme, isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -214,7 +221,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       marginTop: 12,
     },
     stateText: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
       marginTop: 8,
       textAlign: 'center',
@@ -240,7 +247,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       color: theme.text,
     },
     sectionBody: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
       lineHeight: 21,
     },
@@ -273,7 +280,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       color: theme.textSecondary,
     },
     gradingValue: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.text,
       fontWeight: '700',
     },
@@ -292,7 +299,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       fontWeight: '700',
     },
     feedbackText: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.text,
       lineHeight: 20,
     },
@@ -305,7 +312,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       gap: 8,
     },
     tipText: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
       flex: 1,
     },

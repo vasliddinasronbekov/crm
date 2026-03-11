@@ -1,6 +1,6 @@
 /**
  * i18n Configuration
- * Multi-language support for EduVoice Student App
+ * Multi-language support for EDUOS Student App App
  */
 
 import i18n from 'i18next';

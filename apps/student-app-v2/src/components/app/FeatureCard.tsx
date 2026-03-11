@@ -36,12 +36,17 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
   const styles = useMemo(() => createStyles(theme), [theme]);
 
   return (
-    <GlassCard onPress={onPress} style={[styles.card, style, { borderColor: `${accentColor}30` }]}>
+    <GlassCard onPress={onPress} style={[styles.card, style, { borderColor: `${accentColor}40` }]}>
+      <View style={[styles.accentBar, { backgroundColor: `${accentColor}26` }]} />
       <View style={styles.header}>
         <View style={[styles.iconWrap, { backgroundColor: `${accentColor}18` }]}>
-          <MaterialCommunityIcons name={icon} size={22} color={accentColor} />
+          <MaterialCommunityIcons name={icon} size={20} color={accentColor} />
         </View>
-        {badge ? <Text style={[styles.badge, { color: accentColor }]}>{badge}</Text> : null}
+        {typeof badge === 'string' && badge.length > 0 ? (
+          <View style={[styles.badgeWrap, { backgroundColor: `${accentColor}1c` }]}>
+            <Text style={[styles.badge, { color: accentColor }]}>{badge}</Text>
+          </View>
+        ) : null}
       </View>
 
       <Text style={styles.title}>{title}</Text>
@@ -49,7 +54,9 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 
       <View style={styles.footer}>
         <Text style={[styles.openLabel, { color: accentColor }]}>Open</Text>
-        <MaterialCommunityIcons name="arrow-right" size={18} color={accentColor} />
+        <View style={[styles.arrowWrap, { backgroundColor: `${accentColor}1a` }]}>
+          <MaterialCommunityIcons name="arrow-right" size={16} color={accentColor} />
+        </View>
       </View>
     </GlassCard>
   );
@@ -58,23 +65,42 @@ export const FeatureCard: React.FC<FeatureCardProps> = ({
 const createStyles = (theme: any) =>
   StyleSheet.create({
     card: {
-      borderRadius: 20,
+      borderRadius: 18,
       padding: theme.spacing.md,
       borderWidth: 1,
-      minHeight: 156,
+      minHeight: 166,
       justifyContent: 'space-between',
+      gap: theme.spacing.sm,
+    },
+    accentBar: {
+      position: 'absolute',
+      top: 12,
+      left: 12,
+      width: 42,
+      height: 6,
+      borderRadius: 999,
     },
     header: {
       flexDirection: 'row',
       justifyContent: 'space-between',
       alignItems: 'center',
+      marginTop: 8,
     },
     iconWrap: {
-      width: 44,
-      height: 44,
-      borderRadius: 14,
+      width: 42,
+      height: 42,
+      borderRadius: 12,
       alignItems: 'center',
       justifyContent: 'center',
+      borderWidth: 1,
+      borderColor: `${theme.border}99`,
+    },
+    badgeWrap: {
+      minWidth: 28,
+      paddingHorizontal: 8,
+      paddingVertical: 4,
+      borderRadius: 999,
+      alignItems: 'center',
     },
     badge: {
       fontSize: 12,
@@ -82,25 +108,32 @@ const createStyles = (theme: any) =>
     },
     title: {
       color: theme.text,
-      fontSize: 18,
+      fontSize: 17,
       fontWeight: '700',
-      marginTop: theme.spacing.md,
+      marginTop: 2,
     },
     description: {
       color: theme.textSecondary,
       fontSize: 13,
       lineHeight: 19,
-      marginTop: theme.spacing.sm,
       flex: 1,
     },
     footer: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: 6,
-      marginTop: theme.spacing.md,
+      justifyContent: 'space-between',
+      marginTop: theme.spacing.xs,
     },
     openLabel: {
       fontSize: 13,
       fontWeight: '700',
+      letterSpacing: 0.2,
+    },
+    arrowWrap: {
+      width: 26,
+      height: 26,
+      borderRadius: 13,
+      alignItems: 'center',
+      justifyContent: 'center',
     },
   });

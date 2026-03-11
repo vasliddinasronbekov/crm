@@ -81,15 +81,18 @@ const TabNavigator = () => {
         headerShown: false,
         tabBarActiveTintColor: theme.colors.primary500,
         tabBarInactiveTintColor: theme.textSecondary,
+        tabBarHideOnKeyboard: true,
         tabBarStyle: styles.tabBar,
         tabBarItemStyle: styles.tabBarItem,
         tabBarLabelStyle: styles.tabBarLabel,
-        tabBarIcon: ({ color, size }) => (
-          <MaterialCommunityIcons
-            name={getTabIcon(route.name)}
-            color={color}
-            size={size}
-          />
+        tabBarIcon: ({ color, focused }) => (
+          <View style={[styles.tabIconWrap, focused && styles.tabIconWrapActive]}>
+            <MaterialCommunityIcons
+              name={getTabIcon(route.name)}
+              color={focused ? '#ffffff' : color}
+              size={focused ? 21 : 20}
+            />
+          </View>
         ),
         sceneStyle: {
           backgroundColor: theme.background,
@@ -271,19 +274,37 @@ const styles = StyleSheet.create({
 const createStyles = (theme: any, isDark: boolean) =>
   StyleSheet.create({
     tabBar: {
-      height: 76,
+      position: 'absolute',
+      left: 12,
+      right: 12,
+      bottom: 10,
+      height: 78,
       paddingTop: 8,
-      paddingBottom: 10,
-      backgroundColor: isDark ? 'rgba(26,26,26,0.96)' : 'rgba(255,255,255,0.92)',
+      paddingBottom: 8,
+      backgroundColor: isDark ? 'rgba(15, 23, 42, 0.94)' : 'rgba(255, 255, 255, 0.95)',
       borderTopWidth: 1,
-      borderTopColor: isDark ? 'rgba(255,255,255,0.08)' : 'rgba(229,231,235,0.72)',
+      borderTopColor: isDark ? 'rgba(148,163,184,0.22)' : 'rgba(148,163,184,0.3)',
+      borderRadius: 24,
       ...theme.shadows.lg,
     },
     tabBarItem: {
-      paddingVertical: 4,
+      paddingVertical: 3,
     },
     tabBarLabel: {
-      fontSize: 11,
+      fontSize: 10,
       fontWeight: '700',
+      marginBottom: 4,
+      marginTop: 0,
+    },
+    tabIconWrap: {
+      width: 34,
+      height: 34,
+      borderRadius: 11,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(148,163,184,0.12)' : 'rgba(241,245,249,0.95)',
+    },
+    tabIconWrapActive: {
+      backgroundColor: theme.colors.primary500,
     },
   });

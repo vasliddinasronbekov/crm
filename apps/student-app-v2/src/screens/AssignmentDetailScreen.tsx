@@ -1,3 +1,4 @@
+/* eslint-disable react-native/no-unused-styles */
 import React, { useMemo, useState } from 'react';
 import {
   ActivityIndicator,
@@ -16,10 +17,13 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 
 import { getErrorMessage, useTheme } from '@eduvoice/mobile-shared';
+import type { ExtendedTheme } from '@eduvoice/mobile-shared';
 
 import { GlassCard } from '../components/app/GlassCard';
 import {
   getRuntimeAssignmentDetail,
+  type RuntimeAssignmentSubmission,
+  type RuntimeAssignmentSummary,
   getRuntimeAssignmentSubmission,
   submitRuntimeAssignment,
 } from '../lib/lmsRuntime';
@@ -27,6 +31,8 @@ import type { AppStackParamList } from '../navigation/types';
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 type AssignmentRouteProp = RouteProp<AppStackParamList, 'AssignmentDetail'>;
+const hasValue = (value: string | null | undefined): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
 
 export const AssignmentDetailScreen = () => {
   const navigation = useNavigation<NavigationProp>();
@@ -38,23 +44,23 @@ export const AssignmentDetailScreen = () => {
 
   const [submissionText, setSubmissionText] = useState('');
 
-  const assignmentQuery = useQuery({
+  const assignmentQuery = useQuery<RuntimeAssignmentSummary>({
     queryKey: ['runtime-assignment', assignmentId],
-    queryFn: () => getRuntimeAssignmentDetail(assignmentId),
+    queryFn: async () => getRuntimeAssignmentDetail(assignmentId),
   });
 
-  const submissionQuery = useQuery({
+  const submissionQuery = useQuery<RuntimeAssignmentSubmission | null>({
     queryKey: ['runtime-assignment-submission', assignmentId],
-    queryFn: () => getRuntimeAssignmentSubmission(assignmentId),
+    queryFn: async () => getRuntimeAssignmentSubmission(assignmentId),
   });
 
-  const submitMutation = useMutation({
+  const submitMutation = useMutation<RuntimeAssignmentSubmission, Error, string>({
     mutationFn: (text: string) => submitRuntimeAssignment(assignmentId, text),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['runtime-assignment', assignmentId] });
-      queryClient.invalidateQueries({ queryKey: ['runtime-assignment-submission', assignmentId] });
-      queryClient.invalidateQueries({ queryKey: ['runtime-assignments'] });
-      queryClient.invalidateQueries({ queryKey: ['runtime-assignment-insights'] });
+      void queryClient.invalidateQueries({ queryKey: ['runtime-assignment', assignmentId] });
+      void queryClient.invalidateQueries({ queryKey: ['runtime-assignment-submission', assignmentId] });
+      void queryClient.invalidateQueries({ queryKey: ['runtime-assignments'] });
+      void queryClient.invalidateQueries({ queryKey: ['runtime-assignment-insights'] });
       Alert.alert('Submitted', 'Your assignment was submitted successfully.');
       setSubmissionText('');
     },
@@ -64,7 +70,7 @@ export const AssignmentDetailScreen = () => {
   });
 
   const openAttachment = async (url?: string | null) => {
-    if (!url) {
+    if (!hasValue(url)) {
       return;
     }
 
@@ -84,7 +90,7 @@ export const AssignmentDetailScreen = () => {
     );
   }
 
-  if (!assignmentQuery.data) {
+  if (assignmentQuery.data === undefined) {
     return (
       <View style={styles.stateContainer}>
         <MaterialCommunityIcons name="alert-circle-outline" size={56} color={theme.colors.error500} />
@@ -95,12 +101,27 @@ export const AssignmentDetailScreen = () => {
   }
 
   const assignment = assignmentQuery.data;
-  const submission = submissionQuery.data;
+  const submission = submissionQuery.data ?? null;
   const canSubmit =
-    (!submission && assignment.status === 'pending') ||
+    (submission === null && assignment.status === 'pending') ||
     (assignment.allowResubmission && submission?.status === 'returned');
-  const dueDate = assignment.dueDate ? new Date(assignment.dueDate) : null;
-  const isOverdue = Boolean(dueDate && dueDate.getTime() < Date.now() && !submission);
+  const dueDate = hasValue(assignment.dueDate) ? new Date(assignment.dueDate) : null;
+  const isOverdue = dueDate !== null && dueDate.getTime() < Date.now() && submission === null;
+  const assignmentSubtitle = hasValue(assignment.moduleTitle)
+    ? assignment.moduleTitle
+    : hasValue(assignment.assignmentType)
+    ? assignment.assignmentType
+    : 'Assignment';
+  const hasTaskBrief = hasValue(assignment.description) || hasValue(assignment.instructions);
+  const hasAttachment = hasValue(assignment.attachment);
+  const hasSubmissionFeedback = hasValue(submission?.feedback);
+  const hasSubmissionText = submissionText.trim().length > 0;
+  const submissionStateText =
+    submission !== null
+      ? `Submitted on ${hasValue(submission.submittedAt) ? new Date(submission.submittedAt).toLocaleString() : '—'}`
+      : isOverdue
+      ? 'This assignment is overdue.'
+      : 'No submission recorded yet.';
   const statusColor =
     assignment.status === 'graded'
       ? '#16a34a'
@@ -120,14 +141,12 @@ export const AssignmentDetailScreen = () => {
           </View>
         </View>
         <Text style={styles.heroTitle}>{assignment.title}</Text>
-        <Text style={styles.heroSubtitle}>
-          {assignment.moduleTitle || assignment.assignmentType || 'Assignment'}
-        </Text>
+        <Text style={styles.heroSubtitle}>{assignmentSubtitle}</Text>
         <View style={styles.metaRow}>
           <View style={styles.metaChip}>
             <MaterialCommunityIcons name="calendar-clock-outline" size={14} color={theme.textSecondary} />
             <Text style={styles.metaText}>
-              {assignment.dueDate ? new Date(assignment.dueDate).toLocaleString() : 'No due date'}
+              {dueDate !== null ? dueDate.toLocaleString() : 'No due date'}
             </Text>
           </View>
           <View style={styles.metaChip}>
@@ -137,18 +156,18 @@ export const AssignmentDetailScreen = () => {
         </View>
       </GlassCard>
 
-      {(assignment.description || assignment.instructions) && (
+      {hasTaskBrief ? (
         <GlassCard style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Task Brief</Text>
-          {assignment.description ? <Text style={styles.sectionBody}>{assignment.description}</Text> : null}
-          {assignment.instructions ? <Text style={styles.sectionBody}>{assignment.instructions}</Text> : null}
+          {hasValue(assignment.description) ? <Text style={styles.sectionBody}>{assignment.description}</Text> : null}
+          {hasValue(assignment.instructions) ? <Text style={styles.sectionBody}>{assignment.instructions}</Text> : null}
         </GlassCard>
-      )}
+      ) : null}
 
-      {assignment.attachment ? (
+      {hasAttachment ? (
         <GlassCard style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Reference Attachment</Text>
-          <TouchableOpacity style={styles.linkButton} onPress={() => openAttachment(assignment.attachment)}>
+          <TouchableOpacity style={styles.linkButton} onPress={() => { void openAttachment(assignment.attachment); }}>
             <MaterialCommunityIcons name="paperclip" size={18} color="#2563eb" />
             <Text style={styles.linkText}>Open attachment</Text>
           </TouchableOpacity>
@@ -157,18 +176,12 @@ export const AssignmentDetailScreen = () => {
 
       <GlassCard style={styles.sectionCard}>
         <Text style={styles.sectionTitle}>Submission Status</Text>
-        <Text style={styles.sectionBody}>
-          {submission
-            ? `Submitted on ${submission.submittedAt ? new Date(submission.submittedAt).toLocaleString() : '—'}`
-            : isOverdue
-            ? 'This assignment is overdue.'
-            : 'No submission recorded yet.'}
-        </Text>
-        {submission?.feedback ? <Text style={styles.feedbackText}>Feedback: {submission.feedback}</Text> : null}
+        <Text style={styles.sectionBody}>{submissionStateText}</Text>
+        {hasSubmissionFeedback ? <Text style={styles.feedbackText}>Feedback: {submission.feedback}</Text> : null}
         {typeof submission?.pointsEarned === 'number' ? (
           <Text style={styles.gradeText}>Score: {submission.pointsEarned} / {assignment.maxPoints}</Text>
         ) : null}
-        {submission?.id ? (
+        {typeof submission?.id === 'number' ? (
           <TouchableOpacity
             style={styles.reviewButton}
             onPress={() => navigation.navigate('AssignmentReview', { submissionId: submission.id })}
@@ -179,7 +192,7 @@ export const AssignmentDetailScreen = () => {
         ) : null}
       </GlassCard>
 
-      {submission?.textContent ? (
+      {hasValue(submission?.textContent) ? (
         <GlassCard style={styles.sectionCard}>
           <Text style={styles.sectionTitle}>Your Submission</Text>
           <Text style={styles.sectionBody}>{submission.textContent}</Text>
@@ -199,9 +212,9 @@ export const AssignmentDetailScreen = () => {
             textAlignVertical="top"
           />
           <TouchableOpacity
-            style={[styles.submitButton, (!submissionText.trim() || submitMutation.isPending) && styles.buttonDisabled]}
+            style={[styles.submitButton, (!hasSubmissionText || submitMutation.isPending) && styles.buttonDisabled]}
             onPress={() => submitMutation.mutate(submissionText)}
-            disabled={!submissionText.trim() || submitMutation.isPending}
+            disabled={!hasSubmissionText || submitMutation.isPending}
           >
             <Text style={styles.submitButtonText}>
               {submitMutation.isPending ? 'Submitting...' : 'Submit Response'}
@@ -218,7 +231,7 @@ export const AssignmentDetailScreen = () => {
   );
 };
 
-const createStyles = (theme: any, isDark: boolean) =>
+const createStyles = (theme: ExtendedTheme, isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -242,7 +255,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       marginTop: 12,
     },
     stateText: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
       marginTop: 8,
       textAlign: 'center',
@@ -279,7 +292,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       color: theme.text,
     },
     heroSubtitle: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
     },
     metaRow: {
@@ -310,16 +323,16 @@ const createStyles = (theme: any, isDark: boolean) =>
       color: theme.text,
     },
     sectionBody: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: theme.textSecondary,
       lineHeight: 22,
     },
     feedbackText: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: '#2563eb',
     },
     gradeText: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       color: '#16a34a',
       fontWeight: '700',
     },
@@ -356,7 +369,7 @@ const createStyles = (theme: any, isDark: boolean) =>
       color: '#2563eb',
     },
     textInput: {
-      ...theme.typography.body,
+      ...theme.typography.body2,
       minHeight: 180,
       borderRadius: 20,
       borderWidth: 1,

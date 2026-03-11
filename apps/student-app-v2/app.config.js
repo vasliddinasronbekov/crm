@@ -5,7 +5,7 @@
 
 module.exports = {
   expo: {
-    name: "EduVoice Student",
+    name: "EDUOS Student App",
     slug: "student-app-v2",
     version: "2.0.0",
     orientation: "portrait",

@@ -12,8 +12,9 @@ import { NativeStackNavigationProp } from '@react-navigation/native-stack';
 import { useFocusEffect, useNavigation } from '@react-navigation/native';
 import { MaterialCommunityIcons } from '@expo/vector-icons';
 import { useQuery } from '@tanstack/react-query';
+import { useTranslation } from 'react-i18next';
 
-import { useTheme, lessonService, coursesApi } from '@eduvoice/mobile-shared';
+import { coursesApi, lessonService, useTheme } from '@eduvoice/mobile-shared';
 
 import { FeatureCard } from '../components/app/FeatureCard';
 import { GlassCard } from '../components/app/GlassCard';
@@ -29,16 +30,30 @@ import type { AppStackParamList } from '../navigation/types';
 
 type NavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
+type ContinueLessonView = {
+  lessonId: number;
+  title: string;
+  moduleTitle: string;
+  lessonType?: string;
+  completion: number;
+};
+
+const getViewerType = (lessonType?: string) =>
+  lessonType === 'book' || lessonType === 'video' || lessonType === 'article'
+    ? lessonType
+    : undefined;
+
 export const LearnHubScreen = () => {
   const navigation = useNavigation<NavigationProp>();
-  const { theme } = useTheme();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const { theme, isDark } = useTheme();
+  const { t } = useTranslation();
+  const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]);
 
   const lessonsQuery = useQuery({
     queryKey: ['learn-hub-lessons'],
     queryFn: async () => {
       const response = await lessonService.getLessons({ page_size: 1000 });
-      return response.results || [];
+      return response.results ?? [];
     },
   });
 
@@ -83,7 +98,7 @@ export const LearnHubScreen = () => {
       void backendContinueQuery.refetch();
       void recentQuery.refetch();
       void bookmarkQuery.refetch();
-    }, [backendContinueQuery, bookmarkQuery, continueQuery, recentQuery])
+    }, [backendContinueQuery, bookmarkQuery, continueQuery, recentQuery]),
   );
 
   const isLoading =
@@ -102,22 +117,34 @@ export const LearnHubScreen = () => {
     recentQuery.isRefetching ||
     bookmarkQuery.isRefetching;
 
-  const continueLesson = backendContinueQuery.data
-    ? {
-        lessonId: backendContinueQuery.data.id,
-        title: backendContinueQuery.data.title,
-        moduleTitle: backendContinueQuery.data.module_title || 'Module',
-        lessonType: backendContinueQuery.data.lesson_type,
-        completion: backendContinueQuery.data.student_progress?.completion_percentage || 0,
-      }
-    : continueQuery.data;
-  const recentLessons = recentQuery.data || [];
-  const bookmarkedLessons = bookmarkQuery.data || [];
+  const backendContinue = backendContinueQuery.data;
+  const localContinue = continueQuery.data;
 
-  const getViewerType = (lessonType?: string) =>
-    lessonType === 'book' || lessonType === 'video' || lessonType === 'article'
-      ? lessonType
-      : undefined;
+  let continueLesson: ContinueLessonView | null = null;
+
+  if (backendContinue !== null && backendContinue !== undefined) {
+    continueLesson = {
+      lessonId: backendContinue.id,
+      title: backendContinue.title,
+      moduleTitle:
+        backendContinue.module_title !== undefined && backendContinue.module_title !== null
+          ? backendContinue.module_title
+          : 'Module',
+      lessonType: backendContinue.lesson_type,
+      completion: backendContinue.student_progress?.completion_percentage ?? 0,
+    };
+  } else if (localContinue !== null && localContinue !== undefined) {
+    continueLesson = {
+      lessonId: localContinue.lessonId,
+      title: localContinue.title,
+      moduleTitle: localContinue.moduleTitle,
+      lessonType: localContinue.lessonType,
+      completion: localContinue.completion,
+    };
+  }
+
+  const recentLessons = recentQuery.data ?? [];
+  const bookmarkedLessons = bookmarkQuery.data ?? [];
 
   const lessonCounts = useMemo(() => {
     const summary = {
@@ -128,7 +155,7 @@ export const LearnHubScreen = () => {
       interactive: 0,
     };
 
-    for (const lesson of lessonsQuery.data || []) {
+    for (const lesson of lessonsQuery.data ?? []) {
       if (lesson.lesson_type === 'text') {
         summary.article += 1;
         continue;
@@ -142,6 +169,36 @@ export const LearnHubScreen = () => {
     return summary;
   }, [lessonsQuery.data]);
 
+  const quickLaunch = useMemo(
+    () => [
+      {
+        key: 'courses',
+        label: t('widgets.courses'),
+        icon: 'school-outline',
+        onPress: () => navigation.navigate('Courses'),
+      },
+      {
+        key: 'library',
+        label: t('widgets.library'),
+        icon: 'library-shelves',
+        onPress: () => navigation.navigate('Library'),
+      },
+      {
+        key: 'quizzes',
+        label: t('widgets.quizzes'),
+        icon: 'text-box-check-outline',
+        onPress: () => navigation.navigate('Quizzes'),
+      },
+      {
+        key: 'assignments',
+        label: t('assignments.assignments'),
+        icon: 'clipboard-text-outline',
+        onPress: () => navigation.navigate('Assignments'),
+      },
+    ],
+    [navigation, t],
+  );
+
   if (isLoading) {
     return (
       <View style={styles.loadingState}>
@@ -154,6 +211,7 @@ export const LearnHubScreen = () => {
   return (
     <ScrollView
       style={styles.container}
+      contentContainerStyle={styles.content}
       refreshControl={
         <RefreshControl
           refreshing={isRefreshing}
@@ -171,69 +229,109 @@ export const LearnHubScreen = () => {
         />
       }
     >
-      <View style={styles.hero}>
-        <View style={styles.heroIcon}>
-          <MaterialCommunityIcons name="book-education-outline" size={28} color={theme.colors.primary500} />
+      <GlassCard style={styles.heroCard}>
+        <View style={styles.heroTopRow}>
+          <View style={styles.heroBadge}>
+            <MaterialCommunityIcons
+              name="book-education-outline"
+              size={16}
+              color={theme.colors.primary500}
+            />
+            <Text style={styles.heroBadgeText}>Learn Workspace</Text>
+          </View>
         </View>
-        <View style={styles.heroCopy}>
-          <Text style={styles.heroTitle}>Learn</Text>
-          <Text style={styles.heroSubtitle}>
-            Courses, books, videos, quizzes, and assignments in one clean flow.
-          </Text>
-        </View>
-      </View>
 
-      <View style={styles.statsRow}>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{(coursesQuery.data || []).length}</Text>
-          <Text style={styles.statLabel}>Enrolled Courses</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{(quizzesQuery.data || []).length}</Text>
-          <Text style={styles.statLabel}>Quizzes</Text>
-        </View>
-        <View style={styles.statCard}>
-          <Text style={styles.statValue}>{(assignmentsQuery.data || []).length}</Text>
-          <Text style={styles.statLabel}>Assignments</Text>
-        </View>
-      </View>
+        <Text style={styles.heroTitle}>Learn</Text>
+        <Text style={styles.heroSubtitle}>
+          Courses, videos, assignments, and practice tools in one operational flow.
+        </Text>
 
-      {continueLesson ? (
-        <GlassCard style={styles.continueCardPremium}>
-          <View style={styles.continueHeader}>
-            <View style={styles.continueBadge}>
-              <MaterialCommunityIcons name="play-circle-outline" size={22} color={theme.colors.primary500} />
+        <View style={styles.heroStatsRow}>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{(coursesQuery.data ?? []).length}</Text>
+            <Text style={styles.heroStatLabel}>Courses</Text>
+          </View>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{(quizzesQuery.data ?? []).length}</Text>
+            <Text style={styles.heroStatLabel}>Quizzes</Text>
+          </View>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{(assignmentsQuery.data ?? []).length}</Text>
+            <Text style={styles.heroStatLabel}>Assignments</Text>
+          </View>
+        </View>
+      </GlassCard>
+
+      {continueLesson !== null ? (
+        <GlassCard style={styles.spotlightCard}>
+          <View style={styles.spotlightHeader}>
+            <View style={styles.spotlightIcon}>
+              <MaterialCommunityIcons
+                name="play-circle-outline"
+                size={20}
+                color={theme.colors.primary500}
+              />
             </View>
-            <View style={styles.continueMeta}>
-              <Text style={styles.continueTitle}>Continue Learning</Text>
-              <Text style={styles.continueSubtitle}>
-                {continueLesson.title} • {continueLesson.moduleTitle}
+            <View style={styles.spotlightMeta}>
+              <Text style={styles.spotlightTitle}>Continue learning</Text>
+              <Text style={styles.spotlightSubtitle} numberOfLines={1}>
+                {continueLesson.title}
+              </Text>
+              <Text style={styles.spotlightModule} numberOfLines={1}>
+                {continueLesson.moduleTitle}
               </Text>
             </View>
           </View>
-          <View style={styles.continueFooter}>
-            <Text style={styles.continueProgress}>{continueLesson.completion}% complete</Text>
+
+          <View style={styles.spotlightFooter}>
+            <Text style={styles.spotlightProgress}>{continueLesson.completion}% complete</Text>
             <TouchableOpacity
-              style={styles.continueButton}
+              style={styles.spotlightButton}
               onPress={() =>
                 navigation.navigate('LessonViewer', {
                   lessonId: continueLesson.lessonId,
                   initialType: getViewerType(continueLesson.lessonType),
                 })
               }
+              activeOpacity={0.85}
             >
-              <Text style={styles.continueButtonText}>Resume</Text>
+              <Text style={styles.spotlightButtonText}>Resume</Text>
             </TouchableOpacity>
           </View>
         </GlassCard>
       ) : null}
 
+      <View style={styles.quickLaunchRow}>
+        {quickLaunch.map((item) => (
+          <TouchableOpacity
+            key={item.key}
+            onPress={item.onPress}
+            style={styles.quickLaunchCard}
+            activeOpacity={0.86}
+          >
+            <View style={styles.quickLaunchIcon}>
+              <MaterialCommunityIcons
+                name={item.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+                size={17}
+                color={theme.colors.primary500}
+              />
+            </View>
+            <Text style={styles.quickLaunchLabel} numberOfLines={1}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
+      </View>
+
       {recentLessons.length > 0 ? (
         <View style={styles.section}>
           <View style={styles.sectionHeader}>
             <Text style={styles.sectionTitle}>Recently Viewed</Text>
-            <Text style={styles.sectionSubtitle}>Jump back into your latest study sessions.</Text>
+            <Text style={styles.sectionSubtitle}>
+              Jump back to your latest lessons in one tap.
+            </Text>
           </View>
+
           <View style={styles.recentList}>
             {recentLessons.map((lesson) => (
               <TouchableOpacity
@@ -245,11 +343,22 @@ export const LearnHubScreen = () => {
                     initialType: getViewerType(lesson.lessonType),
                   })
                 }
-                activeOpacity={0.9}
+                activeOpacity={0.88}
               >
-                <Text style={styles.recentCardTitle} numberOfLines={1}>{lesson.title}</Text>
-                <Text style={styles.recentCardMeta} numberOfLines={1}>{lesson.moduleTitle}</Text>
-                <Text style={styles.recentCardProgress}>{lesson.completion}% complete</Text>
+                <View style={styles.recentTopRow}>
+                  <Text style={styles.recentTitle} numberOfLines={1}>
+                    {lesson.title}
+                  </Text>
+                  <MaterialCommunityIcons
+                    name="chevron-right"
+                    size={18}
+                    color={theme.textSecondary}
+                  />
+                </View>
+                <Text style={styles.recentMeta} numberOfLines={1}>
+                  {lesson.moduleTitle}
+                </Text>
+                <Text style={styles.recentProgress}>{lesson.completion}% complete</Text>
               </TouchableOpacity>
             ))}
           </View>
@@ -259,22 +368,22 @@ export const LearnHubScreen = () => {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Core Learning</Text>
-          <Text style={styles.sectionSubtitle}>Start from your active study paths.</Text>
+          <Text style={styles.sectionSubtitle}>Start from high-impact daily workflows.</Text>
         </View>
 
         <View style={styles.grid}>
           <FeatureCard
             title="Courses"
-            description="Open enrolled courses, continue lessons, and track progress."
+            description="Track modules and continue your assigned learning path."
             icon="school-outline"
             accentColor={theme.colors.primary500}
-            badge={`${(coursesQuery.data || []).length}`}
+            badge={`${(coursesQuery.data ?? []).length}`}
             onPress={() => navigation.navigate('Courses')}
             style={styles.gridItem}
           />
           <FeatureCard
             title="Library"
-            description="Browse every lesson type from one organized content hub."
+            description="Open books, videos, and articles from one organized feed."
             icon="library-shelves"
             accentColor={theme.colors.warning500}
             onPress={() => navigation.navigate('Library')}
@@ -286,13 +395,13 @@ export const LearnHubScreen = () => {
       <View style={styles.section}>
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>Content Formats</Text>
-          <Text style={styles.sectionSubtitle}>Jump directly into the format you need.</Text>
+          <Text style={styles.sectionSubtitle}>Pick the format that matches your session.</Text>
         </View>
 
         <View style={styles.grid}>
           <FeatureCard
             title="Books"
-            description="Read PDF and book lessons with progress-aware access."
+            description="Read PDF and book lessons with progress checkpoints."
             icon="book-open-page-variant-outline"
             accentColor="#16a34a"
             badge={`${lessonCounts.book}`}
@@ -301,7 +410,7 @@ export const LearnHubScreen = () => {
           />
           <FeatureCard
             title="Videos"
-            description="Continue watching lesson videos and resume where you stopped."
+            description="Resume lesson videos from your last watched position."
             icon="play-box-multiple-outline"
             accentColor="#dc2626"
             badge={`${lessonCounts.video}`}
@@ -310,7 +419,7 @@ export const LearnHubScreen = () => {
           />
           <FeatureCard
             title="Articles"
-            description="Open article-based lessons, reading passages, and quick notes."
+            description="Read article lessons and practice passage-based study."
             icon="text-box-multiple-outline"
             accentColor="#7c3aed"
             badge={`${lessonCounts.article}`}
@@ -319,46 +428,54 @@ export const LearnHubScreen = () => {
           />
           <FeatureCard
             title="Quizzes"
-            description="Practice graded, exam, and survey-style assessments."
+            description="Run graded and practice quizzes by topic and level."
             icon="text-box-check-outline"
-            accentColor="#7c3aed"
-            badge={`${(quizzesQuery.data || []).length}`}
+            accentColor="#8b5cf6"
+            badge={`${(quizzesQuery.data ?? []).length}`}
             onPress={() => navigation.navigate('Quizzes')}
             style={styles.gridItem}
           />
           <FeatureCard
             title="Assignments"
-            description="View deadlines, submit work, and track evaluation status."
+            description="Submit work, monitor status, and check grading updates."
             icon="clipboard-text-outline"
             accentColor="#0f766e"
-            badge={`${(assignmentsQuery.data || []).length}`}
+            badge={`${(assignmentsQuery.data ?? []).length}`}
             onPress={() => navigation.navigate('Assignments')}
             style={styles.gridItem}
           />
         </View>
       </View>
 
-      <TouchableOpacity style={styles.continueCard} onPress={() => navigation.navigate('Courses')}>
-        <MaterialCommunityIcons name="rocket-launch-outline" size={24} color={theme.colors.primary500} />
-        <View style={styles.continueCopy}>
-          <Text style={styles.continueTitle}>Continue Learning</Text>
-          <Text style={styles.continueSubtitle}>
-            {bookmarkedLessons.length > 0
-              ? `${bookmarkedLessons.length} bookmarked lessons ready for review.`
-              : 'Go back to your active courses and keep your momentum.'}
-          </Text>
+      <GlassCard style={styles.focusCard}>
+        <View style={styles.focusHeader}>
+          <MaterialCommunityIcons
+            name="bookmark-check-outline"
+            size={18}
+            color={theme.colors.primary500}
+          />
+          <Text style={styles.focusTitle}>Focus Queue</Text>
         </View>
-        <MaterialCommunityIcons name="chevron-right" size={22} color={theme.textSecondary} />
-      </TouchableOpacity>
+        <Text style={styles.focusSubtitle}>
+          {bookmarkedLessons.length > 0
+            ? `${bookmarkedLessons.length} bookmarked lessons are ready for your next study block.`
+            : 'Bookmark key lessons to build a focused review queue.'}
+        </Text>
+      </GlassCard>
     </ScrollView>
   );
 };
 
-const createStyles = (theme: any) =>
+const createStyles = (theme: any, isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
       backgroundColor: theme.background,
+    },
+    content: {
+      padding: theme.spacing.lg,
+      paddingBottom: theme.spacing.xxxl,
+      gap: theme.spacing.md,
     },
     loadingState: {
       flex: 1,
@@ -372,24 +489,29 @@ const createStyles = (theme: any) =>
       color: theme.textSecondary,
       fontSize: 15,
     },
-    hero: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.lg,
-      paddingBottom: theme.spacing.md,
+    heroCard: {
+      padding: theme.spacing.lg,
       gap: theme.spacing.md,
     },
-    heroIcon: {
-      width: 52,
-      height: 52,
-      borderRadius: 18,
-      backgroundColor: theme.primaryContainer,
+    heroTopRow: {
+      flexDirection: 'row',
       alignItems: 'center',
-      justifyContent: 'center',
+      justifyContent: 'space-between',
     },
-    heroCopy: {
-      flex: 1,
+    heroBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: isDark ? 'rgba(59,130,246,0.18)' : 'rgba(219,234,254,0.85)',
+    },
+    heroBadgeText: {
+      color: theme.colors.primary500,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.2,
     },
     heroTitle: {
       color: theme.text,
@@ -400,81 +522,129 @@ const createStyles = (theme: any) =>
       color: theme.textSecondary,
       fontSize: 14,
       lineHeight: 21,
+      marginTop: -4,
+    },
+    heroStatsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: theme.spacing.xs,
+    },
+    heroStat: {
+      flex: 1,
+      borderRadius: 16,
+      backgroundColor: isDark ? 'rgba(15,23,42,0.55)' : 'rgba(248,250,252,0.9)',
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+    },
+    heroStatValue: {
+      color: theme.text,
+      fontSize: 17,
+      fontWeight: '800',
+    },
+    heroStatLabel: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
       marginTop: 4,
     },
-    statsRow: {
-      flexDirection: 'row',
-      gap: theme.spacing.sm,
-      paddingHorizontal: theme.spacing.lg,
-      paddingBottom: theme.spacing.md,
-    },
-    statCard: {
-      flex: 1,
-      backgroundColor: theme.surface,
-      borderRadius: 18,
+    spotlightCard: {
       padding: theme.spacing.md,
+      gap: theme.spacing.md,
+    },
+    spotlightHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+    },
+    spotlightIcon: {
+      width: 44,
+      height: 44,
+      borderRadius: 14,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(59,130,246,0.18)' : 'rgba(219,234,254,0.88)',
       borderWidth: 1,
       borderColor: theme.border,
     },
-    statValue: {
-      color: theme.text,
-      fontSize: 22,
-      fontWeight: '800',
-    },
-    statLabel: {
-      color: theme.textSecondary,
-      fontSize: 12,
-      marginTop: 6,
-    },
-    continueCardPremium: {
-      marginHorizontal: theme.spacing.lg,
-      padding: theme.spacing.md,
-      borderRadius: 24,
-      gap: theme.spacing.md,
-    },
-    continueHeader: {
-      flexDirection: 'row',
-      alignItems: 'center',
-      gap: theme.spacing.md,
-    },
-    continueBadge: {
-      width: 46,
-      height: 46,
-      borderRadius: 16,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: theme.primaryContainer,
-    },
-    continueMeta: {
+    spotlightMeta: {
       flex: 1,
     },
-    continueFooter: {
+    spotlightTitle: {
+      color: theme.text,
+      fontSize: 14,
+      fontWeight: '700',
+    },
+    spotlightSubtitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '700',
+      marginTop: 2,
+    },
+    spotlightModule: {
+      color: theme.textSecondary,
+      fontSize: 12,
+      marginTop: 2,
+    },
+    spotlightFooter: {
       flexDirection: 'row',
       alignItems: 'center',
       justifyContent: 'space-between',
     },
-    continueProgress: {
+    spotlightProgress: {
       color: theme.textSecondary,
       fontSize: 13,
       fontWeight: '600',
     },
-    continueButton: {
+    spotlightButton: {
       paddingHorizontal: theme.spacing.md,
-      paddingVertical: 10,
-      borderRadius: 14,
+      paddingVertical: 9,
+      borderRadius: 12,
       backgroundColor: theme.colors.primary500,
     },
-    continueButtonText: {
-      color: theme.colors.white,
+    spotlightButtonText: {
+      color: '#ffffff',
       fontSize: 13,
       fontWeight: '700',
     },
+    quickLaunchRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+    },
+    quickLaunchCard: {
+      width: '48.5%',
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: isDark ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.86)',
+      paddingVertical: 10,
+      paddingHorizontal: 12,
+    },
+    quickLaunchIcon: {
+      width: 30,
+      height: 30,
+      borderRadius: 10,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(59,130,246,0.16)' : 'rgba(219,234,254,0.85)',
+    },
+    quickLaunchLabel: {
+      flex: 1,
+      color: theme.text,
+      fontSize: 13,
+      fontWeight: '600',
+    },
     section: {
-      paddingHorizontal: theme.spacing.lg,
-      paddingTop: theme.spacing.md,
+      gap: theme.spacing.sm,
     },
     sectionHeader: {
-      marginBottom: theme.spacing.md,
+      marginTop: theme.spacing.sm,
+      gap: 4,
     },
     sectionTitle: {
       color: theme.text,
@@ -484,66 +654,65 @@ const createStyles = (theme: any) =>
     sectionSubtitle: {
       color: theme.textSecondary,
       fontSize: 13,
-      marginTop: 4,
     },
     grid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
-      gap: theme.spacing.sm,
+      gap: theme.spacing.md,
+    },
+    gridItem: {
+      width: '47%',
     },
     recentList: {
       gap: theme.spacing.sm,
     },
     recentCard: {
-      backgroundColor: theme.surface,
-      borderRadius: 18,
-      padding: theme.spacing.md,
+      borderRadius: 16,
       borderWidth: 1,
       borderColor: theme.border,
+      backgroundColor: isDark ? 'rgba(15,23,42,0.55)' : 'rgba(255,255,255,0.86)',
+      padding: theme.spacing.md,
     },
-    recentCardTitle: {
+    recentTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: 10,
+    },
+    recentTitle: {
+      flex: 1,
       color: theme.text,
       fontSize: 15,
       fontWeight: '700',
     },
-    recentCardMeta: {
+    recentMeta: {
       color: theme.textSecondary,
       fontSize: 12,
       marginTop: 4,
     },
-    recentCardProgress: {
+    recentProgress: {
       color: theme.colors.primary500,
       fontSize: 12,
       fontWeight: '700',
-      marginTop: 10,
+      marginTop: 8,
     },
-    gridItem: {
-      width: '48.6%',
+    focusCard: {
+      padding: theme.spacing.lg,
+      gap: theme.spacing.sm,
     },
-    continueCard: {
-      margin: theme.spacing.lg,
-      marginTop: theme.spacing.xl,
-      backgroundColor: theme.surface,
-      borderRadius: 20,
-      padding: theme.spacing.md,
-      borderWidth: 1,
-      borderColor: theme.border,
+    focusHeader: {
       flexDirection: 'row',
       alignItems: 'center',
-      gap: theme.spacing.md,
+      gap: 8,
     },
-    continueCopy: {
-      flex: 1,
-    },
-    continueTitle: {
+    focusTitle: {
       color: theme.text,
       fontSize: 16,
       fontWeight: '700',
     },
-    continueSubtitle: {
+    focusSubtitle: {
       color: theme.textSecondary,
       fontSize: 13,
-      lineHeight: 19,
-      marginTop: 4,
+      lineHeight: 20,
     },
   });

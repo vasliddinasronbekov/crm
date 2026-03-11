@@ -5,6 +5,7 @@ import {
   ScrollView,
   StyleSheet,
   Text,
+  TouchableOpacity,
   View,
 } from 'react-native';
 import { useNavigation } from '@react-navigation/native';
@@ -22,25 +23,43 @@ import type { AppStackParamList } from '../navigation/types';
 
 type HomeScreenNavigationProp = NativeStackNavigationProp<AppStackParamList>;
 
-const extractResults = (payload: any) => {
+type HomeEvent = {
+  id: number | string;
+  title: string;
+  date: string;
+  time_start?: string;
+  time_end?: string;
+  location?: string | null;
+};
+
+const extractResults = (payload: any): HomeEvent[] => {
   if (Array.isArray(payload)) {
-    return payload;
+    return payload as HomeEvent[];
   }
   if (Array.isArray(payload?.results)) {
-    return payload.results;
+    return payload.results as HomeEvent[];
   }
   if (Array.isArray(payload?.data?.results)) {
-    return payload.data.results;
+    return payload.data.results as HomeEvent[];
   }
   return [];
+};
+
+const getEventTimestamp = (event: HomeEvent | undefined) => {
+  if (event === undefined || event.date.length === 0) return Number.NaN;
+  const startTime = event.time_start !== undefined && event.time_start.length > 0
+    ? event.time_start
+    : '00:00:00';
+  const dateTime = `${event.date}T${startTime}`;
+  return new Date(dateTime).getTime();
 };
 
 export const HomeScreen = () => {
   const navigation = useNavigation<HomeScreenNavigationProp>();
   const { user } = useAuthStore();
-  const { theme } = useTheme();
+  const { theme, isDark } = useTheme();
   const { t } = useTranslation();
-  const styles = useMemo(() => createStyles(theme), [theme]);
+  const styles = useMemo(() => createStyles(theme, isDark), [theme, isDark]);
 
   const {
     data: events = [],
@@ -59,7 +78,7 @@ export const HomeScreen = () => {
     queryKey: ['home-stats'],
     queryFn: async () => {
       const response = await apiClient.get('/api/v1/student-profile/student/statistics/');
-      return response.data || {};
+      return response.data ?? {};
     },
   });
 
@@ -73,7 +92,7 @@ export const HomeScreen = () => {
     queryFn: async () => {
       try {
         const response = await apiClient.getGamificationProfile();
-        return response.data || {};
+        return response.data ?? {};
       } catch (error) {
         return {};
       }
@@ -83,53 +102,82 @@ export const HomeScreen = () => {
   const isLoading = eventsLoading || studentStatsLoading || coursesLoading;
   const coins = studentStats?.total_coins ?? profile?.coins ?? 0;
   const level = profile?.level ?? studentStats?.level ?? 1;
-  const rank = profile?.rank ?? '--';
   const attendance = studentStats?.attendance_percentage ?? 0;
 
-  const quickActions = [
-    {
-      title: t('home.studyFlow'),
-      description: t('home.openLearn'),
-      icon: 'book-education-outline' as const,
-      accentColor: theme.colors.primary500,
-      onPress: () => navigation.navigate('Courses'),
-    },
-    {
-      title: t('home.examFlow'),
-      description: t('home.openExams'),
-      icon: 'clipboard-text-clock-outline' as const,
-      accentColor: theme.colors.warning500,
-      onPress: () => navigation.navigate('SATPrep'),
-    },
-    {
-      title: t('home.groupsAction'),
-      description: t('home.groupsActionCopy'),
-      icon: 'account-group-outline' as const,
-      accentColor: '#0891b2',
-      onPress: () => navigation.navigate('Groups'),
-    },
-    {
-      title: t('home.rankingAction'),
-      description: t('home.rankingActionCopy'),
-      icon: 'trophy-outline' as const,
-      accentColor: '#7c3aed',
-      onPress: () => navigation.navigate('Ranking'),
-    },
-    {
-      title: t('home.paymentsAction'),
-      description: t('home.paymentsActionCopy'),
-      icon: 'wallet-outline' as const,
-      accentColor: '#16a34a',
-      onPress: () => navigation.navigate('Payments'),
-    },
-    {
-      title: t('home.libraryAction'),
-      description: t('home.libraryActionCopy'),
-      icon: 'library-shelves' as const,
-      accentColor: '#ea580c',
-      onPress: () => navigation.navigate('Library'),
-    },
-  ];
+  const sortedEvents = useMemo(
+    () =>
+      [...events]
+        .filter((event: HomeEvent) => !Number.isNaN(getEventTimestamp(event)))
+        .sort((a: HomeEvent, b: HomeEvent) => getEventTimestamp(a) - getEventTimestamp(b)),
+    [events],
+  );
+
+  const now = Date.now();
+  const nextEvent = sortedEvents.find((event: HomeEvent) => getEventTimestamp(event) >= now) ?? sortedEvents[0];
+
+  const quickActions = useMemo(
+    () => [
+      {
+        title: t('home.studyFlow'),
+        description: t('home.openLearn'),
+        icon: 'book-education-outline' as const,
+        accentColor: theme.colors.primary500,
+        onPress: () => navigation.navigate('Courses'),
+      },
+      {
+        title: t('home.examFlow'),
+        description: t('home.openExams'),
+        icon: 'clipboard-text-clock-outline' as const,
+        accentColor: theme.colors.warning500,
+        onPress: () => navigation.navigate('SATPrep'),
+      },
+      {
+        title: t('home.groupsAction'),
+        description: t('home.groupsActionCopy'),
+        icon: 'account-group-outline' as const,
+        accentColor: '#0ea5e9',
+        onPress: () => navigation.navigate('Groups'),
+      },
+      {
+        title: t('home.paymentsAction'),
+        description: t('home.paymentsActionCopy'),
+        icon: 'wallet-outline' as const,
+        accentColor: '#16a34a',
+        onPress: () => navigation.navigate('Payments'),
+      },
+    ],
+    [navigation, t, theme.colors.primary500, theme.colors.warning500],
+  );
+
+  const miniActions = useMemo(
+    () => [
+      {
+        key: 'library',
+        label: t('widgets.library'),
+        icon: 'library-shelves',
+        onPress: () => navigation.navigate('Library'),
+      },
+      {
+        key: 'ranking',
+        label: t('home.rankingAction'),
+        icon: 'trophy-outline',
+        onPress: () => navigation.navigate('Ranking'),
+      },
+      {
+        key: 'courses',
+        label: t('widgets.courses'),
+        icon: 'school-outline',
+        onPress: () => navigation.navigate('Courses'),
+      },
+      {
+        key: 'events',
+        label: t('widgets.events'),
+        icon: 'calendar-month-outline',
+        onPress: () => navigation.navigate('Events'),
+      },
+    ],
+    [navigation, t],
+  );
 
   if (isLoading) {
     return (
@@ -147,60 +195,111 @@ export const HomeScreen = () => {
       refreshControl={
         <RefreshControl
           refreshing={isRefetching}
-          onRefresh={refetchEvents}
+          onRefresh={() => {
+            void refetchEvents();
+          }}
           tintColor={theme.colors.primary500}
         />
       }
     >
-      <GlassCard style={styles.hero}>
-        <View style={styles.heroBadge}>
-          <MaterialCommunityIcons
-            name="school-outline"
-            size={28}
-            color={theme.colors.primary500}
-          />
-        </View>
-        <Text style={styles.greeting}>
-          {t('home.hello', { name: user?.full_name || t('settings.studentRole') })}
-        </Text>
-        <Text style={styles.subtitle}>{t('home.readyTitle')}</Text>
-        <View style={styles.heroMetaRow}>
-          <View style={styles.heroMetaPill}>
-            <Text style={styles.heroMetaValue}>{level}</Text>
-            <Text style={styles.heroMetaLabel}>{t('home.levelLabel')}</Text>
+      <GlassCard style={styles.heroCard}>
+        <View style={styles.heroTopRow}>
+          <View style={styles.heroBadge}>
+            <MaterialCommunityIcons
+              name="view-dashboard-outline"
+              size={18}
+              color={theme.colors.primary500}
+            />
+            <Text style={styles.heroBadgeText}>{t('home.dashboard')}</Text>
           </View>
-          <View style={styles.heroMetaPill}>
-            <Text style={styles.heroMetaValue}>#{rank}</Text>
-            <Text style={styles.heroMetaLabel}>{t('home.yourRank')}</Text>
+          <View style={styles.heroAttendance}>
+            <MaterialCommunityIcons
+              name="check-decagram-outline"
+              size={14}
+              color={attendance >= 85 ? '#16a34a' : theme.colors.warning500}
+            />
+            <Text style={styles.heroAttendanceText}>{attendance}%</Text>
+          </View>
+        </View>
+
+        <Text style={styles.heroTitle}>
+          {t('home.hello', { name: user?.full_name ?? t('settings.studentRole') })}
+        </Text>
+        <Text style={styles.heroSubtitle}>{t('home.readyTitle')}</Text>
+
+        <View style={styles.heroStatsRow}>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{level}</Text>
+            <Text style={styles.heroStatLabel}>{t('home.levelLabel')}</Text>
+          </View>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{coins}</Text>
+            <Text style={styles.heroStatLabel}>{t('home.coinsAvailable')}</Text>
+          </View>
+          <View style={styles.heroStat}>
+            <Text style={styles.heroStatValue}>{enrolledCourses.length}</Text>
+            <Text style={styles.heroStatLabel}>{t('home.activeCourses')}</Text>
           </View>
         </View>
       </GlassCard>
 
-      <View style={styles.statsGrid}>
-        <GlassCard style={styles.statCard}>
-          <Text style={styles.statValue}>{enrolledCourses.length}</Text>
-          <Text style={styles.statLabel}>{t('home.activeCourses')}</Text>
-        </GlassCard>
-        <GlassCard style={styles.statCard}>
-          <Text style={styles.statValue}>{coins}</Text>
-          <Text style={styles.statLabel}>{t('home.coinsAvailable')}</Text>
-        </GlassCard>
-        <GlassCard style={styles.statCard}>
-          <Text style={styles.statValue}>{events.length}</Text>
-          <Text style={styles.statLabel}>{t('home.scheduledEvents')}</Text>
-        </GlassCard>
-        <GlassCard style={styles.statCard}>
-          <Text style={styles.statValue}>{attendance}%</Text>
-          <Text style={styles.statLabel}>{t('home.attendanceLabel')}</Text>
-        </GlassCard>
-      </View>
+      <GlassCard style={styles.nextCard}>
+        <View style={styles.sectionInlineHeader}>
+          <Text style={styles.sectionInlineTitle}>{t('home.upcomingEvents')}</Text>
+          <TouchableOpacity onPress={() => navigation.navigate('Events')} activeOpacity={0.9}>
+            <Text style={styles.sectionInlineAction}>{t('common.viewAll')}</Text>
+          </TouchableOpacity>
+        </View>
+
+        {nextEvent !== undefined ? (
+          <View style={styles.nextEventBody}>
+            <View style={styles.nextEventDate}>
+              <Text style={styles.nextEventDay}>{new Date(nextEvent.date).getDate()}</Text>
+              <Text style={styles.nextEventMonth}>
+                {new Date(nextEvent.date).toLocaleString(undefined, { month: 'short' })}
+              </Text>
+            </View>
+            <View style={styles.nextEventMeta}>
+              <Text style={styles.nextEventTitle} numberOfLines={1}>
+                {nextEvent.title}
+              </Text>
+              <Text style={styles.nextEventTime} numberOfLines={1}>
+                {nextEvent.time_start} - {nextEvent.time_end}
+              </Text>
+              <Text style={styles.nextEventLocation} numberOfLines={1}>
+                {nextEvent.location ?? t('home.eventOnline')}
+              </Text>
+            </View>
+            <TouchableOpacity
+              style={styles.nextEventOpen}
+              onPress={() => navigation.navigate('Events')}
+              activeOpacity={0.85}
+            >
+              <MaterialCommunityIcons
+                name="chevron-right"
+                size={20}
+                color={theme.colors.primary500}
+              />
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <View style={styles.emptyNextEvent}>
+            <MaterialCommunityIcons
+              name="calendar-blank-outline"
+              size={20}
+              color={theme.textSecondary}
+            />
+            <Text style={styles.emptyNextEventText}>{t('home.noUpcomingEvents')}</Text>
+          </View>
+        )}
+      </GlassCard>
 
       <View style={styles.sectionHeader}>
         <Text style={styles.sectionTitle}>{t('home.quickActions')}</Text>
         <Text style={styles.sectionSubtitle}>{t('home.readySubtitle')}</Text>
       </View>
 
-      <View style={styles.actionGrid}>
+      <View style={styles.quickActionGrid}>
         {quickActions.map((action) => (
           <FeatureCard
             key={action.title}
@@ -209,83 +308,37 @@ export const HomeScreen = () => {
             icon={action.icon}
             accentColor={action.accentColor}
             onPress={action.onPress}
-            style={styles.actionItem}
+            style={styles.quickActionItem}
           />
         ))}
       </View>
 
-      <View style={styles.sectionHeader}>
-        <Text style={styles.sectionTitle}>{t('home.upcomingEvents')}</Text>
-        <Text style={styles.sectionSubtitle}>{t('home.eventsSubtitle')}</Text>
-      </View>
-
-      <View style={styles.eventsList}>
-        {events.length > 0 ? (
-          events.slice(0, 3).map((event: any) => (
-            <GlassCard key={event.id} style={styles.eventCard}>
-              <View style={styles.eventDateBadge}>
-                <Text style={styles.eventDay}>{new Date(event.date).getDate()}</Text>
-                <Text style={styles.eventMonth}>
-                  {new Date(event.date).toLocaleString(undefined, { month: 'short' })}
-                </Text>
-              </View>
-              <View style={styles.eventContent}>
-                <Text style={styles.eventTitle} numberOfLines={1}>
-                  {event.title}
-                </Text>
-                <Text style={styles.eventMeta} numberOfLines={1}>
-                  {event.time_start} - {event.time_end}
-                </Text>
-                <Text style={styles.eventMeta} numberOfLines={1}>
-                  {event.location || t('home.eventOnline')}
-                </Text>
-              </View>
+      <View style={styles.miniActionRow}>
+        {miniActions.map((item) => (
+          <TouchableOpacity
+            key={item.key}
+            onPress={item.onPress}
+            style={styles.miniAction}
+            activeOpacity={0.85}
+          >
+            <View style={styles.miniActionIcon}>
               <MaterialCommunityIcons
-                name="chevron-right"
-                size={20}
-                color={theme.textSecondary}
+                name={item.icon as keyof typeof MaterialCommunityIcons.glyphMap}
+                size={18}
+                color={theme.colors.primary500}
               />
-            </GlassCard>
-          ))
-        ) : (
-          <GlassCard style={styles.emptyEvents}>
-            <MaterialCommunityIcons
-              name="calendar-blank"
-              size={32}
-              color={theme.textSecondary}
-            />
-            <Text style={styles.emptyEventsText}>{t('home.noUpcomingEvents')}</Text>
-          </GlassCard>
-        )}
+            </View>
+            <Text style={styles.miniActionLabel} numberOfLines={1}>
+              {item.label}
+            </Text>
+          </TouchableOpacity>
+        ))}
       </View>
-
-      <GlassCard style={styles.footerCard}>
-        <Text style={styles.footerTitle}>{t('home.keepMomentumTitle')}</Text>
-        <Text style={styles.footerSubtitle}>{t('home.keepMomentum')}</Text>
-        <View style={styles.footerActions}>
-          <FeatureCard
-            title={t('home.studyFlow')}
-            description={t('home.openLearn')}
-            icon="school-outline"
-            accentColor={theme.colors.primary500}
-            onPress={() => navigation.navigate('Courses')}
-            style={styles.footerAction}
-          />
-          <FeatureCard
-            title={t('home.examFlow')}
-            description={t('home.openExams')}
-            icon="timer-outline"
-            accentColor={theme.colors.warning500}
-            onPress={() => navigation.navigate('SATPrep')}
-            style={styles.footerAction}
-          />
-        </View>
-      </GlassCard>
     </ScrollView>
   );
 };
 
-const createStyles = (theme: any) =>
+const createStyles = (theme: any, isDark: boolean) =>
   StyleSheet.create({
     container: {
       flex: 1,
@@ -308,73 +361,174 @@ const createStyles = (theme: any) =>
       color: theme.textSecondary,
       fontSize: 15,
     },
-    hero: {
+    heroCard: {
       padding: theme.spacing.lg,
-    },
-    heroBadge: {
-      width: 56,
-      height: 56,
-      borderRadius: 20,
-      alignItems: 'center',
-      justifyContent: 'center',
-      backgroundColor: theme.primaryContainer,
-      marginBottom: theme.spacing.md,
-    },
-    greeting: {
-      color: theme.text,
-      fontSize: 28,
-      fontWeight: '800',
-    },
-    subtitle: {
-      color: theme.textSecondary,
-      fontSize: 15,
-      lineHeight: 22,
-      marginTop: theme.spacing.sm,
-    },
-    heroMetaRow: {
-      flexDirection: 'row',
-      gap: theme.spacing.sm,
-      marginTop: theme.spacing.lg,
-    },
-    heroMetaPill: {
-      flex: 1,
-      padding: theme.spacing.md,
-      borderRadius: 18,
-      backgroundColor: 'rgba(59,130,246,0.08)',
-      borderWidth: 1,
-      borderColor: 'rgba(59,130,246,0.18)',
-    },
-    heroMetaValue: {
-      color: theme.text,
-      fontSize: 18,
-      fontWeight: '800',
-    },
-    heroMetaLabel: {
-      color: theme.textSecondary,
-      fontSize: 12,
-      marginTop: 4,
-    },
-    statsGrid: {
-      flexDirection: 'row',
-      flexWrap: 'wrap',
       gap: theme.spacing.md,
     },
-    statCard: {
-      width: '47%',
-      padding: theme.spacing.md,
+    heroTopRow: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
     },
-    statValue: {
+    heroBadge: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 8,
+      paddingHorizontal: 10,
+      paddingVertical: 6,
+      borderRadius: 999,
+      backgroundColor: isDark ? 'rgba(59,130,246,0.2)' : 'rgba(219,234,254,0.82)',
+    },
+    heroBadgeText: {
+      color: theme.colors.primary500,
+      fontSize: 12,
+      fontWeight: '700',
+      letterSpacing: 0.2,
+    },
+    heroAttendance: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: 5,
+      paddingHorizontal: 9,
+      paddingVertical: 5,
+      borderRadius: 999,
+      backgroundColor: isDark ? 'rgba(30,41,59,0.64)' : 'rgba(241,245,249,0.95)',
+      borderWidth: 1,
+      borderColor: theme.border,
+    },
+    heroAttendanceText: {
+      color: theme.textSecondary,
+      fontSize: 12,
+      fontWeight: '700',
+    },
+    heroTitle: {
       color: theme.text,
-      fontSize: 24,
+      fontSize: 27,
+      fontWeight: '800',
+      lineHeight: 34,
+    },
+    heroSubtitle: {
+      color: theme.textSecondary,
+      fontSize: 14,
+      lineHeight: 21,
+      marginTop: -4,
+    },
+    heroStatsRow: {
+      flexDirection: 'row',
+      gap: 10,
+      marginTop: theme.spacing.xs,
+    },
+    heroStat: {
+      flex: 1,
+      borderRadius: 16,
+      backgroundColor: isDark ? 'rgba(15,23,42,0.56)' : 'rgba(248,250,252,0.9)',
+      borderWidth: 1,
+      borderColor: theme.border,
+      paddingVertical: 10,
+      paddingHorizontal: 10,
+    },
+    heroStatValue: {
+      color: theme.text,
+      fontSize: 17,
       fontWeight: '800',
     },
-    statLabel: {
+    heroStatLabel: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      fontWeight: '600',
+      marginTop: 4,
+    },
+    nextCard: {
+      padding: theme.spacing.md,
+      gap: theme.spacing.sm,
+    },
+    sectionInlineHeader: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      paddingHorizontal: 4,
+    },
+    sectionInlineTitle: {
+      color: theme.text,
+      fontSize: 16,
+      fontWeight: '700',
+    },
+    sectionInlineAction: {
+      color: theme.colors.primary500,
+      fontSize: 13,
+      fontWeight: '700',
+    },
+    nextEventBody: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      gap: theme.spacing.md,
+      borderRadius: 16,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: isDark ? 'rgba(2,6,23,0.36)' : 'rgba(248,250,252,0.85)',
+      padding: theme.spacing.md,
+    },
+    nextEventDate: {
+      width: 58,
+      height: 58,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(59,130,246,0.18)' : 'rgba(219,234,254,0.88)',
+    },
+    nextEventDay: {
+      color: theme.colors.primary500,
+      fontSize: 19,
+      fontWeight: '800',
+      lineHeight: 21,
+    },
+    nextEventMonth: {
+      color: theme.textSecondary,
+      fontSize: 11,
+      fontWeight: '700',
+      textTransform: 'uppercase',
+      marginTop: 2,
+    },
+    nextEventMeta: {
+      flex: 1,
+    },
+    nextEventTitle: {
+      color: theme.text,
+      fontSize: 15,
+      fontWeight: '700',
+    },
+    nextEventTime: {
       color: theme.textSecondary,
       fontSize: 13,
-      marginTop: 6,
+      marginTop: 4,
+    },
+    nextEventLocation: {
+      color: theme.textSecondary,
+      fontSize: 12,
+      marginTop: 3,
+    },
+    nextEventOpen: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      alignItems: 'center',
+      justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(59,130,246,0.18)' : 'rgba(219,234,254,0.88)',
+    },
+    emptyNextEvent: {
+      flexDirection: 'row',
+      alignItems: 'center',
+      justifyContent: 'center',
+      gap: 8,
+      paddingVertical: theme.spacing.lg,
+    },
+    emptyNextEventText: {
+      color: theme.textSecondary,
+      fontSize: 14,
     },
     sectionHeader: {
       marginTop: theme.spacing.sm,
+      gap: 4,
     },
     sectionTitle: {
       color: theme.text,
@@ -384,87 +538,45 @@ const createStyles = (theme: any) =>
     sectionSubtitle: {
       color: theme.textSecondary,
       fontSize: 13,
-      marginTop: 4,
     },
-    actionGrid: {
+    quickActionGrid: {
       flexDirection: 'row',
       flexWrap: 'wrap',
       gap: theme.spacing.md,
     },
-    actionItem: {
+    quickActionItem: {
       width: '47%',
     },
-    eventsList: {
-      gap: theme.spacing.md,
+    miniActionRow: {
+      flexDirection: 'row',
+      flexWrap: 'wrap',
+      gap: theme.spacing.sm,
+      marginTop: theme.spacing.xs,
     },
-    eventCard: {
-      padding: theme.spacing.md,
+    miniAction: {
+      width: '48%',
       flexDirection: 'row',
       alignItems: 'center',
-      gap: theme.spacing.md,
+      gap: 10,
+      borderRadius: 14,
+      borderWidth: 1,
+      borderColor: theme.border,
+      backgroundColor: isDark ? 'rgba(15,23,42,0.58)' : 'rgba(255,255,255,0.85)',
+      paddingVertical: 10,
+      paddingHorizontal: 12,
     },
-    eventDateBadge: {
-      width: 60,
-      height: 60,
-      borderRadius: 18,
-      backgroundColor: theme.primaryContainer,
+    miniActionIcon: {
+      width: 30,
+      height: 30,
+      borderRadius: 10,
       alignItems: 'center',
       justifyContent: 'center',
+      backgroundColor: isDark ? 'rgba(59,130,246,0.16)' : 'rgba(219,234,254,0.85)',
     },
-    eventDay: {
-      color: theme.colors.primary500,
-      fontSize: 20,
-      fontWeight: '800',
-    },
-    eventMonth: {
-      color: theme.textSecondary,
-      fontSize: 11,
-      fontWeight: '700',
-      textTransform: 'uppercase',
-    },
-    eventContent: {
+    miniActionLabel: {
       flex: 1,
-    },
-    eventTitle: {
       color: theme.text,
-      fontSize: 16,
-      fontWeight: '700',
-    },
-    eventMeta: {
-      color: theme.textSecondary,
       fontSize: 13,
-      marginTop: 4,
-    },
-    emptyEvents: {
-      padding: theme.spacing.lg,
-      alignItems: 'center',
-      gap: theme.spacing.sm,
-    },
-    emptyEventsText: {
-      color: theme.textSecondary,
-      fontSize: 14,
-      textAlign: 'center',
-    },
-    footerCard: {
-      padding: theme.spacing.lg,
-    },
-    footerTitle: {
-      color: theme.text,
-      fontSize: 20,
-      fontWeight: '800',
-    },
-    footerSubtitle: {
-      color: theme.textSecondary,
-      fontSize: 14,
-      lineHeight: 21,
-      marginTop: theme.spacing.sm,
-    },
-    footerActions: {
-      flexDirection: 'row',
-      gap: theme.spacing.md,
-      marginTop: theme.spacing.lg,
-    },
-    footerAction: {
-      flex: 1,
+      fontWeight: '600',
     },
   });
