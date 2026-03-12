@@ -35,6 +35,7 @@ from .accounting_serializers import (
 )
 from .models import Group, AutomaticFine
 from users.models import User
+from users.permissions import HasRoleCapability
 from .services.financial_automation import accounting_realtime_metrics, reactivate_student_account
 
 
@@ -44,7 +45,12 @@ class StudentAccountViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = StudentAccount.objects.all()
     serializer_class = StudentAccountSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'payments.read',
+        'retrieve': 'payments.read',
+        'reactivate': 'students.reactivate',
+    }
 
     def get_queryset(self):
         user = self.request.user
@@ -81,7 +87,7 @@ class StudentAccountViewSet(viewsets.ReadOnlyModelViewSet):
 
         return queryset.select_related('student').order_by('student__username')
 
-    @action(detail=True, methods=['post'], permission_classes=[permissions.IsAdminUser])
+    @action(detail=True, methods=['post'])
     def reactivate(self, request, pk=None):
         account = self.get_object()
         group_id = request.data.get('group')
@@ -109,7 +115,11 @@ class StudentAccountViewSet(viewsets.ReadOnlyModelViewSet):
 class MonthlySubscriptionChargeViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = MonthlySubscriptionCharge.objects.all()
     serializer_class = MonthlySubscriptionChargeSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'payments.read',
+        'retrieve': 'payments.read',
+    }
 
     def get_queryset(self):
         user = self.request.user
@@ -139,7 +149,11 @@ class MonthlySubscriptionChargeViewSet(viewsets.ReadOnlyModelViewSet):
 class AccountingActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     queryset = AccountingActivityLog.objects.all()
     serializer_class = AccountingActivityLogSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'payments.read',
+        'retrieve': 'payments.read',
+    }
 
     def get_queryset(self):
         user = self.request.user
@@ -173,7 +187,8 @@ class AccountingActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
 
 @extend_schema(responses=OpenApiTypes.OBJECT)
 class RealtimeAccountingDashboardView(APIView):
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    method_capabilities = {'get': 'analytics.view'}
 
     def get(self, request):
         metrics = accounting_realtime_metrics()
@@ -208,7 +223,17 @@ class StudentBalanceViewSet(viewsets.ModelViewSet):
     """
     queryset = StudentBalance.objects.all()
     serializer_class = StudentBalanceSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'payments.read',
+        'retrieve': 'payments.read',
+        'summary': 'payments.read',
+        'create': 'payments.manage',
+        'update': 'payments.manage',
+        'partial_update': 'payments.manage',
+        'destroy': 'payments.manage',
+        'recalculate': 'payments.manage',
+    }
 
     def get_queryset(self):
         user = self.request.user
@@ -293,7 +318,18 @@ class TeacherEarningsViewSet(viewsets.ModelViewSet):
     """
     queryset = TeacherEarnings.objects.all()
     serializer_class = TeacherEarningsSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'payments.read',
+        'retrieve': 'payments.read',
+        'summary': 'payments.read',
+        'by_teacher': 'payments.read',
+        'create': 'payments.manage',
+        'update': 'payments.manage',
+        'partial_update': 'payments.manage',
+        'destroy': 'payments.manage',
+        'mark_paid': 'payments.manage',
+    }
 
     def get_queryset(self):
         user = self.request.user
@@ -426,7 +462,18 @@ class StudentFineViewSet(viewsets.ModelViewSet):
     """
     queryset = StudentFine.objects.all()
     serializer_class = StudentFineSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'payments.read',
+        'retrieve': 'payments.read',
+        'summary': 'payments.read',
+        'create': 'payments.manage',
+        'update': 'payments.manage',
+        'partial_update': 'payments.manage',
+        'destroy': 'payments.manage',
+        'mark_paid': 'payments.manage',
+        'apply_fine': 'payments.manage',
+    }
 
     def get_queryset(self):
         user = self.request.user
@@ -560,7 +607,13 @@ class FinancialSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = FinancialSummary.objects.all()
     serializer_class = FinancialSummarySerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'reports.view',
+        'retrieve': 'reports.view',
+        'monthly_report': 'reports.view',
+        'recalculate': 'reports.manage',
+    }
 
     def get_queryset(self):
         user = self.request.user
@@ -658,7 +711,14 @@ class AccountTransactionViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = AccountTransaction.objects.all()
     serializer_class = AccountTransactionSerializer
-    permission_classes = [permissions.IsAuthenticated]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'payments.read',
+        'retrieve': 'payments.read',
+        'summary': 'payments.read',
+        'by_student': 'payments.read',
+        'by_teacher': 'payments.read',
+    }
 
     def get_queryset(self):
         user = self.request.user

@@ -297,7 +297,7 @@ export default function GroupDetailPage() {
   const { user } = useAuth()
   const permissionState = usePermissions(user)
   const canConfigureGroup = permissionState.hasPermission('groups.edit')
-  const canRecordPayment = permissionState.hasPermission('payments.create')
+  const canRecordPayment = permissionState.hasPermission('payments.record')
   const canViewPayments = permissionState.hasPermission('payments.view')
   const canMarkAttendance = permissionState.hasAnyPermission(['attendance.create', 'attendance.edit'])
   const canViewAttendance = permissionState.hasPermission('attendance.view')

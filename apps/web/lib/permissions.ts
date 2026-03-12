@@ -90,6 +90,8 @@ export type Permission =
   | 'reports.export'
   // Financial
   | 'payments.view'
+  | 'payments.record'
+  | 'payments.manage'
   | 'payments.create'
   | 'payments.edit'
   | 'payments.delete'
@@ -170,7 +172,7 @@ const LEGACY_ROLE_PERMISSIONS: Record<'superuser' | 'staff' | 'teacher' | 'stude
     'attendance.view', 'attendance.create', 'attendance.edit',
     'grades.view', 'grades.create', 'grades.edit',
     'analytics.view', 'reports.view', 'reports.create', 'reports.export',
-    'payments.view', 'payments.create', 'payments.edit', 'payments.delete',
+    'payments.view', 'payments.record', 'payments.manage', 'payments.create', 'payments.edit', 'payments.delete',
     'expenses.view', 'expenses.create', 'expenses.edit', 'expenses.delete',
     'hr.view', 'hr.create', 'hr.edit', 'hr.delete',
     'salaries.view', 'salaries.create', 'salaries.edit',
@@ -203,7 +205,7 @@ const LEGACY_ROLE_PERMISSIONS: Record<'superuser' | 'staff' | 'teacher' | 'stude
     'attendance.view', 'attendance.create', 'attendance.edit',
     'grades.view', 'grades.create', 'grades.edit',
     'analytics.view', 'reports.view', 'reports.create', 'reports.export',
-    'payments.view', 'payments.create', 'payments.edit',
+    'payments.view', 'payments.record', 'payments.manage', 'payments.create', 'payments.edit', 'payments.delete',
     'expenses.view', 'expenses.create', 'expenses.edit',
     'hr.view', 'hr.create', 'hr.edit',
     'salaries.view', 'salaries.create', 'salaries.edit',
@@ -231,6 +233,7 @@ const LEGACY_ROLE_PERMISSIONS: Record<'superuser' | 'staff' | 'teacher' | 'stude
     'attendance.view', 'attendance.create', 'attendance.edit',
     'grades.view', 'grades.create', 'grades.edit',
     'analytics.view', 'reports.view',
+    'payments.view', 'payments.record', 'payments.create',
     'tasks.view', 'tasks.create', 'tasks.edit',
     'messaging.view', 'messaging.send',
     'announcements.view', 'announcements.create',
@@ -435,8 +438,8 @@ export const STAFF_ROUTE_FAMILY_POLICIES: StaffRouteFamilyPolicy[] = [
     family: 'payments_finance',
     patterns: ['/dashboard/payments*', '/dashboard/finance*', '/dashboard/accounting*', '/dashboard/subscriptions*'],
     requiredPermission: 'payments.view',
-    intendedAccess: 'staff_ops_only',
-    backendParityNote: 'Financial endpoints should reject non-ops roles consistently.',
+    intendedAccess: 'staff_and_teacher',
+    backendParityNote: 'Teachers can record payments but edit/delete remains ops-scoped on backend.',
   },
   {
     family: 'expenses',

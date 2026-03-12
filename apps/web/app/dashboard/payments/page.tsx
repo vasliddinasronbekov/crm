@@ -4,8 +4,10 @@ import { useMemo, useState } from 'react'
 import { Search, Plus, Edit, Trash2, DollarSign, Calendar, User, CreditCard, Download, X, CheckCircle, XCircle, Clock, Bell, Send, Settings, Printer } from 'lucide-react'
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useAuth } from '@/contexts/AuthContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import apiService from '@/lib/api'
+import { usePermissions } from '@/lib/permissions'
 import {
   usePaymentsList,
   usePaymentStudents,
@@ -79,7 +81,14 @@ type PaymentGroupOption = {
 }
 
 export default function PaymentsPage() {
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
   const { currency, formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency } = useSettings()
+  const canCreatePayment = permissionState.hasPermission('payments.record')
+  const canManagePaymentRecords = permissionState.hasPermission('payments.manage')
+  const canEditPayment = canManagePaymentRecords
+  const canDeletePayment = canManagePaymentRecords
+  const canManageReminders = canManagePaymentRecords
   // UI state
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
@@ -223,6 +232,11 @@ export default function PaymentsPage() {
   }
 
   const handleAddPayment = async (options?: { autoPrint?: boolean }) => {
+    if (!canCreatePayment) {
+      toast.error('You do not have permission to create payments')
+      return
+    }
+
     if (!newPayment.by_user) {
       toast.warning('Please select a student')
       return
@@ -293,6 +307,11 @@ export default function PaymentsPage() {
   }
 
   const handleEdit = (payment: Payment) => {
+    if (!canEditPayment) {
+      toast.error('You do not have permission to edit payments')
+      return
+    }
+
     setEditingPayment({
       ...payment,
       amount: toSelectedCurrency(payment.amount / 100),
@@ -302,6 +321,10 @@ export default function PaymentsPage() {
 
   const handleSaveEdit = async () => {
     if (!editingPayment) return
+    if (!canEditPayment) {
+      toast.error('You do not have permission to edit payments')
+      return
+    }
 
     updatePayment.mutate(
       {
@@ -321,6 +344,11 @@ export default function PaymentsPage() {
   }
 
   const handleDelete = async (payment: Payment) => {
+    if (!canDeletePayment) {
+      toast.error('You do not have permission to delete payments')
+      return
+    }
+
     if (!confirm(`Are you sure you want to delete this payment?`)) {
       return
     }
@@ -358,10 +386,18 @@ export default function PaymentsPage() {
   const { totalRevenue, pendingAmount, failedAmount, averagePayment } = paymentStats
 
   const handleSendReminder = async (paymentId: number) => {
+    if (!canManageReminders) {
+      toast.error('You do not have permission to send reminders')
+      return
+    }
     sendReminder.mutate(paymentId)
   }
 
   const handleBulkReminders = async () => {
+    if (!canManageReminders) {
+      toast.error('You do not have permission to send reminders')
+      return
+    }
     if (selectedPayments.length === 0) {
       toast.warning('No payments selected')
       return
@@ -375,6 +411,10 @@ export default function PaymentsPage() {
   }
 
   const handleSaveAutoReminderSettings = () => {
+    if (!canManageReminders) {
+      toast.error('You do not have permission to update reminder settings')
+      return
+    }
     saveAutoReminders.mutate(autoReminderSettings, {
       onSuccess: () => {
         setIsSettingsModalOpen(false)
@@ -494,21 +534,25 @@ export default function PaymentsPage() {
           </div>
 
           {/* Actions */}
-          <button
-            onClick={() => setIsSettingsModalOpen(true)}
-            className="btn-secondary flex items-center gap-2 whitespace-nowrap"
-            title="Auto-Reminder Settings"
-          >
-            <Settings className="h-5 w-5" />
-          </button>
+          {canManageReminders && (
+            <>
+              <button
+                onClick={() => setIsSettingsModalOpen(true)}
+                className="btn-secondary flex items-center gap-2 whitespace-nowrap"
+                title="Auto-Reminder Settings"
+              >
+                <Settings className="h-5 w-5" />
+              </button>
 
-          <button
-            onClick={() => setIsReminderModalOpen(true)}
-            className="btn-secondary flex items-center gap-2 whitespace-nowrap"
-          >
-            <Bell className="h-5 w-5" />
-            Reminders
-          </button>
+              <button
+                onClick={() => setIsReminderModalOpen(true)}
+                className="btn-secondary flex items-center gap-2 whitespace-nowrap"
+              >
+                <Bell className="h-5 w-5" />
+                Reminders
+              </button>
+            </>
+          )}
 
           <button
             onClick={exportToCSV}
@@ -520,7 +564,9 @@ export default function PaymentsPage() {
 
           <button
             onClick={() => setIsAddingPayment(true)}
-            className="btn-primary flex items-center gap-2 whitespace-nowrap"
+            className="btn-primary flex items-center gap-2 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
+            disabled={!canCreatePayment}
+            title={!canCreatePayment ? 'You do not have permission to create payments' : undefined}
           >
             <Plus className="h-5 w-5" />
             New Payment
@@ -755,19 +801,23 @@ export default function PaymentsPage() {
                           <Printer className="h-4 w-4 text-info" />
                         </button>
                       )}
-                      <button
-                        onClick={() => handleEdit(payment)}
-                        className="p-2 hover:bg-background rounded-lg transition-colors"
-                      >
-                        <Edit className="h-4 w-4 text-primary" />
-                      </button>
-                      <button
-                        onClick={() => handleDelete(payment)}
-                        disabled={deletePayment.isPending}
-                        className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
-                      >
-                        <Trash2 className="h-4 w-4 text-error" />
-                      </button>
+                      {canEditPayment && (
+                        <button
+                          onClick={() => handleEdit(payment)}
+                          className="p-2 hover:bg-background rounded-lg transition-colors"
+                        >
+                          <Edit className="h-4 w-4 text-primary" />
+                        </button>
+                      )}
+                      {canDeletePayment && (
+                        <button
+                          onClick={() => handleDelete(payment)}
+                          disabled={deletePayment.isPending}
+                          className="p-2 hover:bg-background rounded-lg transition-colors disabled:opacity-50"
+                        >
+                          <Trash2 className="h-4 w-4 text-error" />
+                        </button>
+                      )}
                     </div>
                   </td>
                 </tr>

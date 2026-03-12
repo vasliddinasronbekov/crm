@@ -89,8 +89,11 @@ export function Sidebar() {
   }
 
   const getInitials = () => {
-    if (user?.first_name && user?.last_name) {
-      return `${user.first_name[0]}${user.last_name[0]}`
+    const firstInitial = user?.first_name?.trim()?.charAt(0)
+    const lastInitial = user?.last_name?.trim()?.charAt(0)
+
+    if (firstInitial && lastInitial) {
+      return `${firstInitial}${lastInitial}`.toUpperCase()
     }
     if (user?.username) {
       return user.username.slice(0, 2).toUpperCase()

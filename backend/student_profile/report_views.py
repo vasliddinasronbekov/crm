@@ -26,6 +26,7 @@ from .report_serializers import (
     BulkPaymentReminderSerializer
 )
 from .models import Payment
+from users.permissions import HasRoleCapability
 
 
 class ScheduledReportViewSet(viewsets.ModelViewSet):
@@ -35,7 +36,18 @@ class ScheduledReportViewSet(viewsets.ModelViewSet):
     """
     queryset = ScheduledReport.objects.all()
     serializer_class = ScheduledReportSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'reports.view',
+        'retrieve': 'reports.view',
+        'statistics': 'reports.view',
+        'create': 'reports.create',
+        'update': 'reports.create',
+        'partial_update': 'reports.create',
+        'destroy': 'reports.create',
+        'toggle': 'reports.create',
+        'run_now': 'reports.create',
+    }
 
     def get_queryset(self):
         """Filter scheduled reports based on query parameters"""
@@ -125,7 +137,12 @@ class ReportGenerationViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = ReportGeneration.objects.all()
     serializer_class = ReportGenerationSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'reports.view',
+        'retrieve': 'reports.view',
+        'statistics': 'reports.view',
+    }
 
     def get_queryset(self):
         """Filter report generations based on query parameters"""
@@ -192,7 +209,15 @@ class PaymentReminderSettingsViewSet(viewsets.ModelViewSet):
     """
     queryset = PaymentReminderSettings.objects.all()
     serializer_class = PaymentReminderSettingsSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'payments.manage',
+        'retrieve': 'payments.manage',
+        'create': 'payments.manage',
+        'update': 'payments.manage',
+        'partial_update': 'payments.manage',
+        'destroy': 'payments.manage',
+    }
 
     def list(self, request, *args, **kwargs):
         """Get current settings, create default if none exists"""
@@ -241,7 +266,12 @@ class PaymentReminderViewSet(viewsets.ReadOnlyModelViewSet):
     """
     queryset = PaymentReminder.objects.all()
     serializer_class = PaymentReminderSerializer
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    action_capabilities = {
+        'list': 'payments.manage',
+        'retrieve': 'payments.manage',
+        'statistics': 'payments.manage',
+    }
 
     def get_queryset(self):
         """Filter payment reminders based on query parameters"""
@@ -299,7 +329,8 @@ class BulkPaymentReminderView(APIView):
     """
     API endpoint for sending bulk payment reminders
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    method_capabilities = {'post': 'payments.manage'}
 
     def post(self, request):
         """Send reminders to multiple payments"""
@@ -355,7 +386,8 @@ class PendingPaymentsForRemindersView(APIView):
     """
     API endpoint to get pending payments that need reminders
     """
-    permission_classes = [permissions.IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    method_capabilities = {'get': 'payments.manage'}
 
     def get(self, request):
         """Get pending payments with reminder info"""

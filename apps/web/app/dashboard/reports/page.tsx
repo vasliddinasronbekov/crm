@@ -566,6 +566,7 @@ export default function ReportsPage() {
     enabled: true,
   })
 
+  const canViewReports = permissions.hasPermission('reports.view')
   const canGenerate = permissions.hasPermission('reports.create')
   const canExport = permissions.hasPermission('reports.export')
   const canManageSchedules = canGenerate
@@ -731,6 +732,11 @@ export default function ReportsPage() {
   }
 
   const handleToggleScheduledReport = async (id: number) => {
+    if (!canManageSchedules) {
+      toast.error('You do not have permission to manage schedules.')
+      return
+    }
+
     try {
       await toggleScheduledReportMutation.mutateAsync(id)
       toast.success('Schedule status updated.')
@@ -740,6 +746,11 @@ export default function ReportsPage() {
   }
 
   const handleRunScheduledReportNow = async (id: number) => {
+    if (!canManageSchedules) {
+      toast.error('You do not have permission to manage schedules.')
+      return
+    }
+
     try {
       const response = await runScheduledReportMutation.mutateAsync(id)
       toast.success(response?.message || 'Report generation triggered.')
@@ -750,6 +761,11 @@ export default function ReportsPage() {
   }
 
   const handleDeleteScheduledReport = async (id: number) => {
+    if (!canManageSchedules) {
+      toast.error('You do not have permission to manage schedules.')
+      return
+    }
+
     const confirmed = window.confirm('Delete this scheduled report?')
     if (!confirmed) return
 
@@ -832,6 +848,17 @@ export default function ReportsPage() {
 
   if (isLoadingReports) {
     return <LoadingScreen message="Loading reports workspace..." />
+  }
+
+  if (!canViewReports) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="rounded-2xl border border-error/30 bg-error/10 px-6 py-5 text-center">
+          <p className="mb-1 text-lg font-semibold text-error">Access denied</p>
+          <p className="text-sm text-text-secondary">Your role cannot open reports.</p>
+        </div>
+      </div>
+    )
   }
 
   if (isReportsError) {
@@ -1020,6 +1047,12 @@ export default function ReportsPage() {
             </div>
 
             <div className="space-y-3 rounded-xl border border-border/70 bg-background/50 p-4">
+              {!canManageSchedules && (
+                <div className="rounded-lg border border-border/70 bg-background/70 p-3 text-sm text-text-secondary">
+                  Schedule management is read-only for your role.
+                </div>
+              )}
+
               <div className="grid grid-cols-1 gap-3 md:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs uppercase tracking-wide text-text-secondary">Template</label>
@@ -1028,7 +1061,8 @@ export default function ReportsPage() {
                     onChange={(event) =>
                       setScheduleForm((prev) => ({ ...prev, templateId: event.target.value }))
                     }
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                    disabled={!canManageSchedules}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {REPORT_TEMPLATES.map((template) => (
                       <option key={template.id} value={template.id}>
@@ -1044,7 +1078,8 @@ export default function ReportsPage() {
                     onChange={(event) =>
                       setScheduleForm((prev) => ({ ...prev, frequency: event.target.value as ScheduleFrequency }))
                     }
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                    disabled={!canManageSchedules}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     {FREQUENCY_OPTIONS.map((option) => (
                       <option key={option.value} value={option.value}>
@@ -1064,7 +1099,8 @@ export default function ReportsPage() {
                       onChange={(event) =>
                         setScheduleForm((prev) => ({ ...prev, dayOfWeek: event.target.value }))
                       }
-                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                      disabled={!canManageSchedules}
+                      className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                     >
                       {DAY_OF_WEEK_OPTIONS.map((option) => (
                         <option key={option.value} value={option.value}>
@@ -1082,7 +1118,8 @@ export default function ReportsPage() {
                     onChange={(event) =>
                       setScheduleForm((prev) => ({ ...prev, time: event.target.value }))
                     }
-                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                    disabled={!canManageSchedules}
+                    className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                   />
                 </div>
                 <label className="mt-6 inline-flex items-center gap-2 text-sm">
@@ -1092,7 +1129,8 @@ export default function ReportsPage() {
                     onChange={(event) =>
                       setScheduleForm((prev) => ({ ...prev, enabled: event.target.checked }))
                     }
-                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary"
+                    disabled={!canManageSchedules}
+                    className="h-4 w-4 rounded border-border text-primary focus:ring-primary disabled:cursor-not-allowed disabled:opacity-60"
                   />
                   Enabled
                 </label>
@@ -1106,7 +1144,8 @@ export default function ReportsPage() {
                     setScheduleForm((prev) => ({ ...prev, recipients: event.target.value }))
                   }
                   placeholder="finance@school.uz, owner@school.uz"
-                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none"
+                  disabled={!canManageSchedules}
+                  className="w-full rounded-lg border border-border bg-background px-3 py-2 text-sm focus:border-primary focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
                 />
               </div>
 

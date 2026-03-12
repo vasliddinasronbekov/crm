@@ -33,7 +33,10 @@ import {
 } from '@/lib/hooks/useAnalytics'
 import { useGetLeaderboard } from '@/lib/hooks/useLeaderboard'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useAuth } from '@/contexts/AuthContext'
+import { usePermissions } from '@/lib/permissions'
 import LoadingScreen from '@/components/LoadingScreen'
+import apiService from '@/lib/api'
 
 type TabKey = 'overview' | 'reports'
 
@@ -53,7 +56,11 @@ function getStatusClass(isGood: boolean): string {
 }
 
 export default function AnalyticsPage() {
+  const { user } = useAuth()
+  const permissionState = usePermissions(user)
   const { formatCurrencyFromMinor } = useSettings()
+  const canGenerateReports = permissionState.hasPermission('reports.create')
+  const canExportReports = permissionState.hasPermission('reports.export')
 
   const { data: dashboardStats, isLoading: statsLoading } = useDashboardStats()
   const { data: analytics, isLoading: analyticsLoading } = useAnalytics()
@@ -136,6 +143,11 @@ export default function AnalyticsPage() {
   }
 
   const handleGenerateReport = () => {
+    if (!canGenerateReports) {
+      toast.error('You do not have permission to generate reports.')
+      return
+    }
+
     generateReport.mutate(
       {
         reportType,
@@ -145,6 +157,31 @@ export default function AnalyticsPage() {
         onSuccess: (report) => setSelectedReport(report),
       }
     )
+  }
+
+  const handleExportSelectedReport = async () => {
+    if (!selectedReport) return
+
+    if (!canExportReports) {
+      toast.error('You do not have permission to export reports.')
+      return
+    }
+
+    const reportId = selectedReport.report_id || selectedReport.id
+    try {
+      const blob = await apiService.downloadReport(reportId, 'csv')
+      const fileUrl = window.URL.createObjectURL(blob)
+      const anchor = document.createElement('a')
+      anchor.href = fileUrl
+      anchor.download = `${reportId}.csv`
+      document.body.appendChild(anchor)
+      anchor.click()
+      anchor.remove()
+      window.URL.revokeObjectURL(fileUrl)
+      toast.success('Report exported successfully.')
+    } catch (error: any) {
+      toast.error(error?.response?.data?.detail || 'Failed to export report.')
+    }
   }
 
   if (loading) {
@@ -630,7 +667,7 @@ export default function AnalyticsPage() {
                 <div className="flex items-end">
                   <button
                     onClick={handleGenerateReport}
-                    disabled={generateReport.isPending}
+                    disabled={!canGenerateReports || generateReport.isPending}
                     className="w-full px-6 py-3 bg-primary text-background rounded-xl hover:bg-primary/90 transition-colors font-medium flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {generateReport.isPending ? (
@@ -658,7 +695,11 @@ export default function AnalyticsPage() {
                       Generated: {new Date(selectedReport.generated_at).toLocaleString()} | Period: {selectedReport.period}
                     </p>
                   </div>
-                  <button className="px-4 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors flex items-center gap-2 font-medium">
+                  <button
+                    onClick={handleExportSelectedReport}
+                    disabled={!canExportReports}
+                    className="px-4 py-2 bg-primary/10 text-primary rounded-xl hover:bg-primary/20 transition-colors flex items-center gap-2 font-medium disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
                     <Download className="h-5 w-5" />
                     Export
                   </button>

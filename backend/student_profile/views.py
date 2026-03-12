@@ -74,7 +74,9 @@ from .report_serializers import BulkPaymentReminderSerializer, PaymentReminderSe
 from .services.financial_automation import (
     apply_attendance_policies,
     apply_payment_to_student_account,
+    cleanup_payment_financial_records,
     rollback_paid_payment,
+    sync_payment_financial_records,
 )
 from .receipt_service import (
     build_cash_receipt_payload,
@@ -84,7 +86,7 @@ from .receipt_service import (
 
 
 # --- 4. Ruxsatnomalarni (Permissions) import qilamiz ---
-from .permissions import IsTeacherOrReadOnly, IsAdminOrGroupOwnerOrReadOnly, IsAdminOrReadOnly
+from .permissions import IsTeacherOrReadOnly, IsAdminOrGroupOwnerOrReadOnly
 from users.permissions import HasRoleCapability
 
 
@@ -722,13 +724,13 @@ class ExamScoreViewSet(viewsets.ModelViewSet):
 class PaymentViewSet(viewsets.ModelViewSet):
     queryset = Payment.objects.all()
     serializer_class = PaymentSerializer
-    permission_classes = [permissions.IsAuthenticated, HasRoleCapability, IsAdminOrReadOnly]
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
     action_capabilities = {
         'list': 'payments.read',
         'retrieve': 'payments.read',
         'cash_receipt': 'payments.read',
         'cash_receipt_by_token': 'payments.read',
-        'create': 'payments.manage',
+        'create': 'payments.record',
         'update': 'payments.manage',
         'partial_update': 'payments.manage',
         'destroy': 'payments.manage',
@@ -746,6 +748,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
             payment = serializer.save()
             apply_payment_to_student_account(payment, actor=self.request.user)
             ensure_cash_receipt(payment, actor=self.request.user)
+            sync_payment_financial_records(payment)
 
     def perform_update(self, serializer):
         previous = self.get_object()
@@ -777,10 +780,12 @@ class PaymentViewSet(viewsets.ModelViewSet):
             apply_payment_to_student_account(payment, actor=self.request.user)
 
         ensure_cash_receipt(payment, actor=self.request.user)
+        sync_payment_financial_records(payment)
 
     def perform_destroy(self, instance):
         if instance.status == Payment.PaymentStatus.PAID:
             rollback_paid_payment(instance, actor=self.request.user)
+        cleanup_payment_financial_records(instance)
         super().perform_destroy(instance)
 
     def _create_payment_reminder(self, payment, template='default', custom_message=''):
@@ -1225,12 +1230,43 @@ class StudentUpdateView(generics.UpdateAPIView):
 class CreatePaymentView(APIView):
     permission_classes = [permissions.IsAuthenticated]
     def post(self, request, *args, **kwargs):
+        if getattr(request.user, 'is_staff_portal_user', False):
+            return Response(
+                {
+                    "detail": (
+                        "Legacy student payment endpoint is disabled for staff users. "
+                        "Use /api/v1/payment/ for staff-side payment recording."
+                    ),
+                    "deprecated": True,
+                },
+                status=status.HTTP_410_GONE,
+            )
+
         student_id = request.data.get('student_id')
         amount_in_sum = request.data.get('amount')
         if not student_id or not amount_in_sum:
             return Response({"detail": "student_id va amount majburiy."}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            student_id_int = int(student_id)
+        except (TypeError, ValueError):
+            return Response({"detail": "student_id noto'g'ri formatda."}, status=status.HTTP_400_BAD_REQUEST)
+
+        if request.user.id != student_id_int:
+            return Response(
+                {
+                    "detail": "You can only create payment checkout for your own student account.",
+                    "deprecated": True,
+                },
+                status=status.HTTP_403_FORBIDDEN,
+            )
+
         amount_in_tiyin = int(amount_in_sum) * 100
-        payment = Payment.objects.create(by_user_id=student_id, amount=amount_in_tiyin, status=Payment.PaymentStatus.PENDING)
+        payment = Payment.objects.create(
+            by_user_id=student_id_int,
+            amount=amount_in_tiyin,
+            status=Payment.PaymentStatus.PENDING,
+        )
         payme_url = "https://checkout.test.paycom.uz/api"
         merchant_id = config('PAYME_MERCHANT_ID')
         secret_key = config('PAYME_SECRET_KEY')

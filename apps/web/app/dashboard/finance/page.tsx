@@ -187,7 +187,7 @@ export default function FinanceDashboard() {
   const { currency, formatCurrencyFromMinor, fromSelectedCurrency, toSelectedCurrency } = useSettings()
   const { user } = useAuth()
   const permissionState = usePermissions(user)
-  const canCreatePayment = permissionState.hasPermission('payments.create')
+  const canCreatePayment = permissionState.hasPermission('payments.record')
   const canCreateExpense = permissionState.hasPermission('expenses.create')
 
   const [activeTab, setActiveTab] = useState<FinanceTab>('overview')

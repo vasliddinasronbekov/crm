@@ -15,9 +15,12 @@ from django.utils import timezone
 from users.models import User
 
 from student_profile.accounting_models import (
+    AccountTransaction,
     AccountingActivityLog,
     MonthlySubscriptionCharge,
+    StudentBalance,
     StudentAccount,
+    TeacherEarnings,
 )
 from student_profile.models import Attendance, Group, Payment
 
@@ -278,6 +281,153 @@ def rollback_paid_payment(payment: Payment, actor: Optional[User] = None) -> boo
         metadata={'payment_id': payment.id, 'reason': 'payment_update'},
     )
     return True
+
+
+def _resolve_teacher_for_payment(payment: Payment) -> Optional[User]:
+    if getattr(payment, 'teacher_id', None):
+        return payment.teacher
+    if getattr(payment, 'group_id', None) and payment.group and payment.group.main_teacher_id:
+        return payment.group.main_teacher
+    return None
+
+
+def _teacher_share_percent_for_user(teacher: User) -> int:
+    raw_percent = getattr(teacher, 'salary_percentage', TEACHER_SHARE_PERCENT) or TEACHER_SHARE_PERCENT
+    try:
+        parsed_percent = int(raw_percent)
+    except (TypeError, ValueError):
+        parsed_percent = TEACHER_SHARE_PERCENT
+    return max(0, min(parsed_percent, 100))
+
+
+def _calculate_teacher_earning_amount_tiyin(payment_amount_tiyin: int, share_percent: int) -> int:
+    salary_value = Decimal(int(payment_amount_tiyin)) * Decimal(share_percent) / Decimal(100)
+    return _round_tiyin(salary_value)
+
+
+@transaction.atomic
+def sync_payment_transaction_for_payment(payment: Payment) -> AccountTransaction:
+    balance_before = None
+    balance_after = None
+
+    if payment.by_user_id and payment.group_id:
+        try:
+            balance = StudentBalance.objects.get(student_id=payment.by_user_id, group_id=payment.group_id)
+            balance_after = balance.balance
+            balance_before = balance_after + int(payment.amount or 0)
+        except StudentBalance.DoesNotExist:
+            pass
+
+    transaction = (
+        AccountTransaction.objects.filter(payment=payment, transaction_type='payment')
+        .order_by('-created_at')
+        .first()
+    )
+
+    if not transaction:
+        return AccountTransaction.create_from_payment(payment)
+
+    student_label = payment.by_user.username if payment.by_user else 'Unknown'
+    group_label = payment.group.name if payment.group else 'Unknown'
+
+    transaction.student_id = payment.by_user_id
+    transaction.group_id = payment.group_id
+    transaction.amount = int(payment.amount or 0)
+    transaction.balance_before = balance_before
+    transaction.balance_after = balance_after
+    transaction.status = 'completed' if payment.status == Payment.PaymentStatus.PAID else 'pending'
+    transaction.description = f"Payment from {student_label} for {group_label}"
+    transaction.reference_number = payment.transaction_id or ''
+    transaction.transaction_date = payment.date
+    transaction.created_by_id = payment.by_user_id
+    transaction.save(
+        update_fields=[
+            'student',
+            'group',
+            'amount',
+            'balance_before',
+            'balance_after',
+            'status',
+            'description',
+            'reference_number',
+            'transaction_date',
+            'created_by',
+        ]
+    )
+    return transaction
+
+
+@transaction.atomic
+def sync_teacher_earning_for_payment(payment: Payment) -> Optional[TeacherEarnings]:
+    existing_earning = TeacherEarnings.objects.filter(payment=payment).first()
+    teacher = _resolve_teacher_for_payment(payment)
+
+    if payment.status != Payment.PaymentStatus.PAID or not teacher:
+        if existing_earning:
+            AccountTransaction.objects.filter(payment=payment, transaction_type='teacher_earning').delete()
+            existing_earning.delete()
+        return None
+
+    percentage_applied = _teacher_share_percent_for_user(teacher)
+    payment_amount = int(payment.amount or 0)
+    earning_amount = _calculate_teacher_earning_amount_tiyin(payment_amount, percentage_applied)
+
+    earning, _ = TeacherEarnings.objects.update_or_create(
+        payment=payment,
+        defaults={
+            'teacher': teacher,
+            'group': payment.group,
+            'payment_amount': payment_amount,
+            'percentage_applied': percentage_applied,
+            'amount': earning_amount,
+            'date': payment.date,
+        },
+    )
+
+    earning_transaction = (
+        AccountTransaction.objects.filter(payment=payment, transaction_type='teacher_earning')
+        .order_by('-created_at')
+        .first()
+    )
+    if not earning_transaction:
+        AccountTransaction.create_from_teacher_earning(earning)
+        return earning
+
+    earning_transaction.teacher = teacher
+    earning_transaction.group = payment.group
+    earning_transaction.amount = -earning_amount
+    earning_transaction.status = 'completed' if earning.is_paid_to_teacher else 'pending'
+    earning_transaction.description = f"Teacher earning ({percentage_applied}%) from payment"
+    earning_transaction.transaction_date = earning.date
+    earning_transaction.save(
+        update_fields=[
+            'teacher',
+            'group',
+            'amount',
+            'status',
+            'description',
+            'transaction_date',
+        ]
+    )
+    return earning
+
+
+@transaction.atomic
+def sync_payment_financial_records(payment: Payment) -> None:
+    """
+    Keep payment-linked financial artifacts aligned with the current payment state.
+    """
+    sync_payment_transaction_for_payment(payment)
+    sync_teacher_earning_for_payment(payment)
+
+
+@transaction.atomic
+def cleanup_payment_financial_records(payment: Payment) -> None:
+    """
+    Remove payment-linked derived records when a payment is deleted.
+    """
+    AccountTransaction.objects.filter(payment=payment, transaction_type__in=['payment', 'teacher_earning']).delete()
+    TeacherEarnings.objects.filter(payment=payment).delete()
 
 
 def _month_attendance_summary(student: User, group: Group, target_date: date):

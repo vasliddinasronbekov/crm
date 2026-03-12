@@ -40,6 +40,11 @@ PAYMENT_MANAGEMENT_ROLES = {
     UserRoleEnum.SUPERADMIN.value,
 }
 
+PAYMENT_RECORD_ROLES = {
+    UserRoleEnum.TEACHER.value,
+    *PAYMENT_MANAGEMENT_ROLES,
+}
+
 CRM_VIEW_ROLES = {
     UserRoleEnum.STAFF.value,
     UserRoleEnum.CRM_MANAGER.value,
@@ -91,6 +96,8 @@ REPORTS_CREATE_ROLES = {
 
 REPORTS_EXPORT_ROLES = set(REPORTS_VIEW_ROLES)
 
+REPORTS_MANAGE_ROLES = set(MANAGEMENT_ROLES)
+
 CAPABILITY_MATRIX: dict[str, set[str]] = {
     # Portal routing
     'portal.staff.access': set(STAFF_SIDE_ROLES),
@@ -111,6 +118,7 @@ CAPABILITY_MATRIX: dict[str, set[str]] = {
     'attendance.read': set(ALL_ROLES),
     'attendance.manage': set(ATTENDANCE_MANAGEMENT_ROLES),
     'payments.read': set(ALL_ROLES),
+    'payments.record': set(PAYMENT_RECORD_ROLES),
     'payments.manage': set(PAYMENT_MANAGEMENT_ROLES),
     # Student domain
     'students.read': set(STAFF_SIDE_ROLES),
@@ -175,6 +183,7 @@ CAPABILITY_MATRIX: dict[str, set[str]] = {
     'reports.view': set(REPORTS_VIEW_ROLES),
     'reports.create': set(REPORTS_CREATE_ROLES),
     'reports.export': set(REPORTS_EXPORT_ROLES),
+    'reports.manage': set(REPORTS_MANAGE_ROLES),
 }
 
 
