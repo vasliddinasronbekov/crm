@@ -118,8 +118,8 @@ export default function StudentsPage() {
     const loadStudentAccountStatuses = async () => {
       const currentStudentIds = studentIdsParam
         .split(',')
-        .map((value) => Number(value))
-        .filter((value) => Number.isFinite(value) && value > 0)
+        .map((value: string) => Number(value))
+        .filter((value: number) => Number.isFinite(value) && value > 0)
 
       if (!studentIdsParam) {
         setAccountStatusByStudentId({})
