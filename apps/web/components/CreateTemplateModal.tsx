@@ -1,9 +1,10 @@
 'use client';
 
 import { useState, useEffect, useRef } from 'react';
+import NextImage from 'next/image';
 import axios from 'axios';
 import { toast } from 'react-hot-toast';
-import { X, Plus, Image, Type, Trash2 } from 'lucide-react';
+import { X, Plus, Image as ImageIcon, Type, Trash2 } from 'lucide-react';
 
 interface CertificateTemplate {
   id: number;
@@ -25,6 +26,9 @@ interface Placeholder {
   y: number;
   // In a real app, you'd add font size, color, etc.
 }
+
+const shouldDisableImageOptimization = (src: string): boolean =>
+  src.startsWith('blob:') || src.startsWith('data:');
 
 export function CreateTemplateModal({ template, onClose, onSuccess }: CreateTemplateModalProps) {
   const [name, setName] = useState('');
@@ -159,11 +163,18 @@ export function CreateTemplateModal({ template, onClose, onSuccess }: CreateTemp
           <div className="w-2/3 p-6 flex items-center justify-center bg-background/50 overflow-auto">
             <div className="relative shadow-lg">
                 {previewUrl ? (
-                    <img src={previewUrl} alt="Certificate Preview" className="max-w-full max-h-[75vh]" />
+                    <NextImage
+                      src={previewUrl}
+                      alt="Certificate Preview"
+                      width={1200}
+                      height={850}
+                      className="max-w-full h-auto max-h-[75vh] w-auto"
+                      unoptimized={shouldDisableImageOptimization(previewUrl)}
+                    />
                 ) : (
                     <div className="w-[800px] h-[565px] bg-gray-200 flex items-center justify-center rounded-lg">
                         <div className="text-center text-gray-500">
-                            <Image className="h-16 w-16 mx-auto mb-2" />
+                            <ImageIcon className="h-16 w-16 mx-auto mb-2" />
                             <p>Upload a background to get started</p>
                         </div>
                     </div>

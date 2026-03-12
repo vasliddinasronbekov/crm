@@ -15,6 +15,15 @@ const nextConfig = {
   reactStrictMode: true,
   // Transpile packages
   transpilePackages: ['@tanstack/react-query'],
+  images: {
+    remotePatterns: [
+      { protocol: 'https', hostname: 'api.crmai.uz' },
+      { protocol: 'https', hostname: 'crmai.uz' },
+      { protocol: 'https', hostname: 'www.crmai.uz' },
+      { protocol: 'http', hostname: 'localhost' },
+      { protocol: 'http', hostname: '127.0.0.1' },
+    ],
+  },
 }
 
 module.exports = nextConfig

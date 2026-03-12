@@ -2,6 +2,7 @@
 
 import React, { useState, useRef, useCallback, useEffect } from "react";
 import type { ComponentType, ReactNode } from "react";
+import Image from "next/image";
 import { DndProvider, useDrag, useDrop } from "react-dnd";
 import { HTML5Backend } from "react-dnd-html5-backend";
 import {
@@ -29,6 +30,9 @@ const SafeDndProvider = DndProvider as unknown as ComponentType<{
 
 const PAGE_WIDTH = 842; // A4 Landscape width in points
 const PAGE_HEIGHT = 595; // A4 Landscape height in points
+
+const shouldDisableImageOptimization = (src: string): boolean =>
+  src.startsWith("blob:") || src.startsWith("data:");
 
 // --- Coordinate Conversion Helpers ---
 
@@ -567,10 +571,13 @@ const CertificateEditor: React.FC<CertificateEditorProps> = ({
               />
               {backgroundImageUrl && (
                 <div className="mt-2 relative">
-                  <img
+                  <Image
                     src={backgroundImageUrl}
                     alt="Background Preview"
+                    width={1200}
+                    height={800}
                     className="max-w-full h-auto rounded-lg"
+                    unoptimized={shouldDisableImageOptimization(backgroundImageUrl)}
                   />
                   <button
                     onClick={() => {

@@ -22,5 +22,11 @@
     "bssid": "AA:27:FD:9B:7F:2A",
     "key": "17777777",
     "handshake_file": "hs/handshake_GalaxyA345G8CF1_AA-27-FD-9B-7F-2A_2026-03-12T03-13-43.cap"
+  },
+  {
+    "type": "IGN",
+    "date": 1773299857,
+    "essid": "Redmi 15",
+    "bssid": "8E:04:98:CB:26:EF"
   }
 ]

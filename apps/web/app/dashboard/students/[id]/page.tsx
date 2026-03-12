@@ -1,6 +1,7 @@
 'use client'
 
 import { useState, useEffect } from 'react'
+import NextImage from 'next/image'
 import { useRouter, useParams } from 'next/navigation'
 import apiService from '@/lib/api'
 import { handleApiError, safeAsync } from '@/lib/utils/errorHandler'
@@ -321,9 +322,15 @@ export default function StudentDetailPage() {
           <div className="bg-surface rounded-2xl border border-border p-8 mb-8">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-6">
-                <div className="h-24 w-24 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold text-3xl border-4 border-primary/20">
+                <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold text-3xl border-4 border-primary/20 overflow-hidden">
                   {photo ? (
-                    <img src={photo} alt={first_name} className="h-full w-full rounded-full object-cover" />
+                    <NextImage
+                      src={photo}
+                      alt={first_name}
+                      fill
+                      sizes="96px"
+                      className="rounded-full object-cover"
+                    />
                   ) : (
                     getInitials()
                   )}

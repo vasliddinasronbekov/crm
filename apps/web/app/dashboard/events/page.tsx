@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import NextImage from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
@@ -343,7 +344,13 @@ export default function EventsPage() {
                 {/* Event Image */}
                 <div className="h-48 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center relative">
                   {event.photo ? (
-                    <img src={event.photo} alt={event.title} className="w-full h-full object-cover" />
+                    <NextImage
+                      src={event.photo}
+                      alt={event.title}
+                      fill
+                      sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                      className="object-cover"
+                    />
                   ) : (
                     <Calendar className="h-16 w-16 text-primary/40" />
                   )}

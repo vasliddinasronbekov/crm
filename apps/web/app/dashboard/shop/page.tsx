@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import NextImage from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
@@ -43,6 +44,9 @@ interface Student {
   last_name: string
   username: string
 }
+
+const shouldDisableImageOptimization = (src: string): boolean =>
+  src.startsWith('blob:') || src.startsWith('data:')
 
 export default function ShopPage() {
   const { user, isLoading: authLoading } = useAuth()
@@ -458,9 +462,15 @@ export default function ShopPage() {
                   className="bg-surface border border-border rounded-2xl overflow-hidden hover:border-primary/50 transition-colors"
                 >
                   {/* Product Image */}
-                  <div className="h-48 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+                  <div className="relative h-48 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
                     {product.image ? (
-                      <img src={product.image} alt={product.name} className="w-full h-full object-cover" />
+                      <NextImage
+                        src={product.image}
+                        alt={product.name}
+                        fill
+                        sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"
+                        className="object-cover"
+                      />
                     ) : (
                       <Package className="h-16 w-16 text-primary/40" />
                     )}
@@ -673,12 +683,15 @@ export default function ShopPage() {
               <div>
                 <label className="block text-sm font-medium mb-2">Product Image</label>
                 <div className="flex flex-col md:flex-row gap-4 md:items-center">
-                  <div className="h-32 w-32 rounded-xl border border-border bg-background flex items-center justify-center overflow-hidden">
+                  <div className="relative h-32 w-32 rounded-xl border border-border bg-background flex items-center justify-center overflow-hidden">
                     {productForm.imagePreview ? (
-                      <img
+                      <NextImage
                         src={productForm.imagePreview}
                         alt="Product preview"
-                        className="h-full w-full object-cover"
+                        fill
+                        sizes="128px"
+                        className="object-cover"
+                        unoptimized={shouldDisableImageOptimization(productForm.imagePreview)}
                       />
                     ) : (
                       <Package className="h-10 w-10 text-text-secondary/50" />
