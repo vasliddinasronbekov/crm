@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter, useSearchParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toast } from 'react-hot-toast'
@@ -85,13 +85,7 @@ export default function CreateSATExamPage() {
     },
   ])
 
-  useEffect(() => {
-    if (isEditMode) {
-      loadExam()
-    }
-  }, [examId])
-
-  const loadExam = async () => {
+  const loadExam = useCallback(async () => {
     setLoadingExam(true)
     try {
       const examData = await api.get(`/v1/student-profile/sat/exams/${examId}/`)
@@ -117,7 +111,13 @@ export default function CreateSATExamPage() {
     } finally {
       setLoadingExam(false)
     }
-  }
+  }, [examId])
+
+  useEffect(() => {
+    if (isEditMode) {
+      void loadExam()
+    }
+  }, [isEditMode, loadExam])
 
   const handleExamChange = (field: keyof SATExam, value: any) => {
     setExam((prev) => ({ ...prev, [field]: value }))

@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import NextImage from 'next/image'
 import { useRouter, useParams } from 'next/navigation'
 import apiService from '@/lib/api'
@@ -150,11 +150,7 @@ export default function StudentDetailPage() {
   const [loading, setLoading] = useState(true)
   const [statusAction, setStatusAction] = useState<StudentAccountStatus | null>(null)
 
-  useEffect(() => {
-    loadStudentDetail()
-  }, [studentId])
-
-  const loadStudentDetail = async () => {
+  const loadStudentDetail = useCallback(async () => {
     setLoading(true)
     const result = await safeAsync(
       async () => {
@@ -173,7 +169,11 @@ export default function StudentDetailPage() {
       router.push('/dashboard/students')
     }
     setLoading(false)
-  }
+  }, [router, studentId])
+
+  useEffect(() => {
+    void loadStudentDetail()
+  }, [loadStudentDetail])
 
   const getRiskColor = (level: string) => {
     switch (level) {

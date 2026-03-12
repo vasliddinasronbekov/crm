@@ -49,6 +49,40 @@ export const useVoiceControl = () => {
     }
   }, [recorder])
 
+  // Play audio response
+  const playAudioResponse = useCallback(async (audioBlob: Blob) => {
+    try {
+      setState((prev) => ({ ...prev, isSpeaking: true }))
+
+      // Create audio URL
+      const audioUrl = URL.createObjectURL(audioBlob)
+
+      // Create or reuse audio element
+      if (!audioRef.current) {
+        audioRef.current = new Audio()
+      }
+
+      const audio = audioRef.current
+      audio.src = audioUrl
+
+      // Play audio
+      await audio.play()
+
+      // Wait for audio to finish
+      await new Promise<void>((resolve) => {
+        audio.onended = () => {
+          URL.revokeObjectURL(audioUrl)
+          resolve()
+        }
+      })
+
+      setState((prev) => ({ ...prev, isSpeaking: false }))
+    } catch (error) {
+      console.error('Failed to play audio response:', error)
+      setState((prev) => ({ ...prev, isSpeaking: false }))
+    }
+  }, [])
+
   // Stop listening and process command
   const stopListening = useCallback(async (): Promise<VoiceControlResult | null> => {
     try {
@@ -95,7 +129,7 @@ export const useVoiceControl = () => {
       }))
       return null
     }
-  }, [recorder])
+  }, [playAudioResponse, recorder])
 
   // Cancel listening
   const cancelListening = useCallback(() => {
@@ -107,40 +141,6 @@ export const useVoiceControl = () => {
       error: null,
     }))
   }, [recorder])
-
-  // Play audio response
-  const playAudioResponse = useCallback(async (audioBlob: Blob) => {
-    try {
-      setState((prev) => ({ ...prev, isSpeaking: true }))
-
-      // Create audio URL
-      const audioUrl = URL.createObjectURL(audioBlob)
-
-      // Create or reuse audio element
-      if (!audioRef.current) {
-        audioRef.current = new Audio()
-      }
-
-      const audio = audioRef.current
-      audio.src = audioUrl
-
-      // Play audio
-      await audio.play()
-
-      // Wait for audio to finish
-      await new Promise<void>((resolve) => {
-        audio.onended = () => {
-          URL.revokeObjectURL(audioUrl)
-          resolve()
-        }
-      })
-
-      setState((prev) => ({ ...prev, isSpeaking: false }))
-    } catch (error) {
-      console.error('Failed to play audio response:', error)
-      setState((prev) => ({ ...prev, isSpeaking: false }))
-    }
-  }, [])
 
   // Speak text (TTS only)
   const speak = useCallback(async (text: string, language: string = 'uz') => {

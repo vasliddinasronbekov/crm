@@ -7,7 +7,7 @@
  * Perfect for public-facing pricing page or upgrade modal
  */
 
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 
 // Types
 interface SubscriptionPlan {
@@ -40,11 +40,7 @@ export function PricingPlans({
   const [loading, setLoading] = useState(true)
   const [billingInterval, setBillingInterval] = useState<'monthly' | 'yearly'>('monthly')
 
-  useEffect(() => {
-    fetchPlans()
-  }, [])
-
-  async function fetchPlans() {
+  const fetchPlans = useCallback(async () => {
     try {
       const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'https://api.crmai.uz'
       const response = await fetch(`${apiUrl}/api/subscriptions/plans/`, {
@@ -67,7 +63,11 @@ export function PricingPlans({
     } finally {
       setLoading(false)
     }
-  }
+  }, [showFeaturedOnly])
+
+  useEffect(() => {
+    void fetchPlans()
+  }, [fetchPlans])
 
   const filteredPlans = plans.filter(p =>
     p.interval === billingInterval || p.interval === 'lifetime'

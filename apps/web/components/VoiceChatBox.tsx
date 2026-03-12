@@ -65,7 +65,7 @@ export default function VoiceChatBox() {
       }
       setMessages((prev) => [...prev, aiMessage])
     }
-  }, [state.lastResponse, state.isProcessing])
+  }, [state.isProcessing, state.lastConfidence, state.lastIntent, state.lastResponse])
 
   // Handle voice recording
   const handleVoiceClick = async () => {

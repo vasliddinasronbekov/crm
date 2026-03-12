@@ -2,6 +2,8 @@ const path = require('path')
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
+  // Keep tracing scoped to this monorepo instead of auto-detecting from external lockfiles.
+  outputFileTracingRoot: path.join(__dirname, '../..'),
   webpack: (config, { isServer }) => {
     // Fix module resolution
     config.resolve.alias = {

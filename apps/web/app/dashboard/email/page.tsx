@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
@@ -80,21 +80,43 @@ export default function EmailMarketingPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
-  // Load data
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login')
-      } else if (!user.is_staff && !user.is_superuser) {
-        router.push('/dashboard')
-        toast.error('Access denied')
-      } else {
-        loadData()
-      }
+  const loadTemplates = useCallback(async () => {
+    try {
+      const data = await apiService.getEmailTemplates()
+      setTemplates(data.results || data)
+    } catch (error) {
+      console.error('Failed to load templates:', error)
     }
-  }, [user, authLoading, router])
+  }, [])
 
-  const loadData = async () => {
+  const loadCampaigns = useCallback(async () => {
+    try {
+      const data = await apiService.getEmailCampaigns()
+      setCampaigns(data.results || data)
+    } catch (error) {
+      console.error('Failed to load campaigns:', error)
+    }
+  }, [])
+
+  const loadLogs = useCallback(async () => {
+    try {
+      const data = await apiService.getEmailLogs()
+      setLogs(data.results || data)
+    } catch (error) {
+      console.error('Failed to load logs:', error)
+    }
+  }, [])
+
+  const loadStudents = useCallback(async () => {
+    try {
+      const data = await apiService.getStudents()
+      setStudents(data.results || data)
+    } catch (error) {
+      console.error('Failed to load students:', error)
+    }
+  }, [])
+
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       await Promise.all([
@@ -109,43 +131,21 @@ export default function EmailMarketingPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [loadCampaigns, loadLogs, loadStudents, loadTemplates])
 
-  const loadTemplates = async () => {
-    try {
-      const data = await apiService.getEmailTemplates()
-      setTemplates(data.results || data)
-    } catch (error) {
-      console.error('Failed to load templates:', error)
+  // Load data
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login')
+      } else if (!user.is_staff && !user.is_superuser) {
+        router.push('/dashboard')
+        toast.error('Access denied')
+      } else {
+        void loadData()
+      }
     }
-  }
-
-  const loadCampaigns = async () => {
-    try {
-      const data = await apiService.getEmailCampaigns()
-      setCampaigns(data.results || data)
-    } catch (error) {
-      console.error('Failed to load campaigns:', error)
-    }
-  }
-
-  const loadLogs = async () => {
-    try {
-      const data = await apiService.getEmailLogs()
-      setLogs(data.results || data)
-    } catch (error) {
-      console.error('Failed to load logs:', error)
-    }
-  }
-
-  const loadStudents = async () => {
-    try {
-      const data = await apiService.getStudents()
-      setStudents(data.results || data)
-    } catch (error) {
-      console.error('Failed to load students:', error)
-    }
-  }
+  }, [authLoading, loadData, router, user])
 
   // Template CRUD
   const handleCreateTemplate = async (e: React.FormEvent) => {

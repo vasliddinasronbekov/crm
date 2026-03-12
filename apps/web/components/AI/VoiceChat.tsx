@@ -56,25 +56,27 @@ export function VoiceChat({
       console.log('🧭 Navigation:', result)
     },
   })
+  const { transcript, response, isConnected, setLanguage } = voiceChat
+  const { executeCommand } = voiceNav
 
   // Auto-scroll to bottom
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [voiceChat.transcript, voiceChat.response])
+  }, [response, transcript])
 
   // Handle language change
   useEffect(() => {
-    if (voiceChat.isConnected) {
-      voiceChat.setLanguage(selectedLanguage)
+    if (isConnected) {
+      setLanguage(selectedLanguage)
     }
-  }, [selectedLanguage, voiceChat.isConnected])
+  }, [isConnected, selectedLanguage, setLanguage])
 
   // Handle voice navigation
   useEffect(() => {
-    if (enableNavigation && voiceChat.transcript) {
-      voiceNav.executeCommand(voiceChat.transcript)
+    if (enableNavigation && transcript) {
+      executeCommand(transcript)
     }
-  }, [voiceChat.transcript, enableNavigation])
+  }, [enableNavigation, executeCommand, transcript])
 
   const languages = [
     { code: 'uz', name: "O'zbek", flag: '🇺🇿' },

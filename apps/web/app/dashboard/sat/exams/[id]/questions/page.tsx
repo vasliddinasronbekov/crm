@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toast } from 'react-hot-toast'
@@ -111,17 +111,7 @@ export default function SATQuestionsPage() {
     calculator_allowed: false,
   })
 
-  useEffect(() => {
-    loadExamData()
-  }, [examId])
-
-  useEffect(() => {
-    if (selectedModule) {
-      loadQuestions(selectedModule)
-    }
-  }, [selectedModule])
-
-  const loadExamData = async () => {
+  const loadExamData = useCallback(async () => {
     setLoading(true)
     try {
       const [examResponse, modulesResponse, qualityResponse] = await Promise.all([
@@ -152,7 +142,17 @@ export default function SATQuestionsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [examId])
+
+  useEffect(() => {
+    void loadExamData()
+  }, [loadExamData])
+
+  useEffect(() => {
+    if (selectedModule) {
+      void loadQuestions(selectedModule)
+    }
+  }, [selectedModule])
 
   const loadQuestions = async (moduleId: number) => {
     try {

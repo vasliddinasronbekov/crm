@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import NextImage from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
@@ -68,21 +68,25 @@ export default function EventsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [dateFilter, setDateFilter] = useState<'all' | 'upcoming' | 'past'>('all')
 
-  // Load data
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login')
-      } else if (!user.is_staff && !user.is_superuser && !user.is_teacher) {
-        router.push('/dashboard')
-        toast.error('Access denied')
-      } else {
-        loadData()
-      }
+  const loadEvents = useCallback(async () => {
+    try {
+      const data = await apiService.getEvents()
+      setEvents(data.results || data)
+    } catch (error) {
+      console.error('Failed to load events:', error)
     }
-  }, [user, authLoading, router])
+  }, [])
 
-  const loadData = async () => {
+  const loadStudents = useCallback(async () => {
+    try {
+      const data = await apiService.getStudents()
+      setStudents(data.results || data)
+    } catch (error) {
+      console.error('Failed to load students:', error)
+    }
+  }, [])
+
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       await Promise.all([loadEvents(), loadStudents()])
@@ -92,25 +96,21 @@ export default function EventsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [loadEvents, loadStudents])
 
-  const loadEvents = async () => {
-    try {
-      const data = await apiService.getEvents()
-      setEvents(data.results || data)
-    } catch (error) {
-      console.error('Failed to load events:', error)
+  // Load data
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login')
+      } else if (!user.is_staff && !user.is_superuser && !user.is_teacher) {
+        router.push('/dashboard')
+        toast.error('Access denied')
+      } else {
+        void loadData()
+      }
     }
-  }
-
-  const loadStudents = async () => {
-    try {
-      const data = await apiService.getStudents()
-      setStudents(data.results || data)
-    } catch (error) {
-      console.error('Failed to load students:', error)
-    }
-  }
+  }, [authLoading, loadData, router, user])
 
   // CRUD operations
   const handleCreateEvent = async (e: React.FormEvent) => {

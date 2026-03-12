@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toast } from 'react-hot-toast'
@@ -64,11 +64,7 @@ export default function SATAttemptDetailPage() {
   const [selectedDifficulty, setSelectedDifficulty] = useState<'all' | 'easy' | 'medium' | 'hard'>('all')
   const [showOnlyIncorrect, setShowOnlyIncorrect] = useState(false)
 
-  useEffect(() => {
-    loadAttemptDetails()
-  }, [attemptId])
-
-  const loadAttemptDetails = async () => {
+  const loadAttemptDetails = useCallback(async () => {
     setLoading(true)
     try {
       const response = await api.get(`/v1/student-profile/sat/attempts/${attemptId}/results/`)
@@ -79,7 +75,11 @@ export default function SATAttemptDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [attemptId])
+
+  useEffect(() => {
+    void loadAttemptDetails()
+  }, [loadAttemptDetails])
 
   const getFilteredAnswers = () => {
     if (!attempt) return []

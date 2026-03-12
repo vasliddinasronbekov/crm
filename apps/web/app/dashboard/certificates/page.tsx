@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import axios from "axios";
 import { useAuth } from "@/contexts/AuthContext";
 import { useRouter } from "next/navigation";
@@ -193,6 +193,40 @@ export default function CertificatesPage() {
   const [templateActionId, setTemplateActionId] = useState<number | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
 
+  const loadCertificates = useCallback(async () => {
+    const data = await apiService.getCertificates();
+    setCertificates(data.results || data);
+  }, []);
+
+  const loadTemplates = useCallback(async () => {
+    const data = await apiService.getCertificateTemplates();
+    setTemplates(data.results || data);
+  }, []);
+
+  const loadStudents = useCallback(async () => {
+    const data = await apiService.getStudents();
+    setStudents(data.results || data);
+  }, []);
+
+  const loadCourses = useCallback(async () => {
+    const data = await apiService.getCourses();
+    setCourses(data.results || data);
+  }, []);
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true);
+      await Promise.all([
+        loadCertificates(),
+        loadTemplates(),
+        loadStudents(),
+        loadCourses(),
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadCertificates, loadCourses, loadStudents, loadTemplates]);
+
   useEffect(() => {
     if (!authLoading) {
       if (!user) {
@@ -208,7 +242,7 @@ export default function CertificatesPage() {
 
       void loadData();
     }
-  }, [authLoading, router, user]);
+  }, [authLoading, loadData, router, user]);
 
   useEffect(() => {
     if (!showCertModal || !certForm.student_id || !certForm.course_id) {
@@ -258,40 +292,6 @@ export default function CertificatesPage() {
       cancelled = true;
     };
   }, [certForm.course_id, certForm.student_id, showCertModal]);
-
-  const loadData = async () => {
-    try {
-      setLoading(true);
-      await Promise.all([
-        loadCertificates(),
-        loadTemplates(),
-        loadStudents(),
-        loadCourses(),
-      ]);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const loadCertificates = async () => {
-    const data = await apiService.getCertificates();
-    setCertificates(data.results || data);
-  };
-
-  const loadTemplates = async () => {
-    const data = await apiService.getCertificateTemplates();
-    setTemplates(data.results || data);
-  };
-
-  const loadStudents = async () => {
-    const data = await apiService.getStudents();
-    setStudents(data.results || data);
-  };
-
-  const loadCourses = async () => {
-    const data = await apiService.getCourses();
-    setCourses(data.results || data);
-  };
 
   const closeIssueModal = () => {
     setShowCertModal(false);

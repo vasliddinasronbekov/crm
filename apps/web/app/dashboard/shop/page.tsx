@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import NextImage from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
@@ -92,45 +92,7 @@ export default function ShopPage() {
     totalRevenue: 0
   })
 
-  // Load data
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login')
-      } else if (!user.is_staff && !user.is_superuser) {
-        router.push('/dashboard')
-        toast.error('Access denied')
-      } else {
-        loadData()
-      }
-    }
-  }, [user, authLoading, router])
-
-  useEffect(() => {
-    return () => {
-      if (productForm.imagePreview && productForm.imagePreview.startsWith('blob:')) {
-        URL.revokeObjectURL(productForm.imagePreview)
-      }
-    }
-  }, [productForm.imagePreview])
-
-  const loadData = async () => {
-    try {
-      setLoading(true)
-      await Promise.all([
-        loadProducts(),
-        loadOrders(),
-        loadStudents()
-      ])
-    } catch (error) {
-      console.error('Failed to load data:', error)
-      toast.error('Failed to load data')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const loadProducts = async () => {
+  const loadProducts = useCallback(async () => {
     try {
       const data = await apiService.getShopProducts()
       setProducts(data.results || data)
@@ -145,9 +107,9 @@ export default function ShopPage() {
     } catch (error) {
       console.error('Failed to load products:', error)
     }
-  }
+  }, [])
 
-  const loadOrders = async () => {
+  const loadOrders = useCallback(async () => {
     try {
       const data = await apiService.getShopOrders()
       const ordersData = data.results || data
@@ -166,16 +128,54 @@ export default function ShopPage() {
     } catch (error) {
       console.error('Failed to load orders:', error)
     }
-  }
+  }, [])
 
-  const loadStudents = async () => {
+  const loadStudents = useCallback(async () => {
     try {
       const data = await apiService.getStudents()
       setStudents(data.results || data)
     } catch (error) {
       console.error('Failed to load students:', error)
     }
-  }
+  }, [])
+
+  const loadData = useCallback(async () => {
+    try {
+      setLoading(true)
+      await Promise.all([
+        loadProducts(),
+        loadOrders(),
+        loadStudents()
+      ])
+    } catch (error) {
+      console.error('Failed to load data:', error)
+      toast.error('Failed to load data')
+    } finally {
+      setLoading(false)
+    }
+  }, [loadOrders, loadProducts, loadStudents])
+
+  // Load data
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login')
+      } else if (!user.is_staff && !user.is_superuser) {
+        router.push('/dashboard')
+        toast.error('Access denied')
+      } else {
+        void loadData()
+      }
+    }
+  }, [authLoading, loadData, router, user])
+
+  useEffect(() => {
+    return () => {
+      if (productForm.imagePreview && productForm.imagePreview.startsWith('blob:')) {
+        URL.revokeObjectURL(productForm.imagePreview)
+      }
+    }
+  }, [productForm.imagePreview])
 
   // Product CRUD operations
   const handleCreateProduct = async (e: React.FormEvent) => {

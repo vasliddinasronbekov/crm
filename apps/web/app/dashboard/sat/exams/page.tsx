@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toast } from 'react-hot-toast'
@@ -33,15 +33,7 @@ export default function SATExamsPage() {
   const [officialFilter, setOfficialFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  useEffect(() => {
-    loadExams()
-  }, [])
-
-  useEffect(() => {
-    filterExams()
-  }, [exams, publishedFilter, officialFilter, searchQuery])
-
-  const loadExams = async () => {
+  const loadExams = useCallback(async () => {
     try {
       setLoading(true)
       const data = await api.get('/v1/student-profile/sat/exams/')
@@ -52,9 +44,9 @@ export default function SATExamsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const filterExams = () => {
+  const filterExams = useCallback(() => {
     let filtered = [...exams]
 
     // Published filter
@@ -82,7 +74,15 @@ export default function SATExamsPage() {
     }
 
     setFilteredExams(filtered)
-  }
+  }, [exams, officialFilter, publishedFilter, searchQuery])
+
+  useEffect(() => {
+    void loadExams()
+  }, [loadExams])
+
+  useEffect(() => {
+    filterExams()
+  }, [filterExams])
 
   const handlePublishToggle = async (exam: SATExam) => {
     try {

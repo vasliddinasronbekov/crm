@@ -147,7 +147,7 @@ export const showCustom = (content: ReactNode) => {
 export { toast }
 
 // Default export for convenience
-export default {
+const toastHelpers = {
   success: showSuccess,
   error: showError,
   info: showInfo,
@@ -158,3 +158,5 @@ export default {
   dismiss: dismissToast,
   custom: showCustom,
 }
+
+export default toastHelpers

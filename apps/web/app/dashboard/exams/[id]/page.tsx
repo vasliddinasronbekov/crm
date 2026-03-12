@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter, useParams } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toast } from 'react-hot-toast'
@@ -106,11 +106,7 @@ export default function ExamDetailPage() {
   const [comments, setComments] = useState('')
   const [submitting, setSubmitting] = useState(false)
 
-  useEffect(() => {
-    fetchDraft()
-  }, [id])
-
-  const fetchDraft = async () => {
+  const fetchDraft = useCallback(async () => {
     try {
       setLoading(true)
       const [data, qualityData] = await Promise.all([
@@ -126,7 +122,11 @@ export default function ExamDetailPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [id, router])
+
+  useEffect(() => {
+    void fetchDraft()
+  }, [fetchDraft])
 
   const handleApproveOrReject = async () => {
     if (!approvalAction) return

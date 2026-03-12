@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
@@ -56,21 +56,25 @@ export default function SupportPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
 
-  // Load data
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login')
-      } else if (!user.is_staff && !user.is_superuser) {
-        router.push('/dashboard')
-        toast.error('Access denied')
-      } else {
-        loadData()
-      }
+  const loadTickets = useCallback(async () => {
+    try {
+      const data = await apiService.getTickets()
+      setTickets(data.results || data)
+    } catch (error) {
+      console.error('Failed to load tickets:', error)
     }
-  }, [user, authLoading, router])
+  }, [])
 
-  const loadData = async () => {
+  const loadStaff = useCallback(async () => {
+    try {
+      const data = await apiService.getTeachers()
+      setStaff(data.results || data)
+    } catch (error) {
+      console.error('Failed to load staff:', error)
+    }
+  }, [])
+
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       await Promise.all([loadTickets(), loadStaff()])
@@ -80,25 +84,21 @@ export default function SupportPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [loadStaff, loadTickets])
 
-  const loadTickets = async () => {
-    try {
-      const data = await apiService.getTickets()
-      setTickets(data.results || data)
-    } catch (error) {
-      console.error('Failed to load tickets:', error)
+  // Load data
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login')
+      } else if (!user.is_staff && !user.is_superuser) {
+        router.push('/dashboard')
+        toast.error('Access denied')
+      } else {
+        void loadData()
+      }
     }
-  }
-
-  const loadStaff = async () => {
-    try {
-      const data = await apiService.getTeachers()
-      setStaff(data.results || data)
-    } catch (error) {
-      console.error('Failed to load staff:', error)
-    }
-  }
+  }, [authLoading, loadData, router, user])
 
   const loadTicketChats = async (ticketId: number) => {
     try {

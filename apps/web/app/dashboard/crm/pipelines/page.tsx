@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import apiService from '@/lib/api'
 import { toast } from 'react-hot-toast'
 import {
@@ -77,17 +77,7 @@ export default function PipelinesPage() {
     description: ''
   })
 
-  useEffect(() => {
-    loadData()
-  }, [])
-
-  useEffect(() => {
-    if (selectedPipeline) {
-      loadPipelineDetails()
-    }
-  }, [selectedPipeline])
-
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setIsLoading(true)
     try {
       const [pipelinesData, dealsData, activitiesData] = await Promise.all([
@@ -101,18 +91,16 @@ export default function PipelinesPage() {
       setDeals(dealsData.results || []);
       setActivities(activitiesData.results || []);
 
-      if (pipelineList.length > 0 && !selectedPipeline) {
-        setSelectedPipeline(pipelineList[0]);
-      }
+      setSelectedPipeline((prev) => prev || (pipelineList.length > 0 ? pipelineList[0] : null))
     } catch (error) {
       console.error('Failed to load data:', error)
       toast.error('Failed to load pipelines')
     } finally {
       setIsLoading(false)
     }
-  }
+  }, [])
 
-  const loadPipelineDetails = async () => {
+  const loadPipelineDetails = useCallback(async () => {
     if (!selectedPipeline) return
 
     try {
@@ -121,7 +109,17 @@ export default function PipelinesPage() {
     } catch (error) {
       console.error('Failed to load stages:', error)
     }
-  }
+  }, [selectedPipeline])
+
+  useEffect(() => {
+    void loadData()
+  }, [loadData])
+
+  useEffect(() => {
+    if (selectedPipeline) {
+      void loadPipelineDetails()
+    }
+  }, [loadPipelineDetails, selectedPipeline])
 
   const handleCreatePipeline = async (e: React.FormEvent) => {
     e.preventDefault()

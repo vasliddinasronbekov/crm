@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import {
@@ -64,34 +64,23 @@ export default function TasksPage() {
     list: 0
   })
 
-  useEffect(() => {
-    loadBoards()
-  }, [])
-
-  useEffect(() => {
-    if (selectedBoard) {
-      loadBoardData()
-    }
-  }, [selectedBoard])
-
-  const loadBoards = async () => {
+  const loadBoards = useCallback(async () => {
     try {
       setLoading(true)
       const data = await apiService.getBoards()
       const boardsArray = data.results || data || []
       setBoards(boardsArray)
-      if (boardsArray.length > 0 && !selectedBoard) {
-        setSelectedBoard(boardsArray[0].id)
-      }
+      setSelectedBoard((prev) => (prev || (boardsArray.length > 0 ? boardsArray[0].id : null)))
     } catch (error) {
       console.error('Failed to load boards:', error)
       toast.error('Failed to load boards')
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const loadBoardData = async () => {
+  const loadBoardData = useCallback(async () => {
+    if (!selectedBoard) return
     try {
       const [listsData, tasksData] = await Promise.all([
         apiService.getLists({ board: selectedBoard }),
@@ -105,7 +94,17 @@ export default function TasksPage() {
       console.error('Failed to load board data:', error)
       toast.error('Failed to load board data')
     }
-  }
+  }, [selectedBoard])
+
+  useEffect(() => {
+    void loadBoards()
+  }, [loadBoards])
+
+  useEffect(() => {
+    if (selectedBoard) {
+      void loadBoardData()
+    }
+  }, [loadBoardData, selectedBoard])
 
   const createBoard = async () => {
     if (!boardName.trim()) {

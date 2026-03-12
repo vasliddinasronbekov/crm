@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toast } from 'react-hot-toast'
@@ -48,15 +48,7 @@ export default function ExamsPage() {
   const [sectionFilter, setSectionFilter] = useState<string>('all')
   const [searchQuery, setSearchQuery] = useState('')
 
-  useEffect(() => {
-    fetchDrafts()
-  }, [])
-
-  useEffect(() => {
-    filterDrafts()
-  }, [drafts, statusFilter, sectionFilter, searchQuery])
-
-  const fetchDrafts = async () => {
+  const fetchDrafts = useCallback(async () => {
     try {
       setLoading(true)
       const data = await api.getMyExamDrafts()
@@ -67,9 +59,9 @@ export default function ExamsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [])
 
-  const filterDrafts = () => {
+  const filterDrafts = useCallback(() => {
     let filtered = [...drafts]
 
     // Status filter
@@ -92,7 +84,15 @@ export default function ExamsPage() {
     }
 
     setFilteredDrafts(filtered)
-  }
+  }, [drafts, searchQuery, sectionFilter, statusFilter])
+
+  useEffect(() => {
+    void fetchDrafts()
+  }, [fetchDrafts])
+
+  useEffect(() => {
+    filterDrafts()
+  }, [filterDrafts])
 
   const handleSubmitForReview = async (id: number) => {
     try {

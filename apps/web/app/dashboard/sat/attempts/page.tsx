@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { api } from '@/lib/api'
 import { toast } from 'react-hot-toast'
@@ -61,31 +61,7 @@ export default function SATAttemptsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [sortBy, setSortBy] = useState<'date' | 'score'>('date')
 
-  useEffect(() => {
-    loadAttempts()
-  }, [])
-
-  useEffect(() => {
-    filterAttempts()
-  }, [attempts, statusFilter, searchQuery, sortBy])
-
-  const loadAttempts = async () => {
-    setLoading(true)
-    try {
-      // Note: This endpoint needs to be created for staff to view all attempts
-      const response = await api.get('/v1/student-profile/sat/attempts/')
-      const attemptsData = response.data.results || response.data || []
-      setAttempts(attemptsData)
-      calculateStats(attemptsData)
-    } catch (error: any) {
-      console.error('Failed to load attempts:', error)
-      toast.error('Failed to load SAT attempts')
-    } finally {
-      setLoading(false)
-    }
-  }
-
-  const calculateStats = (attemptsData: SATAttempt[]) => {
+  const calculateStats = useCallback((attemptsData: SATAttempt[]) => {
     const completed = attemptsData.filter((a) => a.status === 'evaluated' || a.status === 'completed')
     const inProgress = attemptsData.filter((a) => a.status === 'in_progress')
 
@@ -108,9 +84,25 @@ export default function SATAttemptsPage() {
       total_coins_collected: coinsCollected,
       total_coins_refunded: coinsRefunded,
     })
-  }
+  }, [])
 
-  const filterAttempts = () => {
+  const loadAttempts = useCallback(async () => {
+    setLoading(true)
+    try {
+      // Note: This endpoint needs to be created for staff to view all attempts
+      const response = await api.get('/v1/student-profile/sat/attempts/')
+      const attemptsData = response.data.results || response.data || []
+      setAttempts(attemptsData)
+      calculateStats(attemptsData)
+    } catch (error: any) {
+      console.error('Failed to load attempts:', error)
+      toast.error('Failed to load SAT attempts')
+    } finally {
+      setLoading(false)
+    }
+  }, [calculateStats])
+
+  const filterAttempts = useCallback(() => {
     let filtered = [...attempts]
 
     // Status filter
@@ -138,7 +130,15 @@ export default function SATAttemptsPage() {
     }
 
     setFilteredAttempts(filtered)
-  }
+  }, [attempts, searchQuery, sortBy, statusFilter])
+
+  useEffect(() => {
+    void loadAttempts()
+  }, [loadAttempts])
+
+  useEffect(() => {
+    filterAttempts()
+  }, [filterAttempts])
 
   const getStatusBadge = (status: string) => {
     const badges = {

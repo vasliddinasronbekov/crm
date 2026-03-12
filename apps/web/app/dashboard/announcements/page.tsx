@@ -1,6 +1,6 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
@@ -41,21 +41,16 @@ export default function AnnouncementsPage() {
   const [searchTerm, setSearchTerm] = useState('')
   const [targetFilter, setTargetFilter] = useState<string>('all')
 
-  // Load data
-  useEffect(() => {
-    if (!authLoading) {
-      if (!user) {
-        router.push('/login')
-      } else if (!user.is_staff && !user.is_superuser && !user.is_teacher) {
-        router.push('/dashboard')
-        toast.error('Access denied')
-      } else {
-        loadData()
-      }
+  const loadAnnouncements = useCallback(async () => {
+    try {
+      const data = await apiService.getInformation()
+      setAnnouncements(data.results || data)
+    } catch (error) {
+      console.error('Failed to load announcements:', error)
     }
-  }, [user, authLoading, router])
+  }, [])
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     try {
       setLoading(true)
       await loadAnnouncements()
@@ -65,16 +60,21 @@ export default function AnnouncementsPage() {
     } finally {
       setLoading(false)
     }
-  }
+  }, [loadAnnouncements])
 
-  const loadAnnouncements = async () => {
-    try {
-      const data = await apiService.getInformation()
-      setAnnouncements(data.results || data)
-    } catch (error) {
-      console.error('Failed to load announcements:', error)
+  // Load data
+  useEffect(() => {
+    if (!authLoading) {
+      if (!user) {
+        router.push('/login')
+      } else if (!user.is_staff && !user.is_superuser && !user.is_teacher) {
+        router.push('/dashboard')
+        toast.error('Access denied')
+      } else {
+        void loadData()
+      }
     }
-  }
+  }, [authLoading, loadData, router, user])
 
   // CRUD operations
   const handleCreateAnnouncement = async (e: React.FormEvent) => {
