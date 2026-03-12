@@ -14,5 +14,13 @@
     "bssid": "90:9A:4A:24:C0:1A",
     "pin": "83437212",
     "psk": null
+  },
+  {
+    "type": "WPA",
+    "date": 1773299628,
+    "essid": "Galaxy A34 5G 8CF1",
+    "bssid": "AA:27:FD:9B:7F:2A",
+    "key": "17777777",
+    "handshake_file": "hs/handshake_GalaxyA345G8CF1_AA-27-FD-9B-7F-2A_2026-03-12T03-13-43.cap"
   }
 ]

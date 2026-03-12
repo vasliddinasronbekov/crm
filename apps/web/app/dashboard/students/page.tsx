@@ -93,8 +93,8 @@ export default function StudentsPage() {
     notes: ''
   })
 
-  const students = studentsData?.results || []
-  const studentIdsParam = students.map((student: Student) => student.id).join(',')
+  const students: Student[] = studentsData?.results || []
+  const studentIdsParam: string = students.map((student: Student) => student.id).join(',')
 
   const displayStudents = recentOnly
     ? students.filter((student: Student) => {
@@ -116,7 +116,7 @@ export default function StudentsPage() {
     let cancelled = false
 
     const loadStudentAccountStatuses = async () => {
-      const currentStudentIds = studentIdsParam
+      const currentStudentIds: number[] = studentIdsParam
         .split(',')
         .map((value: string) => Number(value))
         .filter((value: number) => Number.isFinite(value) && value > 0)
@@ -143,7 +143,7 @@ export default function StudentsPage() {
           }
         })
 
-        currentStudentIds.forEach((studentId) => {
+        currentStudentIds.forEach((studentId: number) => {
           if (!nextMap[studentId]) {
             nextMap[studentId] = { status: 'active' }
           }
