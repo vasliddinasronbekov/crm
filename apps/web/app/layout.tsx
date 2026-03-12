@@ -12,9 +12,9 @@ export const metadata: Metadata = {
   title: 'EDUOS - Dashboard',
   description: 'Educational Platform Administration',
   icons: {
-    icon: "/logo2.png",
-    shortcut: "/logo2.png",
-    apple: "/logo2.png",
+    icon: "/icon.ico",
+    shortcut: "/icon.ico",
+    apple: "/icon.ico",
   },
 
 }
