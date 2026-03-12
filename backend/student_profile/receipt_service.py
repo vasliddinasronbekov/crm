@@ -43,6 +43,17 @@ def _resolve_education_center_logo_url() -> str:
     return getattr(settings, 'EDUCATION_CENTER_LOGO_URL', '')
 
 
+def _resolve_frontend_base_url() -> str:
+    configured_url = (getattr(settings, 'FRONTEND_URL', '') or '').strip()
+    if configured_url:
+        return configured_url.rstrip('/')
+
+    site_url = (getattr(settings, 'SITE_URL', '') or '').strip().rstrip('/')
+    if '://api.' in site_url:
+        return site_url.replace('://api.', '://', 1)
+    return site_url
+
+
 def _generate_receipt_number() -> str:
     today_prefix = timezone.localtime().strftime('RC-%Y%m%d')
     for _ in range(200):
@@ -132,9 +143,14 @@ def _generate_qr_data_url(qr_data: str) -> str:
 def build_cash_receipt_payload(receipt: CashPaymentReceipt, request=None) -> dict[str, Any]:
     payment = receipt.payment
     issued_at_local = timezone.localtime(receipt.issued_at)
-    verification_path = f"/api/v1/payment/receipt/verify/{receipt.receipt_token}/"
+    verification_path = f"/payment/verify/{receipt.receipt_token}"
+    frontend_base_url = _resolve_frontend_base_url()
     verification_url = (
-        request.build_absolute_uri(verification_path) if request else verification_path
+        f"{frontend_base_url}{verification_path}"
+        if frontend_base_url
+        else request.build_absolute_uri(verification_path)
+        if request
+        else verification_path
     )
 
     qr_payload = {

@@ -1,0 +1,18 @@
+[
+  {
+    "type": "WPS",
+    "date": 1773294599,
+    "essid": "Wind",
+    "bssid": "08:26:97:E1:CF:C1",
+    "pin": "05774739",
+    "psk": null
+  },
+  {
+    "type": "WPS",
+    "date": 1773297993,
+    "essid": "TP-Link_C01A",
+    "bssid": "90:9A:4A:24:C0:1A",
+    "pin": "83437212",
+    "psk": null
+  }
+]

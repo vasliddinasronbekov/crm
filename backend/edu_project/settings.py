@@ -171,6 +171,7 @@ MEDIA_ROOT = BASE_DIR / "media"
 # Site Configuration
 # -----------------------
 SITE_URL = config("SITE_URL", default="https://api.crmai.uz")
+FRONTEND_URL = config("FRONTEND_URL", default="https://crmai.uz")
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
