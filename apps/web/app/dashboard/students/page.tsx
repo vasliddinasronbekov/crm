@@ -1044,6 +1044,7 @@ export default function StudentsPage() {
                     value={studentForm.username}
                     onChange={(e) => setStudentForm({ ...studentForm, username: e.target.value })}
                     className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="+998901234567"
                     required
                   />
                 </div>
@@ -1054,6 +1055,7 @@ export default function StudentsPage() {
                     value={studentForm.password}
                     onChange={(e) => setStudentForm({ ...studentForm, password: e.target.value })}
                     className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="+998901234567"
                     required
                   />
                 </div>
@@ -1097,9 +1099,13 @@ export default function StudentsPage() {
                     value={studentForm.phone}
                     onChange={(e) => setStudentForm({ ...studentForm, phone: e.target.value })}
                     className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary"
+                    placeholder="+998901234567"
                   />
                 </div>
               </div>
+              <p className="text-xs text-text-secondary">
+                You can use phone format for login, e.g. username/password: +998901234567.
+              </p>
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => { setShowAddModal(false); resetForm() }} className="flex-1 px-6 py-3 bg-background border border-border rounded-xl hover:bg-border/50 font-medium">
                   Cancel

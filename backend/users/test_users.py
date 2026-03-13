@@ -238,6 +238,44 @@ class TestUserAPI:
         assert created.is_staff is True
         assert created.role == UserRoleEnum.TEACHER.value
 
+    def test_create_student_accepts_phone_style_username_and_password(self, admin_client):
+        payload = {
+            'username': '+998901234567',
+            'password': '+998901234567',
+            'first_name': 'Auto',
+            'last_name': 'Phone',
+            'phone': '+998901234567',
+            'email': 'auto-phone@example.com',
+        }
+
+        response = admin_client.post('/api/users/students/', payload, format='json')
+        assert response.status_code == status.HTTP_201_CREATED, response.data
+
+        created = User.objects.get(id=response.data['id'])
+        assert created.username == '+998901234567'
+        assert created.phone == '+998901234567'
+        assert created.check_password('+998901234567')
+        assert created.role == UserRoleEnum.STUDENT.value
+
+    def test_create_student_rejects_duplicate_phone_style_username(self, admin_client):
+        User.objects.create_user(
+            username='+998900001122',
+            password='AnyStrongPass123!',
+            role=UserRoleEnum.STUDENT.value,
+            phone='+998900001122',
+        )
+        payload = {
+            'username': '+998900001122',
+            'password': '+998900001122',
+            'first_name': 'Duplicate',
+            'last_name': 'Phone',
+            'phone': '+998900001122',
+        }
+
+        response = admin_client.post('/api/users/students/', payload, format='json')
+        assert response.status_code == status.HTTP_400_BAD_REQUEST
+        assert 'username' in response.data
+
     def test_admin_can_manually_freeze_deactivate_and_activate_student_account(self, admin_client, student):
         freeze_response = admin_client.post(
             f'/api/users/students/{student.id}/freeze_account/',
