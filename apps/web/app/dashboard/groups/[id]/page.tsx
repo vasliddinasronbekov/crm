@@ -127,6 +127,7 @@ interface PaymentForm {
 type Tab = 'students' | 'schedule' | 'payments' | 'attendance'
 type AttendanceStatus = 'present' | 'absent' | 'absence'
 type AlertSeverity = 'info' | 'warning' | 'error'
+const ATTENDANCE_REGISTER_MAX_DATES = 40
 
 interface OperationalAlert {
   id: string
@@ -190,6 +191,30 @@ const normalizeAttendanceStatus = (record: AttendanceRecord | null | undefined):
   return record.is_present ? 'present' : 'absent'
 }
 
+const getAttendanceRecordDate = (record: AttendanceRecord | null | undefined): string => {
+  if (!record) return ''
+  return normalizeAttendanceDate(record.date || record.created_at)
+}
+
+const getAttendanceRecordTimestamp = (record: AttendanceRecord | null | undefined): number => {
+  if (!record) return 0
+  const timestamp = record.created_at ? new Date(record.created_at).getTime() : Number.NaN
+  if (!Number.isNaN(timestamp)) return timestamp
+
+  const normalizedDate = getAttendanceRecordDate(record)
+  if (!normalizedDate) return 0
+  const fallbackTimestamp = new Date(`${normalizedDate}T00:00:00`).getTime()
+  return Number.isNaN(fallbackTimestamp) ? 0 : fallbackTimestamp
+}
+
+const isAttendanceRecordNewer = (candidate: AttendanceRecord, current: AttendanceRecord): boolean => {
+  const timestampDifference = getAttendanceRecordTimestamp(candidate) - getAttendanceRecordTimestamp(current)
+  if (timestampDifference !== 0) return timestampDifference > 0
+  return (toNumber(candidate.id) || 0) > (toNumber(current.id) || 0)
+}
+
+const getAttendanceCellKey = (studentId: number, date: string): string => `${studentId}:${date}`
+
 const ATTENDANCE_STATUS_META: Record<
   AttendanceStatus,
   {
@@ -216,6 +241,31 @@ const ATTENDANCE_STATUS_META: Record<
     markedLabel: 'Absence (excused, already marked)',
     buttonClassName: 'text-warning hover:bg-warning/20',
     badgeClassName: 'bg-warning/10 text-warning',
+  },
+}
+
+const ATTENDANCE_REGISTER_CELL_META: Record<
+  AttendanceStatus,
+  {
+    symbol: string
+    label: string
+    className: string
+  }
+> = {
+  present: {
+    symbol: '+',
+    label: 'Present',
+    className: 'bg-success/20 text-success',
+  },
+  absence: {
+    symbol: 'E',
+    label: 'Absence (Excused)',
+    className: 'bg-warning/20 text-warning',
+  },
+  absent: {
+    symbol: '-',
+    label: 'Absent (Unexcused)',
+    className: 'bg-error/20 text-error',
   },
 }
 
@@ -651,25 +701,74 @@ export default function GroupDetailPage() {
     })
   }, [allStudents, selectedStudentIdSet, studentSearchQuery])
 
-  const attendanceByStudentOnDate = useMemo(() => {
-    const map = new Map<number, AttendanceRecord>()
+  const attendanceByStudentAndDate = useMemo(() => {
+    const map = new Map<string, AttendanceRecord>()
     attendanceData.forEach((record) => {
       const studentId = extractId(record.student)
-      if (!studentId) return
-      const recordDate = normalizeAttendanceDate(record.date || record.created_at)
-      if (recordDate !== selectedDate) return
+      const recordDate = getAttendanceRecordDate(record)
+      if (!studentId || !recordDate) return
+
+      const key = getAttendanceCellKey(studentId, recordDate)
+      const existing = map.get(key)
+      if (!existing || isAttendanceRecordNewer(record, existing)) {
+        map.set(key, record)
+      }
+    })
+    return map
+  }, [attendanceData])
+
+  const attendanceDatesDesc = useMemo(() => {
+    const uniqueDates = new Set<string>()
+    attendanceData.forEach((record) => {
+      const recordDate = getAttendanceRecordDate(record)
+      if (recordDate) uniqueDates.add(recordDate)
+    })
+    if (selectedDate) uniqueDates.add(selectedDate)
+
+    return Array.from(uniqueDates).sort((left, right) => right.localeCompare(left))
+  }, [attendanceData, selectedDate])
+
+  const registerAttendanceDates = useMemo(() => {
+    if (attendanceDatesDesc.length <= ATTENDANCE_REGISTER_MAX_DATES) return attendanceDatesDesc
+    if (!selectedDate) return attendanceDatesDesc.slice(0, ATTENDANCE_REGISTER_MAX_DATES)
+
+    const selectedDateIndex = attendanceDatesDesc.indexOf(selectedDate)
+    if (selectedDateIndex >= 0 && selectedDateIndex < ATTENDANCE_REGISTER_MAX_DATES) {
+      return attendanceDatesDesc.slice(0, ATTENDANCE_REGISTER_MAX_DATES)
+    }
+
+    const truncated = attendanceDatesDesc.slice(0, ATTENDANCE_REGISTER_MAX_DATES - 1)
+    if (selectedDateIndex >= 0) {
+      truncated.push(selectedDate)
+    }
+
+    return truncated.sort((left, right) => right.localeCompare(left))
+  }, [attendanceDatesDesc, selectedDate])
+
+  const attendanceByStudentOnDate = useMemo(() => {
+    const map = new Map<number, AttendanceRecord>()
+    if (!selectedDate) return map
+
+    attendanceByStudentAndDate.forEach((record, key) => {
+      const [studentIdToken, dateToken] = key.split(':')
+      if (dateToken !== selectedDate) return
+
+      const studentId = Number(studentIdToken)
+      if (!Number.isFinite(studentId)) return
       map.set(studentId, record)
     })
     return map
-  }, [attendanceData, selectedDate])
+  }, [attendanceByStudentAndDate, selectedDate])
 
   const sortedAttendanceHistory = useMemo(() => {
-    return [...attendanceData].sort((a, b) => {
-      const dateA = new Date(a.date || a.created_at || '').getTime()
-      const dateB = new Date(b.date || b.created_at || '').getTime()
-      return dateB - dateA
+    return [...attendanceByStudentAndDate.values()].sort((left, right) => {
+      const leftDate = getAttendanceRecordDate(left)
+      const rightDate = getAttendanceRecordDate(right)
+      if (leftDate !== rightDate) return rightDate.localeCompare(leftDate)
+
+      return (toNumber(right.id) || 0) - (toNumber(left.id) || 0)
     })
-  }, [attendanceData])
+  }, [attendanceByStudentAndDate])
 
   const toggleScheduleDay = (day: string) => {
     setConfigForm((previous) => {
@@ -1819,74 +1918,169 @@ export default function GroupDetailPage() {
             )}
 
             {studentsInGroup.length > 0 ? (
-              <div className="bg-surface border border-border rounded-2xl p-6 mb-6">
-                <div className="overflow-x-auto">
-                  <table className="w-full">
-                    <thead>
-                      <tr className="border-b border-border">
-                        <th className="text-left py-3 px-4">Student Name</th>
-                        <th className="text-left py-3 px-4">Date</th>
-                        <th className="text-center py-3 px-4">Actions</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {studentsInGroup.map((student, index) => {
-                        const existingRecord = attendanceByStudentOnDate.get(student.id)
-                        const existingStatus = normalizeAttendanceStatus(existingRecord)
+              <>
+                <div className="bg-surface border border-border rounded-2xl p-6 mb-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <div>
+                      <h3 className="text-lg font-semibold">Attendance Register</h3>
+                      <p className="text-sm text-text-secondary">
+                        Register columns are ordered last to first (newest lessons first).
+                      </p>
+                    </div>
+                    <div className="text-xs text-text-secondary rounded-lg border border-border bg-background px-3 py-1.5">
+                      Showing {registerAttendanceDates.length} date columns
+                    </div>
+                  </div>
 
-                        return (
-                          <tr key={`${student.id}-${index}`} className="border-b border-border/50 hover:bg-background/50">
-                            <td className="py-3 px-4">
-                              <div className="flex items-center gap-3">
-                                <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
-                                  {(student.first_name || 'S')[0]}
-                                  {(student.last_name || 'T')[0]}
-                                </div>
-                                <div>
-                                  <div className="font-medium">{getFullName(student)}</div>
-                                  <div className="text-sm text-text-secondary">{student.phone || '-'}</div>
-                                </div>
-                              </div>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-[980px] w-full border-separate border-spacing-0">
+                      <thead>
+                        <tr>
+                          <th className="sticky left-0 z-20 min-w-[52px] border border-border bg-surface px-2 py-2 text-center text-xs font-semibold">
+                            #
+                          </th>
+                          <th className="sticky left-[52px] z-20 min-w-[220px] border border-border bg-surface px-3 py-2 text-left text-xs font-semibold">
+                            Student
+                          </th>
+                          {registerAttendanceDates.map((date) => {
+                            const isSelectedDate = date === selectedDate
+                            const formattedDate = new Date(`${date}T00:00:00`).toLocaleDateString(undefined, {
+                              month: 'short',
+                              day: '2-digit',
+                            })
+
+                            return (
+                              <th
+                                key={date}
+                                className={`min-w-[64px] border border-border px-2 py-2 text-center text-[11px] font-semibold ${
+                                  isSelectedDate ? 'bg-primary/15 text-primary' : 'bg-background'
+                                }`}
+                                title={date}
+                              >
+                                {formattedDate}
+                              </th>
+                            )
+                          })}
+                        </tr>
+                      </thead>
+                      <tbody>
+                        {studentsInGroup.map((student, index) => (
+                          <tr key={`${student.id}-${index}`}>
+                            <td className="sticky left-0 z-10 border border-border bg-surface px-2 py-2 text-center text-xs text-text-secondary">
+                              {index + 1}
                             </td>
-                            <td className="py-3 px-4 text-text-secondary">
-                              {new Date(selectedDate).toLocaleDateString()}
+                            <td className="sticky left-[52px] z-10 border border-border bg-surface px-3 py-2">
+                              <p className="text-sm font-medium leading-tight">{getFullName(student)}</p>
+                              <p className="text-xs text-text-secondary mt-0.5">{student.phone || '-'}</p>
                             </td>
-                            <td className="py-3 px-4">
-                              <div className="flex items-center justify-center gap-2">
-                                {existingRecord ? (
-                                  <span
-                                    className={`px-3 py-1 rounded-lg text-sm font-medium ${ATTENDANCE_STATUS_META[existingStatus].badgeClassName}`}
-                                  >
-                                    {ATTENDANCE_STATUS_META[existingStatus].markedLabel}
-                                  </span>
-                                ) : (
-                                  <div className="inline-flex items-center gap-1 p-1 bg-surface border border-border rounded-xl">
-                                    <AttendanceActionButton
-                                      status="present"
-                                      disabled={markingAttendance === student.id || !canMarkAttendance}
-                                      onClick={() => void markAttendance(student.id, 'present')}
-                                    />
-                                    <AttendanceActionButton
-                                      status="absence"
-                                      disabled={markingAttendance === student.id || !canMarkAttendance}
-                                      onClick={() => void markAttendance(student.id, 'absence')}
-                                    />
-                                    <AttendanceActionButton
-                                      status="absent"
-                                      disabled={markingAttendance === student.id || !canMarkAttendance}
-                                      onClick={() => void markAttendance(student.id, 'absent')}
-                                    />
-                                  </div>
-                                )}
-                              </div>
-                            </td>
+                            {registerAttendanceDates.map((date) => {
+                              const record = attendanceByStudentAndDate.get(getAttendanceCellKey(student.id, date))
+                              const status = record ? normalizeAttendanceStatus(record) : null
+                              const registerMeta = status ? ATTENDANCE_REGISTER_CELL_META[status] : null
+                              const isSelectedDate = date === selectedDate
+
+                              return (
+                                <td
+                                  key={`${student.id}-${date}`}
+                                  className={`h-11 border border-border px-1 py-1 text-center ${
+                                    isSelectedDate ? 'bg-primary/5' : 'bg-background'
+                                  }`}
+                                >
+                                  {registerMeta ? (
+                                    <span
+                                      className={`inline-flex h-6 w-6 items-center justify-center rounded-md text-sm font-bold ${registerMeta.className}`}
+                                      title={registerMeta.label}
+                                    >
+                                      {registerMeta.symbol}
+                                    </span>
+                                  ) : (
+                                    <span className="text-text-secondary/40">·</span>
+                                  )}
+                                </td>
+                              )
+                            })}
                           </tr>
-                        )
-                      })}
-                    </tbody>
-                  </table>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+
+                  <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+                    {(Object.keys(ATTENDANCE_REGISTER_CELL_META) as AttendanceStatus[]).map((status) => (
+                      <span key={status} className="inline-flex items-center gap-2 rounded-lg border border-border px-2 py-1">
+                        <span
+                          className={`inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold ${ATTENDANCE_REGISTER_CELL_META[status].className}`}
+                        >
+                          {ATTENDANCE_REGISTER_CELL_META[status].symbol}
+                        </span>
+                        {ATTENDANCE_REGISTER_CELL_META[status].label}
+                      </span>
+                    ))}
+                  </div>
                 </div>
-              </div>
+
+                <div className="bg-surface border border-border rounded-2xl p-6 mb-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                    <h3 className="text-lg font-semibold">
+                      Mark {new Date(`${selectedDate}T00:00:00`).toLocaleDateString()}
+                    </h3>
+                    <span className="text-xs text-text-secondary rounded-lg border border-border bg-background px-3 py-1.5">
+                      Marked: {attendanceByStudentOnDate.size}/{studentsInGroup.length}
+                    </span>
+                  </div>
+
+                  <div className="space-y-2 max-h-[520px] overflow-y-auto pr-1">
+                    {studentsInGroup.map((student, index) => {
+                      const existingRecord = attendanceByStudentOnDate.get(student.id)
+                      const existingStatus = normalizeAttendanceStatus(existingRecord)
+
+                      return (
+                        <div
+                          key={`${student.id}-${index}`}
+                          className="flex flex-col gap-3 rounded-xl border border-border bg-background p-3 md:flex-row md:items-center md:justify-between"
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center text-primary font-semibold">
+                              {(student.first_name || 'S')[0]}
+                              {(student.last_name || 'T')[0]}
+                            </div>
+                            <div>
+                              <p className="font-medium leading-tight">{getFullName(student)}</p>
+                              <p className="text-xs text-text-secondary mt-1">{student.phone || '-'}</p>
+                            </div>
+                          </div>
+
+                          {existingRecord ? (
+                            <span
+                              className={`inline-flex items-center justify-center rounded-lg px-3 py-1 text-sm font-medium ${ATTENDANCE_STATUS_META[existingStatus].badgeClassName}`}
+                            >
+                              {ATTENDANCE_STATUS_META[existingStatus].markedLabel}
+                            </span>
+                          ) : (
+                            <div className="inline-flex items-center gap-1 p-1 bg-surface border border-border rounded-xl">
+                              <AttendanceActionButton
+                                status="present"
+                                disabled={markingAttendance === student.id || !canMarkAttendance}
+                                onClick={() => void markAttendance(student.id, 'present')}
+                              />
+                              <AttendanceActionButton
+                                status="absence"
+                                disabled={markingAttendance === student.id || !canMarkAttendance}
+                                onClick={() => void markAttendance(student.id, 'absence')}
+                              />
+                              <AttendanceActionButton
+                                status="absent"
+                                disabled={markingAttendance === student.id || !canMarkAttendance}
+                                onClick={() => void markAttendance(student.id, 'absent')}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      )
+                    })}
+                  </div>
+                </div>
+              </>
             ) : (
               <div className="bg-surface border border-border rounded-2xl text-center py-12 mb-6">
                 <Users className="h-12 w-12 mx-auto mb-4 text-text-secondary" />
@@ -1911,7 +2105,7 @@ export default function GroupDetailPage() {
                         {sortedAttendanceHistory.map((record, index) => {
                           const studentId = extractId(record.student)
                           const student = studentId ? studentById.get(studentId) : null
-                          const recordDate = record.date || record.created_at || ''
+                          const recordDate = getAttendanceRecordDate(record)
                           const status = normalizeAttendanceStatus(record)
                           const rowKey =
                             record.id || `${studentId || 'unknown'}-${normalizeAttendanceDate(recordDate)}-${index}`
