@@ -1257,6 +1257,23 @@ class ApiService {
     return response.data;
   }
 
+  async getPaymentReconciliationOverview(params?: {
+    limit?: number;
+    stale_pending_days?: number;
+    methods?: string;
+  }) {
+    const response = await this.api.get('/v1/payment/reconciliation/overview/', { params });
+    return response.data;
+  }
+
+  async syncPaymentReconciliation(payload: {
+    payment_ids: number[];
+    dry_run?: boolean;
+  }) {
+    const response = await this.api.post('/v1/payment/reconciliation/sync/', payload);
+    return response.data;
+  }
+
   async getPaymentAuditTrail(paymentId: number, params?: { limit?: number }) {
     const response = await this.api.get(`/v1/payment/${paymentId}/audit-trail/`, { params });
     return response.data;

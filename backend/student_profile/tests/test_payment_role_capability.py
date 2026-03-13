@@ -3,7 +3,8 @@ from rest_framework import status
 from rest_framework.test import APIClient
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from student_profile.models import Course, Group, Payment, PaymentAuditLog
+from student_profile import views as payment_views
+from student_profile.models import Course, Group, Payment, PaymentAuditLog, PaymentType
 from users.models import User, UserRoleEnum
 
 
@@ -277,3 +278,113 @@ def test_payment_audit_entries_are_kept_after_payment_delete():
     assert logs.filter(event_type=PaymentAuditLog.EVENT_DELETED).exists()
     assert logs.exists()
     assert logs.first().payment_id_snapshot == payment_id
+
+
+@pytest.mark.django_db
+def test_staff_can_view_reconciliation_overview_with_detected_mismatch():
+    staff_user = User.objects.create_user(
+        username='staff_reconciliation_overview',
+        password='TestPass123!',
+        role=UserRoleEnum.STAFF.value,
+    )
+    student = User.objects.create_user(
+        username='student_reconciliation_overview',
+        password='TestPass123!',
+        role=UserRoleEnum.STUDENT.value,
+    )
+    cash_type = PaymentType.objects.create(code='cash', name='Cash')
+
+    payment = Payment.objects.create(
+        by_user=student,
+        status=Payment.PaymentStatus.PAID,
+        amount=5_000_000,
+        course_price=5_000_000,
+        payment_type=cash_type,
+    )
+
+    client = _auth_client_for_user(staff_user)
+    response = client.get('/api/v1/payment/reconciliation/overview/?limit=20&methods=cash,click,payme')
+
+    assert response.status_code == status.HTTP_200_OK, response.data
+    results = response.data['results']
+    matching = next((row for row in results if row['payment_id'] == payment.id), None)
+    assert matching is not None
+    assert 'cash_paid_without_receipt' in matching['issues']
+
+
+@pytest.mark.django_db
+def test_teacher_cannot_access_reconciliation_endpoints():
+    teacher = User.objects.create_user(
+        username='teacher_reconciliation_denied',
+        password='TestPass123!',
+        role=UserRoleEnum.TEACHER.value,
+    )
+    client = _auth_client_for_user(teacher)
+
+    overview_response = client.get('/api/v1/payment/reconciliation/overview/')
+    sync_response = client.post('/api/v1/payment/reconciliation/sync/', {'payment_ids': [1]}, format='json')
+
+    assert overview_response.status_code == status.HTTP_403_FORBIDDEN
+    assert sync_response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_reconciliation_sync_updates_status_and_creates_audit_log(monkeypatch):
+    staff_user = User.objects.create_user(
+        username='staff_reconciliation_sync',
+        password='TestPass123!',
+        role=UserRoleEnum.STAFF.value,
+    )
+    student = User.objects.create_user(
+        username='student_reconciliation_sync',
+        password='TestPass123!',
+        role=UserRoleEnum.STUDENT.value,
+    )
+    payme_type = PaymentType.objects.create(code='payme', name='Payme')
+
+    payment = Payment.objects.create(
+        by_user=student,
+        status=Payment.PaymentStatus.PENDING,
+        amount=7_000_000,
+        course_price=7_000_000,
+        payment_type=payme_type,
+        transaction_id='payme-sync-0001',
+    )
+
+    monkeypatch.setattr(
+        payment_views,
+        'sync_payment_with_provider',
+        lambda _payment: {
+            'provider': 'payme',
+            'syncable': True,
+            'provider_status': 'paid',
+            'reason': '',
+            'provider_reference': 'payme-sync-0001',
+        },
+    )
+    monkeypatch.setattr(payment_views, 'apply_payment_to_student_account', lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(payment_views, 'rollback_paid_payment', lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(payment_views, 'sync_payment_financial_records', lambda *_args, **_kwargs: None)
+    monkeypatch.setattr(payment_views, 'ensure_cash_receipt', lambda *_args, **_kwargs: None)
+
+    client = _auth_client_for_user(staff_user)
+    response = client.post(
+        '/api/v1/payment/reconciliation/sync/',
+        {'payment_ids': [payment.id]},
+        format='json',
+    )
+
+    assert response.status_code == status.HTTP_200_OK, response.data
+    result = response.data['results'][0]
+    assert result['result'] == 'updated'
+    assert result['previous_status'] == Payment.PaymentStatus.PENDING
+    assert result['next_status'] == Payment.PaymentStatus.PAID
+
+    payment.refresh_from_db()
+    assert payment.status == Payment.PaymentStatus.PAID
+
+    audit_event = PaymentAuditLog.objects.filter(payment_id_snapshot=payment.id).order_by('-id').first()
+    assert audit_event is not None
+    assert audit_event.metadata.get('source') == 'reconciliation_sync'
+    assert audit_event.status_before == Payment.PaymentStatus.PENDING
+    assert audit_event.status_after == Payment.PaymentStatus.PAID

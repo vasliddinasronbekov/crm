@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { Search, Plus, Edit, Trash2, DollarSign, Calendar, User, CreditCard, Download, X, CheckCircle, XCircle, Clock, Bell, Send, Settings, Printer, History } from 'lucide-react'
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -16,6 +16,9 @@ import {
   usePaymentTypes,
   usePaymentTeachers,
   usePaymentAuditTrail,
+  usePaymentStudentContext,
+  usePaymentReconciliationOverview,
+  useSyncPaymentReconciliation,
   useCreatePayment,
   useUpdatePayment,
   useDeletePayment,
@@ -30,6 +33,7 @@ import {
   type PaymentTypeOption,
   type CashReceiptPayload,
   type PaymentAuditTrailEntry,
+  type PaymentReconciliationIssue,
   type Payment,
 } from '@/lib/hooks/usePayments'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -82,10 +86,40 @@ type PaymentGroupOption = {
   } | null
 }
 
+const createInitialPaymentState = (
+  baseDate: string,
+  overrides?: Partial<{
+    by_user: string
+    course: string
+    amount: number
+    course_price: number
+    pricing_mode: 'course' | 'manual'
+    status: 'pending' | 'paid' | 'failed'
+    group: string
+    detail: string
+    date: string
+    payment_type: string
+    teacher: string
+  }>,
+) => ({
+  by_user: '',
+  course: '',
+  amount: 0,
+  course_price: 0,
+  pricing_mode: 'course' as const,
+  status: 'pending' as const,
+  group: '',
+  detail: '',
+  date: baseDate,
+  payment_type: '',
+  teacher: '',
+  ...(overrides || {}),
+})
+
 export default function PaymentsPage() {
   const { user } = useAuth()
   const permissionState = usePermissions(user)
-  const { currency, formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency } = useSettings()
+  const { currency, formatCurrency, formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency } = useSettings()
   const canCreatePayment = permissionState.hasPermission('payments.record')
   const canManagePaymentRecords = permissionState.hasPermission('payments.manage')
   const canEditPayment = canManagePaymentRecords
@@ -117,6 +151,14 @@ export default function PaymentsPage() {
   const { data: coursesData = [] } = usePaymentCourses()
   const { data: paymentTypes = [] } = usePaymentTypes()
   const { data: teachers = [] } = usePaymentTeachers()
+  const {
+    data: reconciliationOverview,
+    isLoading: reconciliationLoading,
+    refetch: refetchReconciliationOverview,
+  } = usePaymentReconciliationOverview(
+    { limit: 40, stale_pending_days: 2, methods: 'cash,click,payme' },
+    { enabled: canManagePaymentRecords },
+  )
   const paymentTypeOptions = paymentTypes as PaymentTypeOption[]
   const groups = useMemo(
     () => (Array.isArray(groupsData) ? (groupsData as PaymentGroupOption[]) : []),
@@ -142,6 +184,7 @@ export default function PaymentsPage() {
   const sendReminder = useSendPaymentReminder()
   const sendBulkReminders = useSendBulkPaymentReminders()
   const saveAutoReminders = useSaveAutoReminderSettings()
+  const syncReconciliation = useSyncPaymentReconciliation()
 
   const payments: Payment[] = paymentsData?.results || []
   const displayPayments = payments.filter((payment) => {
@@ -161,6 +204,7 @@ export default function PaymentsPage() {
   const [editingPayment, setEditingPayment] = useState<Payment | null>(null)
   const [isReminderModalOpen, setIsReminderModalOpen] = useState(false)
   const [selectedPayments, setSelectedPayments] = useState<number[]>([])
+  const [studentSearchTerm, setStudentSearchTerm] = useState('')
   const [autoReminderSettings, setAutoReminderSettings] = useState({
     enabled: false,
     daysBeforeDue: 3,
@@ -169,24 +213,52 @@ export default function PaymentsPage() {
   })
   const [isSettingsModalOpen, setIsSettingsModalOpen] = useState(false)
 
-  const [newPayment, setNewPayment] = useState({
-    by_user: '',
-    course: '',
-    amount: 0,
-    course_price: 0,
-    pricing_mode: 'course' as 'course' | 'manual',
-    status: 'pending' as const,
-    group: '',
-    detail: '',
-    date: new Date().toISOString().split('T')[0],
-    payment_type: '',
-    teacher: '',
-  })
+  const [newPayment, setNewPayment] = useState(createInitialPaymentState(new Date().toISOString().split('T')[0]))
   const [cashReceiptPreview, setCashReceiptPreview] = useState<CashReceiptPayload | null>(null)
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
   const [receiptLoadingId, setReceiptLoadingId] = useState<number | null>(null)
   const [receiptAutoPrintKey, setReceiptAutoPrintKey] = useState(0)
   const [auditPayment, setAuditPayment] = useState<Payment | null>(null)
+  const [selectedReconciliationIds, setSelectedReconciliationIds] = useState<number[]>([])
+  const selectedStudentId = newPayment.by_user ? Number(newPayment.by_user) : undefined
+  const {
+    data: selectedStudentContext,
+    isLoading: selectedStudentContextLoading,
+  } = usePaymentStudentContext(selectedStudentId, {
+    enabled: isAddingPayment && Boolean(selectedStudentId),
+  })
+
+  const filteredStudents = useMemo(() => {
+    const normalizedSearch = studentSearchTerm.trim().toLowerCase()
+    if (!normalizedSearch) return students
+    return students.filter((student: any) => {
+      const fullName = `${student.first_name || ''} ${student.last_name || ''}`.trim().toLowerCase()
+      const username = String(student.username || '').toLowerCase()
+      const phone = String(student.phone || '').toLowerCase()
+      return (
+        fullName.includes(normalizedSearch)
+        || username.includes(normalizedSearch)
+        || phone.includes(normalizedSearch)
+      )
+    })
+  }, [studentSearchTerm, students])
+
+  const studentScopedGroupIds = useMemo(() => {
+    const ids = new Set<number>()
+    ;(selectedStudentContext?.groups || []).forEach((group) => {
+      const groupId = Number(group.id)
+      if (Number.isFinite(groupId) && groupId > 0) {
+        ids.add(groupId)
+      }
+    })
+    return ids
+  }, [selectedStudentContext?.groups])
+
+  const scopedGroupOptions = useMemo(() => {
+    if (studentScopedGroupIds.size === 0) return groups
+    const scoped = groups.filter((group) => studentScopedGroupIds.has(Number(group.id)))
+    return scoped.length > 0 ? scoped : groups
+  }, [groups, studentScopedGroupIds])
   const {
     data: paymentAuditTrail,
     isLoading: isAuditTrailLoading,
@@ -238,7 +310,35 @@ export default function PaymentsPage() {
     }
   }
 
-  const handleAddPayment = async (options?: { autoPrint?: boolean }) => {
+  useEffect(() => {
+    if (!newPayment.group || studentScopedGroupIds.size === 0) return
+    const selectedGroupId = Number(newPayment.group)
+    if (!studentScopedGroupIds.has(selectedGroupId)) {
+      setNewPayment((prev) => ({
+        ...prev,
+        group: '',
+      }))
+    }
+  }, [newPayment.group, studentScopedGroupIds])
+
+  const applyOutstandingDebtToForm = () => {
+    if (!selectedStudentContext) return
+    const outstandingDebtInUzs = Number(selectedStudentContext.payments?.pending_amount || 0)
+    if (outstandingDebtInUzs <= 0) {
+      toast.info('This student has no outstanding debt')
+      return
+    }
+
+    const displayAmount = toSelectedCurrency(outstandingDebtInUzs)
+    setNewPayment((prev) => ({
+      ...prev,
+      pricing_mode: 'manual',
+      amount: displayAmount,
+      course_price: displayAmount,
+    }))
+  }
+
+  const handleAddPayment = async (options?: { autoPrint?: boolean; keepOpen?: boolean }) => {
     if (!canCreatePayment) {
       toast.error('You do not have permission to create payments')
       return
@@ -271,6 +371,7 @@ export default function PaymentsPage() {
     )
     const isCashType = isCashPaymentType(selectedPaymentType)
     const shouldAutoPrint = Boolean(options?.autoPrint)
+    const shouldKeepOpen = Boolean(options?.keepOpen)
     const amountInUzs = isCourseMode
       ? coursePriceMinor / 100
       : fromSelectedCurrency(newPayment.amount)
@@ -292,20 +393,25 @@ export default function PaymentsPage() {
       teacher: newPayment.teacher,
     }, {
       onSuccess: (createdPayment) => {
-        setIsAddingPayment(false)
-        setNewPayment({
-          by_user: '',
-          course: '',
-          amount: 0,
-          course_price: 0,
-          pricing_mode: 'course',
-          status: 'pending',
-          group: '',
-          detail: '',
-          date: new Date().toISOString().split('T')[0],
-          payment_type: '',
-          teacher: '',
-        })
+        if (!shouldKeepOpen) {
+          setIsAddingPayment(false)
+        }
+
+        const baseDate = newPayment.date || new Date().toISOString().split('T')[0]
+        setStudentSearchTerm('')
+        setNewPayment(
+          createInitialPaymentState(
+            baseDate,
+            shouldKeepOpen
+              ? {
+                  payment_type: newPayment.payment_type,
+                  status: newPayment.status,
+                  date: baseDate,
+                  pricing_mode: newPayment.pricing_mode,
+                }
+              : undefined,
+          ),
+        )
         if (isCashType && createdPayment?.id) {
           fetchAndShowReceipt(createdPayment.id, shouldAutoPrint)
         }
@@ -442,6 +548,49 @@ export default function PaymentsPage() {
       .filter(p => p.status === 'pending')
       .map(p => p.id)
     setSelectedPayments(pendingPaymentIds)
+  }
+
+  const toggleReconciliationSelection = (paymentId: number) => {
+    setSelectedReconciliationIds((prev) =>
+      prev.includes(paymentId) ? prev.filter((id) => id !== paymentId) : [...prev, paymentId],
+    )
+  }
+
+  const runReconciliationSync = (paymentIds: number[]) => {
+    if (!canManagePaymentRecords) {
+      toast.error('You do not have permission to run reconciliation')
+      return
+    }
+    if (paymentIds.length === 0) {
+      toast.warning('No reconciliation items selected')
+      return
+    }
+
+    syncReconciliation.mutate(
+      { payment_ids: paymentIds },
+      {
+        onSuccess: (response) => {
+          const errored = response.results.filter((item) => item.result === 'error').length
+          if (errored > 0) {
+            toast.warning(`Sync completed with ${errored} error item(s)`)
+          }
+          setSelectedReconciliationIds([])
+          void refetchReconciliationOverview()
+        },
+      },
+    )
+  }
+
+  const renderReconciliationIssueLabel = (issue: string) => {
+    const labels: Record<string, string> = {
+      remote_paid_without_transaction_id: 'Paid without transaction ID',
+      remote_pending_stale: 'Pending too long',
+      remote_failed_recent_retry_candidate: 'Recent failed payment',
+      cash_paid_without_receipt: 'Cash paid without receipt',
+      non_cash_has_cash_receipt: 'Non-cash has cash receipt',
+      duplicate_transaction_id: 'Duplicate transaction ID',
+    }
+    return labels[issue] || issue
   }
 
   const renderAuditDelta = (event: PaymentAuditTrailEntry) => {
@@ -598,7 +747,11 @@ export default function PaymentsPage() {
           </button>
 
           <button
-            onClick={() => setIsAddingPayment(true)}
+            onClick={() => {
+              setStudentSearchTerm('')
+              setNewPayment(createInitialPaymentState(new Date().toISOString().split('T')[0]))
+              setIsAddingPayment(true)
+            }}
             className="btn-primary flex items-center gap-2 whitespace-nowrap disabled:opacity-60 disabled:cursor-not-allowed"
             disabled={!canCreatePayment}
             title={!canCreatePayment ? 'You do not have permission to create payments' : undefined}
@@ -751,6 +904,161 @@ export default function PaymentsPage() {
         </div>
       </div>
 
+      {/* Reconciliation Panel */}
+      {canManagePaymentRecords && (
+        <div className="card mb-8">
+          <div className="flex flex-col gap-4 md:flex-row md:items-start md:justify-between">
+            <div>
+              <h2 className="text-xl font-bold">Cash / Click / Payme Reconciliation</h2>
+              <p className="text-sm text-text-secondary mt-1">
+                Detect payment mismatches and run retry-safe provider status sync.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <button
+                onClick={() => void refetchReconciliationOverview()}
+                className="btn-secondary"
+                disabled={reconciliationLoading}
+              >
+                Refresh
+              </button>
+              <button
+                onClick={() => runReconciliationSync(selectedReconciliationIds)}
+                className="btn-secondary"
+                disabled={syncReconciliation.isPending || selectedReconciliationIds.length === 0}
+              >
+                Sync Selected ({selectedReconciliationIds.length})
+              </button>
+              <button
+                onClick={() => {
+                  const syncableIds = (reconciliationOverview?.results || [])
+                    .filter((item: PaymentReconciliationIssue) => item.can_sync_external)
+                    .map((item: PaymentReconciliationIssue) => item.payment_id)
+                  runReconciliationSync(syncableIds)
+                }}
+                className="btn-primary"
+                disabled={syncReconciliation.isPending}
+              >
+                Sync All Syncable
+              </button>
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-6">
+            <div className="rounded-xl border border-border bg-background p-4">
+              <p className="text-sm text-text-secondary">Checked Payments</p>
+              <p className="text-2xl font-bold mt-1">
+                {reconciliationOverview?.summary?.checked_count ?? 0}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-background p-4">
+              <p className="text-sm text-text-secondary">Mismatches</p>
+              <p className="text-2xl font-bold mt-1 text-warning">
+                {reconciliationOverview?.summary?.mismatch_count ?? 0}
+              </p>
+            </div>
+            <div className="rounded-xl border border-border bg-background p-4">
+              <p className="text-sm text-text-secondary">Syncable External</p>
+              <p className="text-2xl font-bold mt-1 text-info">
+                {reconciliationOverview?.summary?.syncable_count ?? 0}
+              </p>
+            </div>
+          </div>
+
+          <div className="mt-6 overflow-x-auto">
+            <table className="w-full">
+              <thead>
+                <tr className="border-b border-border text-left">
+                  <th className="py-3 px-2 text-xs font-semibold text-text-secondary">Pick</th>
+                  <th className="py-3 px-2 text-xs font-semibold text-text-secondary">Payment</th>
+                  <th className="py-3 px-2 text-xs font-semibold text-text-secondary">Method / Status</th>
+                  <th className="py-3 px-2 text-xs font-semibold text-text-secondary">Amount</th>
+                  <th className="py-3 px-2 text-xs font-semibold text-text-secondary">Issues</th>
+                  <th className="py-3 px-2 text-xs font-semibold text-text-secondary">Transaction</th>
+                  <th className="py-3 px-2 text-xs font-semibold text-text-secondary text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(reconciliationOverview?.results || []).map((item: PaymentReconciliationIssue) => (
+                  <tr key={item.payment_id} className="border-b border-border/70">
+                    <td className="py-3 px-2">
+                      <input
+                        type="checkbox"
+                        checked={selectedReconciliationIds.includes(item.payment_id)}
+                        onChange={() => toggleReconciliationSelection(item.payment_id)}
+                        disabled={!item.can_sync_external}
+                      />
+                    </td>
+                    <td className="py-3 px-2">
+                      <div className="text-sm font-medium">
+                        {item.student_name || 'Unknown'}{' '}
+                        <span className="text-text-secondary">#{item.payment_id}</span>
+                      </div>
+                      <div className="text-xs text-text-secondary">
+                        {item.group_name || 'No group'} • {new Date(item.date).toLocaleDateString()}
+                      </div>
+                    </td>
+                    <td className="py-3 px-2">
+                      <div className="text-sm">{item.payment_method_name || item.payment_method_code || '—'}</div>
+                      <span
+                        className={`inline-flex mt-1 px-2 py-0.5 rounded text-xs ${
+                          item.status === 'paid'
+                            ? 'bg-success/10 text-success'
+                            : item.status === 'pending'
+                              ? 'bg-warning/10 text-warning'
+                              : 'bg-error/10 text-error'
+                        }`}
+                      >
+                        {item.status}
+                      </span>
+                    </td>
+                    <td className="py-3 px-2 text-sm font-medium">{formatCurrencyFromMinor(item.amount)}</td>
+                    <td className="py-3 px-2">
+                      <div className="flex flex-wrap gap-1">
+                        {item.issues.map((issue) => (
+                          <span
+                            key={`${item.payment_id}-${issue}`}
+                            className="px-2 py-1 rounded bg-warning/10 text-warning text-[11px]"
+                          >
+                            {renderReconciliationIssueLabel(issue)}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
+                    <td className="py-3 px-2 text-xs text-text-secondary font-mono">
+                      {item.transaction_id || '—'}
+                    </td>
+                    <td className="py-3 px-2 text-right">
+                      <button
+                        onClick={() => runReconciliationSync([item.payment_id])}
+                        disabled={!item.can_sync_external || syncReconciliation.isPending}
+                        className="btn-secondary px-3 py-1 text-xs disabled:opacity-50"
+                      >
+                        Sync
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+                {!reconciliationLoading && (reconciliationOverview?.results || []).length === 0 && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-sm text-text-secondary">
+                      No reconciliation mismatches found for selected methods.
+                    </td>
+                  </tr>
+                )}
+                {reconciliationLoading && (
+                  <tr>
+                    <td colSpan={7} className="py-8 text-center text-sm text-text-secondary">
+                      Loading reconciliation overview...
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
       {/* Payments Table */}
       <div className="card">
         <div className="overflow-x-auto">
@@ -889,14 +1197,39 @@ export default function PaymentsPage() {
             <h2 className="text-2xl font-semibold mb-4">Add New Payment</h2>
             <div className="space-y-4">
               <div>
+                <label className="block text-sm font-medium mb-2">Find Student</label>
+                <input
+                  type="text"
+                  value={studentSearchTerm}
+                  onChange={(event) => setStudentSearchTerm(event.target.value)}
+                  placeholder="Search by name, username, or phone..."
+                  className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
+                />
+                {studentSearchTerm.trim() && (
+                  <p className="mt-1 text-xs text-text-secondary">
+                    {filteredStudents.length} student(s) matched
+                  </p>
+                )}
+              </div>
+              <div>
                 <label className="block text-sm font-medium mb-2">Student *</label>
                 <select
                   value={newPayment.by_user}
-                  onChange={(e) => setNewPayment({ ...newPayment, by_user: e.target.value })}
+                  onChange={(event) => {
+                    const nextStudentId = event.target.value
+                    setNewPayment((prev) => ({
+                      ...prev,
+                      by_user: nextStudentId,
+                      group: '',
+                      course: '',
+                      amount: prev.pricing_mode === 'course' ? 0 : prev.amount,
+                      course_price: prev.pricing_mode === 'course' ? 0 : prev.course_price,
+                    }))
+                  }}
                   className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
                 >
                   <option value="">Select a student</option>
-                  {students.map((student: any) => (
+                  {filteredStudents.map((student: any) => (
                     <option key={student.id} value={student.id}>
                       {student.first_name && student.last_name
                         ? `${student.first_name} ${student.last_name}`
@@ -905,6 +1238,92 @@ export default function PaymentsPage() {
                   ))}
                 </select>
               </div>
+              {newPayment.by_user && (
+                <div className="rounded-lg border border-border bg-background p-4 space-y-3">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-sm font-semibold">Student payment context</p>
+                    {selectedStudentContextLoading && (
+                      <span className="text-xs text-text-secondary">Loading...</span>
+                    )}
+                  </div>
+
+                  {selectedStudentContext ? (
+                    <>
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                        <div className="rounded-lg border border-border/60 px-3 py-2">
+                          <p className="text-[11px] uppercase tracking-wide text-text-secondary">Outstanding debt</p>
+                          <p className={`text-sm font-semibold ${selectedStudentContext.payments.pending_amount > 0 ? 'text-error' : 'text-success'}`}>
+                            {formatCurrency(selectedStudentContext.payments.pending_amount)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-border/60 px-3 py-2">
+                          <p className="text-[11px] uppercase tracking-wide text-text-secondary">Total paid</p>
+                          <p className="text-sm font-semibold text-success">
+                            {formatCurrency(selectedStudentContext.payments.total_paid)}
+                          </p>
+                        </div>
+                        <div className="rounded-lg border border-border/60 px-3 py-2">
+                          <p className="text-[11px] uppercase tracking-wide text-text-secondary">Last payment</p>
+                          <p className="text-sm font-semibold">
+                            {selectedStudentContext.payments.last_payment_date
+                              ? new Date(selectedStudentContext.payments.last_payment_date).toLocaleDateString()
+                              : '—'}
+                          </p>
+                        </div>
+                      </div>
+                      <div className="flex flex-wrap items-center gap-2">
+                        {selectedStudentContext.account?.status && (
+                          <span className="inline-flex px-2 py-1 rounded bg-info/10 text-info text-xs">
+                            Account: {selectedStudentContext.account.status}
+                          </span>
+                        )}
+                        <button
+                          type="button"
+                          onClick={applyOutstandingDebtToForm}
+                          className="px-3 py-1.5 rounded-lg bg-warning/10 text-warning text-xs font-medium hover:bg-warning/20 transition-colors"
+                        >
+                          Use Outstanding Amount
+                        </button>
+                      </div>
+                      {selectedStudentContext.groups.length > 0 && (
+                        <div>
+                          <p className="text-xs text-text-secondary mb-2">Student groups (quick select)</p>
+                          <div className="flex flex-wrap gap-2">
+                            {selectedStudentContext.groups.map((group) => (
+                              <button
+                                key={group.id}
+                                type="button"
+                                onClick={() => {
+                                  const nextGroup = String(group.id)
+                                  setNewPayment((prev) => {
+                                    const withGroup = { ...prev, group: nextGroup }
+                                    return prev.pricing_mode === 'course'
+                                      ? applyDerivedCoursePricing(withGroup, prev.course, nextGroup)
+                                      : withGroup
+                                  })
+                                }}
+                                className={`px-2.5 py-1.5 rounded-md text-xs border transition-colors ${
+                                  String(group.id) === String(newPayment.group)
+                                    ? 'border-primary bg-primary/10 text-primary'
+                                    : 'border-border bg-surface text-text-secondary hover:bg-border'
+                                }`}
+                              >
+                                {group.name || `Group #${group.id}`}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </>
+                  ) : (
+                    !selectedStudentContextLoading && (
+                      <p className="text-xs text-text-secondary">
+                        No student payment context available yet.
+                      </p>
+                    )
+                  )}
+                </div>
+              )}
               <div>
                 <label className="block text-sm font-medium mb-2">Group</label>
                 <select
@@ -920,12 +1339,17 @@ export default function PaymentsPage() {
                   className="w-full px-4 py-2 bg-background border border-border rounded-lg focus:outline-none focus:border-primary"
                 >
                   <option value="">Select a group (optional)</option>
-                  {groups.map((group: PaymentGroupOption) => (
+                  {scopedGroupOptions.map((group: PaymentGroupOption) => (
                     <option key={group.id} value={group.id}>
                       {group.name}
                     </option>
                   ))}
                 </select>
+                {studentScopedGroupIds.size > 0 && (
+                  <p className="mt-1 text-xs text-text-secondary">
+                    Showing groups linked to selected student.
+                  </p>
+                )}
               </div>
               <div>
                 <label className="block text-sm font-medium mb-2">Course *</label>
@@ -1064,6 +1488,12 @@ export default function PaymentsPage() {
                 <button onClick={() => handleAddPayment()} className="btn-primary flex-1">
                   Save Payment
                 </button>
+                <button
+                  onClick={() => handleAddPayment({ keepOpen: true })}
+                  className="btn-secondary flex-1"
+                >
+                  Save & New
+                </button>
                 {isCashPaymentType(
                   paymentTypeOptions.find((paymentType: any) => String(paymentType.id) === String(newPayment.payment_type)),
                 ) && (
@@ -1077,20 +1507,9 @@ export default function PaymentsPage() {
                 )}
                 <button
                   onClick={() => {
+                    setStudentSearchTerm('')
                     setIsAddingPayment(false)
-                    setNewPayment({
-                      by_user: '',
-                      course: '',
-                      amount: 0,
-                      course_price: 0,
-                      pricing_mode: 'course',
-                      status: 'pending',
-                      group: '',
-                      detail: '',
-                      date: new Date().toISOString().split('T')[0],
-                      payment_type: '',
-                      teacher: '',
-                    })
+                    setNewPayment(createInitialPaymentState(new Date().toISOString().split('T')[0]))
                   }}
                   className="btn-secondary flex-1"
                 >

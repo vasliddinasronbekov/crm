@@ -139,6 +139,64 @@ export interface PaymentAuditTrailEntry {
   created_at: string
 }
 
+export interface PaymentReconciliationIssue {
+  payment_id: number
+  date: string
+  student_name: string
+  group_name: string
+  payment_method_code: string
+  payment_method_name: string
+  status: 'pending' | 'paid' | 'failed'
+  amount: number
+  transaction_id: string
+  issues: string[]
+  can_sync_external: boolean
+}
+
+export interface PaymentReconciliationOverview {
+  summary: {
+    checked_count: number
+    mismatch_count: number
+    syncable_count: number
+    counts_by_issue: Record<string, number>
+    counts_by_method: Record<string, number>
+  }
+  results: PaymentReconciliationIssue[]
+}
+
+export interface PaymentReconciliationSyncResult {
+  payment_id: number
+  result: 'updated' | 'no_change' | 'skipped' | 'unknown_provider_state' | 'not_found_or_forbidden' | 'error'
+  previous_status?: string
+  next_status?: string
+  provider_status?: string
+  reason?: string
+}
+
+export interface PaymentStudentContext {
+  id: number
+  full_name: string
+  groups: Array<{
+    id: number
+    name: string
+    branch?: string
+    course?: string
+    is_active?: boolean
+  }>
+  payments: {
+    total_paid: number
+    pending_amount: number
+    payment_count: number
+    last_payment_date?: string
+    last_payment_amount?: number
+  }
+  account?: {
+    status?: string
+    balance?: number
+    balance_tiyin?: number
+  }
+}
+
 const normalizePaymentMethod = (value?: string | null): string =>
   (value || '').trim().toLowerCase()
 
@@ -185,6 +243,10 @@ export const paymentsKeys = {
   courses: () => ['courses'] as const,
   paymentTypes: () => ['payment-types'] as const,
   teachers: () => ['teachers'] as const,
+  studentContext: (studentId: number) => [...paymentsKeys.all, 'student-context', studentId] as const,
+  reconciliationOverview: (params?: Record<string, any>) =>
+    [...paymentsKeys.all, 'reconciliation-overview', params || {}] as const,
+  reconciliationSync: () => [...paymentsKeys.all, 'reconciliation-sync'] as const,
   auditTrail: (paymentId: number, limit: number) =>
     [...paymentsKeys.all, 'audit-trail', paymentId, limit] as const,
 }
@@ -282,6 +344,109 @@ export function usePaymentAuditTrail(paymentId?: number, limit = 100) {
     enabled: Boolean(paymentId),
     staleTime: 30 * 1000,
     gcTime: 5 * 60 * 1000,
+  })
+}
+
+export function usePaymentStudentContext(studentId?: number, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: paymentsKeys.studentContext(studentId || 0),
+    queryFn: async () => {
+      if (!studentId) return null
+
+      const payload = await apiService.getStudentDetail(studentId)
+      return {
+        id: Number(payload?.id || studentId),
+        full_name: String(payload?.full_name || payload?.username || ''),
+        groups: Array.isArray(payload?.groups)
+          ? payload.groups.map((group: any) => ({
+              id: Number(group?.id || 0),
+              name: String(group?.name || ''),
+              branch: group?.branch || '',
+              course: group?.course || '',
+              is_active: Boolean(group?.is_active),
+            }))
+          : [],
+        payments: {
+          total_paid: Number(payload?.payments?.total_paid || 0),
+          pending_amount: Number(payload?.payments?.pending_amount || 0),
+          payment_count: Number(payload?.payments?.payment_count || 0),
+          last_payment_date: payload?.payments?.last_payment_date || undefined,
+          last_payment_amount:
+            payload?.payments?.last_payment_amount !== undefined
+              ? Number(payload?.payments?.last_payment_amount || 0)
+              : undefined,
+        },
+        account: payload?.account
+          ? {
+              status: payload.account.status,
+              balance: Number(payload.account.balance || 0),
+              balance_tiyin: Number(payload.account.balance_tiyin || 0),
+            }
+          : undefined,
+      } as PaymentStudentContext
+    },
+    enabled: Boolean(studentId) && (options?.enabled ?? true),
+    staleTime: 60 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+export function usePaymentReconciliationOverview(params?: {
+  limit?: number
+  stale_pending_days?: number
+  methods?: string
+}, options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: paymentsKeys.reconciliationOverview(params),
+    queryFn: async () => {
+      const data = await apiService.getPaymentReconciliationOverview(params)
+      return {
+        summary: {
+          checked_count: Number(data?.summary?.checked_count || 0),
+          mismatch_count: Number(data?.summary?.mismatch_count || 0),
+          syncable_count: Number(data?.summary?.syncable_count || 0),
+          counts_by_issue: data?.summary?.counts_by_issue || {},
+          counts_by_method: data?.summary?.counts_by_method || {},
+        },
+        results: Array.isArray(data?.results)
+          ? (data.results as PaymentReconciliationIssue[])
+          : [],
+      } as PaymentReconciliationOverview
+    },
+    enabled: options?.enabled ?? true,
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
+  })
+}
+
+export function useSyncPaymentReconciliation() {
+  const queryClient = useQueryClient()
+
+  return useMutation({
+    mutationFn: async (payload: { payment_ids: number[]; dry_run?: boolean }) => {
+      const response = await apiService.syncPaymentReconciliation(payload)
+      return response as {
+        dry_run: boolean
+        requested_count: number
+        results: PaymentReconciliationSyncResult[]
+      }
+    },
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: paymentsKeys.all })
+      const updatedCount = response.results.filter((item) => item.result === 'updated').length
+      if (updatedCount > 0) {
+        toast.success(`Reconciliation synced ${updatedCount} payment(s)`)
+      } else {
+        toast.success('Reconciliation sync completed')
+      }
+    },
+    onError: (error: any) => {
+      const message =
+        error?.response?.data?.detail ||
+        error?.message ||
+        'Failed to run reconciliation sync'
+      toast.error(message)
+    },
   })
 }
 

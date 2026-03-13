@@ -85,6 +85,13 @@ from .receipt_service import (
     is_cash_payment,
 )
 from .payment_audit import build_payment_snapshot, create_payment_audit_log
+from .payment_reconciliation import (
+    PROVIDER_STATUS_TO_LOCAL_STATUS,
+    REMOTE_SYNC_METHOD_CODES,
+    detect_reconciliation_issues,
+    resolve_payment_method_code,
+    sync_payment_with_provider,
+)
 
 
 # --- 4. Ruxsatnomalarni (Permissions) import qilamiz ---
@@ -734,6 +741,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
         'cash_receipt': 'payments.read',
         'cash_receipt_by_token': 'payments.read',
         'audit_trail': 'payments.read',
+        'reconciliation_overview': 'payments.manage',
+        'reconcile_sync': 'payments.manage',
         'create': 'payments.record',
         'update': 'payments.manage',
         'partial_update': 'payments.manage',
@@ -957,6 +966,258 @@ class PaymentViewSet(viewsets.ModelViewSet):
             {
                 'count': logs_qs.count(),
                 'results': serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['get'], url_path='reconciliation/overview')
+    def reconciliation_overview(self, request):
+        try:
+            limit = int(request.query_params.get('limit', 50))
+        except (TypeError, ValueError):
+            limit = 50
+        limit = max(1, min(limit, 300))
+
+        try:
+            stale_pending_days = int(request.query_params.get('stale_pending_days', 2))
+        except (TypeError, ValueError):
+            stale_pending_days = 2
+        stale_pending_days = max(1, min(stale_pending_days, 60))
+
+        methods_param = (request.query_params.get('methods') or '').strip()
+        selected_methods = {
+            part.strip().lower()
+            for part in methods_param.split(',')
+            if part.strip()
+        }
+
+        scoped_qs = self.get_queryset()
+        duplicate_transaction_ids = set(
+            scoped_qs.exclude(transaction_id__isnull=True)
+            .exclude(transaction_id='')
+            .values('transaction_id')
+            .annotate(tx_count=Count('id'))
+            .filter(tx_count__gt=1)
+            .values_list('transaction_id', flat=True)
+        )
+
+        max_candidates = max(limit * 10, 150)
+        candidate_payments = list(scoped_qs[:max_candidates])
+
+        mismatches = []
+        counts_by_issue: dict[str, int] = {}
+        counts_by_method: dict[str, int] = {}
+
+        for payment in candidate_payments:
+            method_code = resolve_payment_method_code(payment.payment_type)
+            if selected_methods and method_code not in selected_methods:
+                continue
+
+            issues = detect_reconciliation_issues(
+                payment,
+                duplicate_transaction_ids=duplicate_transaction_ids,
+                stale_pending_days=stale_pending_days,
+            )
+            if not issues:
+                continue
+
+            for issue in issues:
+                counts_by_issue[issue] = counts_by_issue.get(issue, 0) + 1
+
+            method_key = method_code or 'unknown'
+            counts_by_method[method_key] = counts_by_method.get(method_key, 0) + 1
+
+            student_name = ''
+            if payment.by_user:
+                student_name = payment.by_user.get_full_name().strip() or payment.by_user.username
+
+            mismatches.append(
+                {
+                    'payment_id': payment.id,
+                    'date': payment.date,
+                    'student_name': student_name,
+                    'group_name': payment.group.name if payment.group else '',
+                    'payment_method_code': method_code,
+                    'payment_method_name': payment.payment_type.name if payment.payment_type else '',
+                    'status': payment.status,
+                    'amount': payment.amount,
+                    'transaction_id': payment.transaction_id or '',
+                    'issues': issues,
+                    'can_sync_external': bool(
+                        method_code in REMOTE_SYNC_METHOD_CODES and (payment.transaction_id or '').strip()
+                    ),
+                }
+            )
+
+            if len(mismatches) >= limit:
+                break
+
+        syncable_count = sum(1 for item in mismatches if item['can_sync_external'])
+        return Response(
+            {
+                'summary': {
+                    'checked_count': len(candidate_payments),
+                    'mismatch_count': len(mismatches),
+                    'syncable_count': syncable_count,
+                    'counts_by_issue': counts_by_issue,
+                    'counts_by_method': counts_by_method,
+                },
+                'results': mismatches,
+            },
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=['post'], url_path='reconciliation/sync')
+    def reconcile_sync(self, request):
+        payment_ids = request.data.get('payment_ids') or []
+        dry_run = bool(request.data.get('dry_run', False))
+
+        if not isinstance(payment_ids, list) or not payment_ids:
+            return Response({'detail': 'payment_ids must be a non-empty list.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        try:
+            normalized_ids = [int(value) for value in payment_ids]
+        except (TypeError, ValueError):
+            return Response({'detail': 'payment_ids must contain valid integers.'}, status=status.HTTP_400_BAD_REQUEST)
+
+        normalized_ids = list(dict.fromkeys(normalized_ids))[:200]
+        scoped_map = {
+            payment.id: payment
+            for payment in self.get_queryset().filter(id__in=normalized_ids)
+        }
+
+        results = []
+        for payment_id in normalized_ids:
+            scoped_payment = scoped_map.get(payment_id)
+            if not scoped_payment:
+                results.append(
+                    {
+                        'payment_id': payment_id,
+                        'result': 'not_found_or_forbidden',
+                    }
+                )
+                continue
+
+            try:
+                with transaction.atomic():
+                    payment = (
+                        Payment.objects.select_related('payment_type', 'by_user', 'group', 'group__main_teacher')
+                        .select_for_update()
+                        .get(id=payment_id)
+                    )
+                    before_snapshot = build_payment_snapshot(payment)
+                    previous_status = payment.status
+                    sync_result = sync_payment_with_provider(payment)
+
+                    metadata = {
+                        'source': 'reconciliation_sync',
+                        'dry_run': dry_run,
+                        'provider': sync_result.get('provider'),
+                        'provider_status': sync_result.get('provider_status'),
+                        'provider_reason': sync_result.get('reason'),
+                        'provider_reference': sync_result.get('provider_reference'),
+                    }
+
+                    provider_status = sync_result.get('provider_status', 'unknown')
+                    target_status = PROVIDER_STATUS_TO_LOCAL_STATUS.get(provider_status)
+
+                    if not sync_result.get('syncable'):
+                        if not dry_run:
+                            create_payment_audit_log(
+                                payment=payment,
+                                event_type=PaymentAuditLog.EVENT_UPDATED,
+                                actor=request.user,
+                                request=request,
+                                previous_snapshot=before_snapshot,
+                                new_snapshot=before_snapshot,
+                                metadata=metadata,
+                            )
+                        results.append(
+                            {
+                                'payment_id': payment_id,
+                                'result': 'skipped',
+                                'previous_status': previous_status,
+                                'next_status': previous_status,
+                                'provider_status': provider_status,
+                                'reason': sync_result.get('reason', 'sync_not_available'),
+                            }
+                        )
+                        continue
+
+                    if not target_status:
+                        if not dry_run:
+                            create_payment_audit_log(
+                                payment=payment,
+                                event_type=PaymentAuditLog.EVENT_UPDATED,
+                                actor=request.user,
+                                request=request,
+                                previous_snapshot=before_snapshot,
+                                new_snapshot=before_snapshot,
+                                metadata=metadata,
+                            )
+                        results.append(
+                            {
+                                'payment_id': payment_id,
+                                'result': 'unknown_provider_state',
+                                'previous_status': previous_status,
+                                'next_status': previous_status,
+                                'provider_status': provider_status,
+                                'reason': sync_result.get('reason', 'provider_state_unknown'),
+                            }
+                        )
+                        continue
+
+                    changed = target_status != previous_status
+                    if changed and not dry_run:
+                        if previous_status == Payment.PaymentStatus.PAID and target_status != Payment.PaymentStatus.PAID:
+                            rollback_paid_payment(payment, actor=request.user)
+
+                        payment.status = target_status
+                        payment.save(update_fields=['status'])
+
+                        if previous_status != Payment.PaymentStatus.PAID and target_status == Payment.PaymentStatus.PAID:
+                            apply_payment_to_student_account(payment, actor=request.user)
+
+                        ensure_cash_receipt(payment, actor=request.user)
+                        sync_payment_financial_records(payment)
+
+                    after_snapshot = build_payment_snapshot(payment if not dry_run else payment)
+
+                    if not dry_run:
+                        create_payment_audit_log(
+                            payment=payment,
+                            event_type=PaymentAuditLog.EVENT_UPDATED,
+                            actor=request.user,
+                            request=request,
+                            previous_snapshot=before_snapshot,
+                            new_snapshot=after_snapshot,
+                            metadata=metadata,
+                        )
+
+                    results.append(
+                        {
+                            'payment_id': payment_id,
+                            'result': 'updated' if changed else 'no_change',
+                            'previous_status': previous_status,
+                            'next_status': target_status,
+                            'provider_status': provider_status,
+                            'reason': sync_result.get('reason', ''),
+                        }
+                    )
+            except Exception as exc:  # noqa: BLE001
+                results.append(
+                    {
+                        'payment_id': payment_id,
+                        'result': 'error',
+                        'reason': str(exc),
+                    }
+                )
+
+        return Response(
+            {
+                'dry_run': dry_run,
+                'requested_count': len(normalized_ids),
+                'results': results,
             },
             status=status.HTTP_200_OK,
         )
