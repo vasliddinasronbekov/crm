@@ -114,6 +114,31 @@ export interface PaymentCourseOption {
   price?: number
 }
 
+export interface PaymentAuditTrailEntry {
+  id: number
+  payment_id_snapshot: number
+  transaction_id_snapshot: string
+  event_type: 'created' | 'updated' | 'deleted'
+  changed_by_user?: number | null
+  changed_by_user_name?: string
+  changed_by_display?: string
+  amount_before?: number | null
+  amount_after?: number | null
+  course_price_before?: number | null
+  course_price_after?: number | null
+  status_before?: string
+  status_after?: string
+  changed_fields: string[]
+  previous_snapshot: Record<string, any>
+  new_snapshot: Record<string, any>
+  metadata: Record<string, any>
+  source: string
+  request_method?: string
+  request_path?: string
+  ip_address?: string
+  created_at: string
+}
+
 const normalizePaymentMethod = (value?: string | null): string =>
   (value || '').trim().toLowerCase()
 
@@ -160,6 +185,8 @@ export const paymentsKeys = {
   courses: () => ['courses'] as const,
   paymentTypes: () => ['payment-types'] as const,
   teachers: () => ['teachers'] as const,
+  auditTrail: (paymentId: number, limit: number) =>
+    [...paymentsKeys.all, 'audit-trail', paymentId, limit] as const,
 }
 
 /**
@@ -238,6 +265,23 @@ export function usePaymentTeachers() {
     queryFn: async () => fetchAllPaginated((page) => apiService.getTeachers({ page })),
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 5 * 60 * 1000, // 5 minutes
+  })
+}
+
+export function usePaymentAuditTrail(paymentId?: number, limit = 100) {
+  return useQuery({
+    queryKey: paymentsKeys.auditTrail(paymentId || 0, limit),
+    queryFn: async () => {
+      if (!paymentId) return { count: 0, results: [] as PaymentAuditTrailEntry[] }
+      const data = await apiService.getPaymentAuditTrail(paymentId, { limit })
+      return {
+        count: Number(data?.count || 0),
+        results: Array.isArray(data?.results) ? (data.results as PaymentAuditTrailEntry[]) : [],
+      }
+    },
+    enabled: Boolean(paymentId),
+    staleTime: 30 * 1000,
+    gcTime: 5 * 60 * 1000,
   })
 }
 

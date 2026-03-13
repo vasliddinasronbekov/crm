@@ -7,7 +7,7 @@ from rest_framework import serializers
 from django.db.models import Q
 from .models import (
     Branch, Group, Attendance, Event, ExamScore, ShopProduct,
-    ShopOrder, CashPaymentReceipt, Payment, Story, StudentCoins, Ticket, TicketChat,
+    ShopOrder, CashPaymentReceipt, Payment, PaymentAuditLog, Story, StudentCoins, Ticket, TicketChat,
     Course, Room, ExpenseType, Expense, User, LeaveReason, Information # Barcha modellar import qilinganiga amin bo'ling
 )
 from .receipt_service import is_cash_payment
@@ -488,6 +488,46 @@ class PaymentSerializer(serializers.ModelSerializer):
             return ''
         full_name = obj.by_user.get_full_name().strip()
         return full_name or obj.by_user.username
+
+
+class PaymentAuditLogSerializer(serializers.ModelSerializer):
+    changed_by_user_name = serializers.SerializerMethodField()
+
+    class Meta:
+        model = PaymentAuditLog
+        fields = [
+            'id',
+            'payment_id_snapshot',
+            'transaction_id_snapshot',
+            'event_type',
+            'changed_by_user',
+            'changed_by_user_name',
+            'changed_by_display',
+            'amount_before',
+            'amount_after',
+            'course_price_before',
+            'course_price_after',
+            'status_before',
+            'status_after',
+            'changed_fields',
+            'previous_snapshot',
+            'new_snapshot',
+            'metadata',
+            'source',
+            'request_method',
+            'request_path',
+            'ip_address',
+            'created_at',
+        ]
+        read_only_fields = fields
+
+    def get_changed_by_user_name(self, obj) -> str:
+        if obj.changed_by_user:
+            full_name = obj.changed_by_user.get_full_name().strip()
+            if full_name:
+                return full_name
+            return obj.changed_by_user.username
+        return obj.changed_by_display or 'System'
 
 
 class PaymentWriteSerializer(serializers.ModelSerializer):

@@ -1,7 +1,7 @@
 'use client'
 
 import { useMemo, useState } from 'react'
-import { Search, Plus, Edit, Trash2, DollarSign, Calendar, User, CreditCard, Download, X, CheckCircle, XCircle, Clock, Bell, Send, Settings, Printer } from 'lucide-react'
+import { Search, Plus, Edit, Trash2, DollarSign, Calendar, User, CreditCard, Download, X, CheckCircle, XCircle, Clock, Bell, Send, Settings, Printer, History } from 'lucide-react'
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
@@ -15,6 +15,7 @@ import {
   usePaymentCourses,
   usePaymentTypes,
   usePaymentTeachers,
+  usePaymentAuditTrail,
   useCreatePayment,
   useUpdatePayment,
   useDeletePayment,
@@ -28,6 +29,7 @@ import {
   type PaymentCourseOption,
   type PaymentTypeOption,
   type CashReceiptPayload,
+  type PaymentAuditTrailEntry,
   type Payment,
 } from '@/lib/hooks/usePayments'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -184,6 +186,11 @@ export default function PaymentsPage() {
   const [isReceiptModalOpen, setIsReceiptModalOpen] = useState(false)
   const [receiptLoadingId, setReceiptLoadingId] = useState<number | null>(null)
   const [receiptAutoPrintKey, setReceiptAutoPrintKey] = useState(0)
+  const [auditPayment, setAuditPayment] = useState<Payment | null>(null)
+  const {
+    data: paymentAuditTrail,
+    isLoading: isAuditTrailLoading,
+  } = usePaymentAuditTrail(auditPayment?.id)
 
   const isLoading = paymentsLoading
 
@@ -435,6 +442,34 @@ export default function PaymentsPage() {
       .filter(p => p.status === 'pending')
       .map(p => p.id)
     setSelectedPayments(pendingPaymentIds)
+  }
+
+  const renderAuditDelta = (event: PaymentAuditTrailEntry) => {
+    const changes: string[] = []
+
+    if (event.amount_before !== event.amount_after) {
+      changes.push(
+        `Amount: ${formatCurrencyFromMinor(event.amount_before || 0)} -> ${formatCurrencyFromMinor(event.amount_after || 0)}`,
+      )
+    }
+
+    if (event.course_price_before !== event.course_price_after) {
+      changes.push(
+        `Billed course price: ${formatCurrencyFromMinor(event.course_price_before || 0)} -> ${formatCurrencyFromMinor(event.course_price_after || 0)}`,
+      )
+    }
+
+    if ((event.status_before || '') !== (event.status_after || '')) {
+      changes.push(`Status: ${event.status_before || 'n/a'} -> ${event.status_after || 'n/a'}`)
+    }
+
+    if (changes.length === 0) {
+      if (event.event_type === 'created') return 'Payment created'
+      if (event.event_type === 'deleted') return 'Payment deleted'
+      return 'Fields updated'
+    }
+
+    return changes.join(' | ')
   }
 
   const PaginationControls = () => (
@@ -801,6 +836,13 @@ export default function PaymentsPage() {
                           <Printer className="h-4 w-4 text-info" />
                         </button>
                       )}
+                      <button
+                        onClick={() => setAuditPayment(payment)}
+                        className="p-2 hover:bg-background rounded-lg transition-colors"
+                        title="Audit trail"
+                      >
+                        <History className="h-4 w-4 text-warning" />
+                      </button>
                       {canEditPayment && (
                         <button
                           onClick={() => handleEdit(payment)}
@@ -1313,6 +1355,66 @@ export default function PaymentsPage() {
           setCashReceiptPreview(null)
         }}
       />
+
+      {auditPayment && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
+          <div className="bg-surface rounded-xl p-6 max-w-3xl w-full mx-4 my-8">
+            <div className="flex items-start justify-between mb-4">
+              <div>
+                <h2 className="text-2xl font-semibold">Payment Audit Trail</h2>
+                <p className="text-sm text-text-secondary mt-1">
+                  Immutable history of who changed amount/status and when.
+                </p>
+              </div>
+              <button
+                onClick={() => setAuditPayment(null)}
+                className="p-2 hover:bg-background rounded-lg transition-colors"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="rounded-xl border border-border bg-background px-4 py-3 mb-4">
+              <p className="text-sm text-text-secondary">
+                Payment #{auditPayment.id} • {resolveStudentName(auditPayment)} • {formatCurrencyFromMinor(auditPayment.amount)}
+              </p>
+            </div>
+
+            {isAuditTrailLoading ? (
+              <div className="py-12 text-center text-text-secondary">Loading audit timeline...</div>
+            ) : (
+              <div className="space-y-3 max-h-[60vh] overflow-y-auto pr-1">
+                {(paymentAuditTrail?.results || []).map((event) => (
+                  <div key={event.id} className="rounded-xl border border-border p-4 bg-background">
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm">
+                        <span className="font-semibold uppercase tracking-wide text-primary">{event.event_type}</span>
+                        <span className="text-text-secondary ml-2">
+                          by {event.changed_by_user_name || event.changed_by_display || 'System'}
+                        </span>
+                      </div>
+                      <div className="text-xs text-text-secondary">
+                        {new Date(event.created_at).toLocaleString()}
+                      </div>
+                    </div>
+                    <p className="text-sm mt-2">{renderAuditDelta(event)}</p>
+                    {(event.request_method || event.request_path) && (
+                      <p className="text-xs text-text-secondary mt-2">
+                        {event.request_method || 'N/A'} {event.request_path || ''}
+                      </p>
+                    )}
+                  </div>
+                ))}
+                {(paymentAuditTrail?.results || []).length === 0 && (
+                  <div className="py-10 text-center text-text-secondary">
+                    No audit records yet for this payment.
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   )
 }

@@ -4,7 +4,7 @@ from django.contrib import admin
 from django.contrib import messages
 from .models import (
     Branch, Group, Attendance, Event, ExamScore, ShopProduct,
-    ShopOrder, Payment, Story, StudentCoins, Ticket, TicketChat,
+    ShopOrder, Payment, PaymentAuditLog, Story, StudentCoins, Ticket, TicketChat,
     Course, Room, ExpenseType, Expense, LeaveReason, Information,
     PaymentType, AutomaticFine, AssistantSlot, Booking,
     StudentAccount, MonthlySubscriptionCharge, AccountingActivityLog,
@@ -15,6 +15,7 @@ from .models import (
     SATExam, SATModule, SATQuestion, SATAttempt, SATAnswer
 )
 from .services.financial_automation import set_student_account_status
+from .payment_audit import build_payment_snapshot, create_payment_audit_log
 
 # Har bir modelni FAQAT BIR MARTA ro'yxatdan o'tkazamiz
 admin.site.register(Branch)
@@ -27,7 +28,6 @@ admin.site.register(ExamScore)
 admin.site.register(ShopProduct)
 admin.site.register(ShopOrder)
 admin.site.register(PaymentType)
-admin.site.register(Payment)
 admin.site.register(Story)
 admin.site.register(StudentCoins)
 admin.site.register(Ticket)
@@ -46,6 +46,114 @@ admin.site.register(TeacherEarnings)
 admin.site.register(StudentFine)
 admin.site.register(AccountTransaction)
 admin.site.register(FinancialSummary)
+
+
+@admin.register(Payment)
+class PaymentAdmin(admin.ModelAdmin):
+    list_display = ['id', 'date', 'by_user', 'group', 'status', 'amount', 'course_price', 'payment_type']
+    list_filter = ['status', 'payment_type', 'date']
+    search_fields = ['by_user__username', 'by_user__first_name', 'by_user__last_name', 'transaction_id']
+
+    def save_model(self, request, obj, form, change):
+        previous_snapshot = {}
+        event_type = PaymentAuditLog.EVENT_CREATED
+        if change and obj.pk:
+            previous = Payment.objects.filter(pk=obj.pk).first()
+            previous_snapshot = build_payment_snapshot(previous)
+            event_type = PaymentAuditLog.EVENT_UPDATED
+
+        super().save_model(request, obj, form, change)
+
+        create_payment_audit_log(
+            payment=obj,
+            event_type=event_type,
+            actor=request.user,
+            previous_snapshot=previous_snapshot,
+            new_snapshot=build_payment_snapshot(obj),
+            metadata={'source': 'django_admin'},
+        )
+
+    def delete_model(self, request, obj):
+        previous_snapshot = build_payment_snapshot(obj)
+        create_payment_audit_log(
+            payment=obj,
+            event_type=PaymentAuditLog.EVENT_DELETED,
+            actor=request.user,
+            previous_snapshot=previous_snapshot,
+            new_snapshot={},
+            metadata={'source': 'django_admin'},
+        )
+        super().delete_model(request, obj)
+
+    def delete_queryset(self, request, queryset):
+        for payment in queryset:
+            previous_snapshot = build_payment_snapshot(payment)
+            create_payment_audit_log(
+                payment=payment,
+                event_type=PaymentAuditLog.EVENT_DELETED,
+                actor=request.user,
+                previous_snapshot=previous_snapshot,
+                new_snapshot={},
+                metadata={'source': 'django_admin_bulk_delete'},
+            )
+        super().delete_queryset(request, queryset)
+
+
+@admin.register(PaymentAuditLog)
+class PaymentAuditLogAdmin(admin.ModelAdmin):
+    list_display = [
+        'id',
+        'payment_id_snapshot',
+        'event_type',
+        'changed_by_display',
+        'status_before',
+        'status_after',
+        'amount_before',
+        'amount_after',
+        'created_at',
+    ]
+    list_filter = ['event_type', 'source', 'created_at']
+    search_fields = [
+        'payment_id_snapshot',
+        'transaction_id_snapshot',
+        'changed_by_display',
+        'status_before',
+        'status_after',
+    ]
+    readonly_fields = [
+        'payment',
+        'payment_id_snapshot',
+        'transaction_id_snapshot',
+        'event_type',
+        'changed_by_user',
+        'changed_by_display',
+        'amount_before',
+        'amount_after',
+        'course_price_before',
+        'course_price_after',
+        'status_before',
+        'status_after',
+        'changed_fields',
+        'previous_snapshot',
+        'new_snapshot',
+        'metadata',
+        'source',
+        'request_method',
+        'request_path',
+        'ip_address',
+        'user_agent',
+        'created_at',
+    ]
+    ordering = ['-created_at', '-id']
+
+    def has_add_permission(self, request):
+        return False
+
+    def has_change_permission(self, request, obj=None):
+        return False
+
+    def has_delete_permission(self, request, obj=None):
+        return False
 
 
 @admin.register(StudentAccount)

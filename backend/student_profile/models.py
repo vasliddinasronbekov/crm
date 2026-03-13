@@ -301,6 +301,66 @@ class Payment(models.Model):
         return f"Payment of {self.amount / 100} UZS by {user_info}"
 
 
+class PaymentAuditLog(models.Model):
+    EVENT_CREATED = 'created'
+    EVENT_UPDATED = 'updated'
+    EVENT_DELETED = 'deleted'
+    EVENT_CHOICES = [
+        (EVENT_CREATED, 'Created'),
+        (EVENT_UPDATED, 'Updated'),
+        (EVENT_DELETED, 'Deleted'),
+    ]
+
+    payment = models.ForeignKey(
+        Payment,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='audit_logs',
+    )
+    payment_id_snapshot = models.PositiveBigIntegerField(db_index=True)
+    transaction_id_snapshot = models.CharField(max_length=255, blank=True, db_index=True)
+    event_type = models.CharField(max_length=16, choices=EVENT_CHOICES, db_index=True)
+
+    changed_by_user = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='payment_audit_events',
+    )
+    changed_by_display = models.CharField(max_length=255, blank=True)
+
+    amount_before = models.BigIntegerField(null=True, blank=True)
+    amount_after = models.BigIntegerField(null=True, blank=True)
+    course_price_before = models.BigIntegerField(null=True, blank=True)
+    course_price_after = models.BigIntegerField(null=True, blank=True)
+    status_before = models.CharField(max_length=20, blank=True)
+    status_after = models.CharField(max_length=20, blank=True)
+    changed_fields = models.JSONField(default=list, blank=True)
+
+    previous_snapshot = models.JSONField(default=dict, blank=True)
+    new_snapshot = models.JSONField(default=dict, blank=True)
+    metadata = models.JSONField(default=dict, blank=True)
+
+    source = models.CharField(max_length=64, default='api')
+    request_method = models.CharField(max_length=16, blank=True)
+    request_path = models.CharField(max_length=255, blank=True)
+    ip_address = models.CharField(max_length=64, blank=True)
+    user_agent = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        indexes = [
+            models.Index(fields=['payment_id_snapshot', '-created_at'], name='pay_audit_payment_idx'),
+            models.Index(fields=['event_type', '-created_at'], name='pay_audit_event_idx'),
+        ]
+
+    def __str__(self):
+        return f"Payment#{self.payment_id_snapshot} {self.event_type} at {self.created_at.isoformat()}"
+
+
 class CashPaymentReceipt(models.Model):
     payment = models.OneToOneField(Payment, on_delete=models.CASCADE, related_name='cash_receipt')
     receipt_number = models.CharField(max_length=64, unique=True, db_index=True)

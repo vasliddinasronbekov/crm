@@ -1257,6 +1257,11 @@ class ApiService {
     return response.data;
   }
 
+  async getPaymentAuditTrail(paymentId: number, params?: { limit?: number }) {
+    const response = await this.api.get(`/v1/payment/${paymentId}/audit-trail/`, { params });
+    return response.data;
+  }
+
   async getCashReceiptByToken(token: string) {
     const response = await this.api.get(`/v1/payment/cash-receipt-by-token/${token}/`);
     return response.data;

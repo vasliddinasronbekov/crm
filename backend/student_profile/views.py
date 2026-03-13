@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 from .models import (
     ShopProduct, StudentCoins, ShopOrder,
     Branch, Group, Attendance, Event, ExamScore, ShopProduct, ShopOrder,
-    CashPaymentReceipt, Payment, Story, StudentCoins, Ticket, TicketChat, Course, Room,
+    CashPaymentReceipt, Payment, PaymentAuditLog, Story, StudentCoins, Ticket, TicketChat, Course, Room,
     ExpenseType, Expense, LeaveReason, Information, PaymentType, AutomaticFine,
     AssistantSlot, Booking
 )
@@ -51,6 +51,7 @@ from .serializers import (
     ShopProductSerializer,
     ShopOrderSerializer,
     PaymentSerializer,
+    PaymentAuditLogSerializer,
     PaymentWriteSerializer,
     StorySerializer,
     StudentCoinsSerializer,
@@ -83,11 +84,13 @@ from .receipt_service import (
     ensure_cash_receipt,
     is_cash_payment,
 )
+from .payment_audit import build_payment_snapshot, create_payment_audit_log
 
 
 # --- 4. Ruxsatnomalarni (Permissions) import qilamiz ---
 from .permissions import IsTeacherOrReadOnly, IsAdminOrGroupOwnerOrReadOnly
 from users.permissions import HasRoleCapability
+from users.roles import has_capability
 
 
 # --- 5. Barcha ViewSet va View'larni tartib bilan e'lon qilamiz ---
@@ -730,6 +733,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         'retrieve': 'payments.read',
         'cash_receipt': 'payments.read',
         'cash_receipt_by_token': 'payments.read',
+        'audit_trail': 'payments.read',
         'create': 'payments.record',
         'update': 'payments.manage',
         'partial_update': 'payments.manage',
@@ -749,9 +753,18 @@ class PaymentViewSet(viewsets.ModelViewSet):
             apply_payment_to_student_account(payment, actor=self.request.user)
             ensure_cash_receipt(payment, actor=self.request.user)
             sync_payment_financial_records(payment)
+            create_payment_audit_log(
+                payment=payment,
+                event_type=PaymentAuditLog.EVENT_CREATED,
+                actor=self.request.user,
+                request=self.request,
+                previous_snapshot={},
+                new_snapshot=build_payment_snapshot(payment),
+            )
 
     def perform_update(self, serializer):
         previous = self.get_object()
+        previous_snapshot = build_payment_snapshot(previous)
         previous_status = previous.status
         previous_amount = previous.amount
         previous_user_id = previous.by_user_id
@@ -781,11 +794,28 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
         ensure_cash_receipt(payment, actor=self.request.user)
         sync_payment_financial_records(payment)
+        create_payment_audit_log(
+            payment=payment,
+            event_type=PaymentAuditLog.EVENT_UPDATED,
+            actor=self.request.user,
+            request=self.request,
+            previous_snapshot=previous_snapshot,
+            new_snapshot=build_payment_snapshot(payment),
+        )
 
     def perform_destroy(self, instance):
+        previous_snapshot = build_payment_snapshot(instance)
         if instance.status == Payment.PaymentStatus.PAID:
             rollback_paid_payment(instance, actor=self.request.user)
         cleanup_payment_financial_records(instance)
+        create_payment_audit_log(
+            payment=instance,
+            event_type=PaymentAuditLog.EVENT_DELETED,
+            actor=self.request.user,
+            request=self.request,
+            previous_snapshot=previous_snapshot,
+            new_snapshot={},
+        )
         super().perform_destroy(instance)
 
     def _create_payment_reminder(self, payment, template='default', custom_message=''):
@@ -809,8 +839,19 @@ class PaymentViewSet(viewsets.ModelViewSet):
         user = self.request.user
         queryset = Payment.objects.all()
 
-        # Role-based filtering
-        if user.is_superuser or user.is_teacher or user.is_staff:
+        # Capability-aligned visibility:
+        # - payments.manage: operational staff can inspect branch-scoped payments
+        # - payments.record (teacher): only payments tied to their teaching scope
+        # - fallback payments.read: own student/parent payments only
+        if has_capability(user, 'payments.manage'):
+            if user.branch:
+                queryset = queryset.filter(group__branch=user.branch)
+        elif has_capability(user, 'payments.record'):
+            queryset = queryset.filter(
+                Q(teacher_id=user.id)
+                | Q(group__main_teacher_id=user.id)
+                | Q(group__assistant_teacher_id=user.id)
+            )
             if user.branch:
                 queryset = queryset.filter(group__branch=user.branch)
         else:
@@ -856,6 +897,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
             'group',
             'group__branch',
             'group__course',
+            'group__main_teacher',
+            'group__assistant_teacher',
             'payment_type',
             'teacher',
             'cash_receipt',
@@ -897,6 +940,26 @@ class PaymentViewSet(viewsets.ModelViewSet):
             return Response({'detail': 'Receipt is not available for this payment.'}, status=status.HTTP_400_BAD_REQUEST)
 
         return Response(build_cash_receipt_payload(receipt, request=request))
+
+    @action(detail=True, methods=['get'], url_path='audit-trail')
+    def audit_trail(self, request, pk=None):
+        payment = self.get_object()
+        try:
+            limit = int(request.query_params.get('limit', 100))
+        except (TypeError, ValueError):
+            limit = 100
+        limit = max(1, min(limit, 1000))
+
+        logs_qs = payment.audit_logs.select_related('changed_by_user').order_by('-created_at', '-id')
+        logs = logs_qs[:limit]
+        serializer = PaymentAuditLogSerializer(logs, many=True)
+        return Response(
+            {
+                'count': logs_qs.count(),
+                'results': serializer.data,
+            },
+            status=status.HTTP_200_OK,
+        )
 
     @action(detail=True, methods=['post'])
     def send_reminder(self, request, pk=None):
