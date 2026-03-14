@@ -976,7 +976,25 @@ export default function GroupDetailPage() {
     }
   }
 
-  const studentsInGroup = group?.students || []
+  const studentsInGroup = useMemo(() => group?.students || [], [group?.students])
+  const allPresentDates = useMemo(() => {
+    const dates = new Set<string>()
+    if (!studentsInGroup.length) return dates
+
+    attendanceMonthDays.forEach((day) => {
+      const everyonePresent = studentsInGroup.every((student) => {
+        const record = attendanceByStudentAndDate.get(getAttendanceCellKey(student.id, day.date))
+        return normalizeAttendanceStatus(record) === 'present'
+      })
+
+      if (everyonePresent) {
+        dates.add(day.date)
+      }
+    })
+
+    return dates
+  }, [attendanceByStudentAndDate, attendanceMonthDays, studentsInGroup])
+
   const markAllPresentForDate = async (attendanceDate: string) => {
     if (!canMarkAttendance) {
       toast.error('You do not have permission to mark attendance.')
@@ -2092,6 +2110,7 @@ export default function GroupDetailPage() {
                               const bulkKey = `bulk:${day.date}`
                               const isBulkMarkingDay = markingAttendance === bulkKey
                               const isBulkDisabled = Boolean(markingAttendance && markingAttendance !== bulkKey)
+                              const isAllPresentDay = allPresentDates.has(day.date)
                               return (
                                 <th
                                   key={day.date}
@@ -2109,15 +2128,15 @@ export default function GroupDetailPage() {
                                       void markAllPresentForDate(day.date)
                                     }}
                                     disabled={!canMarkAttendance || isBulkDisabled}
-                                    className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded border text-[10px] ${
+                                    className={`mt-1 inline-flex h-5 w-7 items-center justify-center rounded-sm border text-[11px] font-semibold ${
                                       canMarkAttendance
-                                        ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
-                                        : 'border-border text-text-secondary/40'
+                                        ? 'border-success/40 bg-success/5 text-success hover:bg-success/15'
+                                        : 'border-border text-text-secondary/30'
                                     } disabled:opacity-40`}
                                     title="Mark all students present for this day"
                                     aria-label="Mark all students present for this day"
                                   >
-                                    {isBulkMarkingDay ? '…' : '✓'}
+                                    {isBulkMarkingDay ? '…' : isAllPresentDay ? '✓' : ''}
                                   </button>
                                 </th>
                               )
@@ -2243,6 +2262,7 @@ export default function GroupDetailPage() {
                                 const isSelectedWeekday = weekday.key === selectedWeekdayKey
                                 const bulkKey = `bulk:${selectedDate}`
                                 const isBulkMarkingSelectedDay = markingAttendance === bulkKey
+                                const isSelectedDateFullyPresent = allPresentDates.has(selectedDate)
                                 const isBulkDisabled =
                                   !isSelectedWeekday ||
                                   !canMarkAttendance ||
@@ -2261,10 +2281,10 @@ export default function GroupDetailPage() {
                                         type="button"
                                         onClick={() => void markAllPresentForDate(selectedDate)}
                                         disabled={isBulkDisabled}
-                                        className={`inline-flex h-5 w-5 items-center justify-center rounded border text-[10px] ${
+                                        className={`inline-flex h-5 w-7 items-center justify-center rounded-sm border text-[11px] font-semibold ${
                                           isSelectedWeekday && canMarkAttendance
-                                            ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
-                                            : 'border-border text-text-secondary/40'
+                                            ? 'border-success/40 bg-success/5 text-success hover:bg-success/15'
+                                            : 'border-border text-text-secondary/30'
                                         } disabled:opacity-40`}
                                         title={
                                           isSelectedWeekday
@@ -2273,7 +2293,7 @@ export default function GroupDetailPage() {
                                         }
                                         aria-label="Mark all students present for selected day"
                                       >
-                                        {isBulkMarkingSelectedDay && isSelectedWeekday ? '…' : '✓'}
+                                        {isBulkMarkingSelectedDay && isSelectedWeekday ? '…' : isSelectedWeekday && isSelectedDateFullyPresent ? '✓' : ''}
                                       </button>
                                     </div>
                                   </th>
