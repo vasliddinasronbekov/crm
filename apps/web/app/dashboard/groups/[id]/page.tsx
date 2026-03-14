@@ -129,6 +129,8 @@ interface PaymentForm {
 type Tab = 'students' | 'schedule' | 'payments' | 'attendance'
 type AttendanceStatus = 'present' | 'absent' | 'absence'
 type AlertSeverity = 'info' | 'warning' | 'error'
+type AttendanceView = 'register' | 'weekday'
+type WeekdayKey = 'mon' | 'tue' | 'wed' | 'thu' | 'fri' | 'sat' | 'sun'
 
 interface OperationalAlert {
   id: string
@@ -136,6 +138,16 @@ interface OperationalAlert {
   detail: string
   severity: AlertSeverity
 }
+
+const ATTENDANCE_WEEKDAY_ORDER: Array<{ key: WeekdayKey; label: string }> = [
+  { key: 'mon', label: 'Mon' },
+  { key: 'tue', label: 'Tue' },
+  { key: 'wed', label: 'Wed' },
+  { key: 'thu', label: 'Thu' },
+  { key: 'fri', label: 'Fri' },
+  { key: 'sat', label: 'Sat' },
+  { key: 'sun', label: 'Sun' },
+]
 
 const parseListPayload = <T,>(payload: any): T[] => {
   if (Array.isArray(payload)) return payload
@@ -179,6 +191,18 @@ const normalizeTimeInput = (value: any): string => {
 const normalizeAttendanceDate = (value: string | undefined): string => {
   if (!value) return ''
   return value.includes('T') ? value.split('T')[0] : value
+}
+
+const getWeekdayKey = (dateValue: string): WeekdayKey => {
+  const date = new Date(`${dateValue}T00:00:00`)
+  const day = date.getDay()
+  if (day === 0) return 'sun'
+  if (day === 1) return 'mon'
+  if (day === 2) return 'tue'
+  if (day === 3) return 'wed'
+  if (day === 4) return 'thu'
+  if (day === 5) return 'fri'
+  return 'sat'
 }
 
 const normalizeAttendanceStatus = (record: AttendanceRecord | null | undefined): AttendanceStatus => {
@@ -349,6 +373,7 @@ export default function GroupDetailPage() {
   const [studentBalanceById, setStudentBalanceById] = useState<Record<number, number>>({})
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [attendanceMonth, setAttendanceMonth] = useState(new Date().toISOString().slice(0, 7))
+  const [attendanceView, setAttendanceView] = useState<AttendanceView>('register')
   const [markingAttendance, setMarkingAttendance] = useState<string | null>(null)
 
   const [isConfigMode, setIsConfigMode] = useState(false)
@@ -713,6 +738,7 @@ export default function GroupDetailPage() {
 
       return {
         date,
+        dayNumber: day,
         dayLabel: String(day).padStart(2, '0'),
         weekdayLabel,
       }
@@ -730,6 +756,24 @@ export default function GroupDetailPage() {
       year: 'numeric',
     })
   }, [attendanceMonth])
+
+  const attendanceMonthDaysByWeekday = useMemo(() => {
+    const grouped: Record<WeekdayKey, typeof attendanceMonthDays> = {
+      mon: [],
+      tue: [],
+      wed: [],
+      thu: [],
+      fri: [],
+      sat: [],
+      sun: [],
+    }
+
+    attendanceMonthDays.forEach((day) => {
+      grouped[getWeekdayKey(day.date)].push(day)
+    })
+
+    return grouped
+  }, [attendanceMonthDays])
 
   const attendanceByStudentOnDate = useMemo(() => {
     const map = new Map<number, AttendanceRecord>()
@@ -1955,6 +1999,26 @@ export default function GroupDetailPage() {
                 Selected day: {new Date(`${selectedDate}T00:00:00`).toLocaleDateString()}
               </span>
             </div>
+            <div className="mb-4 inline-flex items-center rounded-xl border border-border bg-surface p-1">
+              <button
+                type="button"
+                onClick={() => setAttendanceView('register')}
+                className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                  attendanceView === 'register' ? 'bg-primary text-white' : 'text-text-secondary hover:bg-background'
+                }`}
+              >
+                Register View
+              </button>
+              <button
+                type="button"
+                onClick={() => setAttendanceView('weekday')}
+                className={`rounded-lg px-3 py-1.5 text-sm transition-colors ${
+                  attendanceView === 'weekday' ? 'bg-primary text-white' : 'text-text-secondary hover:bg-background'
+                }`}
+              >
+                Weekday View
+              </button>
+            </div>
             {!canMarkAttendance && (
               <div className="mb-4 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
                 Read-only attendance mode. You can review records but cannot mark attendance.
@@ -1963,140 +2027,268 @@ export default function GroupDetailPage() {
 
             {studentsInGroup.length > 0 ? (
               <div className="bg-surface border border-border rounded-2xl p-6 mb-6">
-                <div className="overflow-x-auto">
-                  <table className="min-w-[1380px] w-full border-separate border-spacing-0">
-                    <thead>
-                      <tr>
-                        <th className="sticky left-0 z-20 min-w-[52px] border border-border bg-surface px-2 py-2 text-center text-xs font-semibold">
-                          #
-                        </th>
-                        <th className="sticky left-[52px] z-20 min-w-[220px] border border-border bg-surface px-3 py-2 text-left text-xs font-semibold">
-                          Student
-                        </th>
-                        {attendanceMonthDays.map((day) => {
-                          const isSelectedDate = day.date === selectedDate
-                          return (
-                            <th
-                              key={day.date}
-                              className={`min-w-[72px] border border-border px-2 py-2 text-center ${
-                                isSelectedDate ? 'bg-primary/15 text-primary' : 'bg-background'
-                              }`}
-                              title={day.date}
-                            >
-                              <div className="text-[11px] font-semibold leading-none">{day.dayLabel}</div>
-                              <div className="text-[10px] text-text-secondary mt-1">{day.weekdayLabel}</div>
+                {attendanceView === 'register' ? (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-[1380px] w-full border-separate border-spacing-0">
+                        <thead>
+                          <tr>
+                            <th className="sticky left-0 z-20 min-w-[52px] border border-border bg-surface px-2 py-2 text-center text-xs font-semibold">
+                              #
                             </th>
-                          )
-                        })}
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {studentsInGroup.map((student, index) => (
-                        <tr key={`${student.id}-${index}`}>
-                          <td className="sticky left-0 z-10 border border-border bg-surface px-2 py-2 text-center text-xs text-text-secondary">
-                            {index + 1}
-                          </td>
-                          <td className="sticky left-[52px] z-10 border border-border bg-surface px-3 py-2">
-                            <p className="text-sm font-medium leading-tight">{getFullName(student)}</p>
-                            <p className="text-xs text-text-secondary mt-0.5">{student.phone || '-'}</p>
-                          </td>
-                          {attendanceMonthDays.map((day) => {
-                            const cellKey = getAttendanceCellKey(student.id, day.date)
-                            const record = attendanceByStudentAndDate.get(cellKey)
-                            const status = record ? normalizeAttendanceStatus(record) : null
-                            const registerMeta = status ? ATTENDANCE_REGISTER_CELL_META[status] : null
-                            const isSelectedDate = day.date === selectedDate
-                            const isMarkingCell = markingAttendance === cellKey
-                            const disableActions = Boolean(markingAttendance && markingAttendance !== cellKey)
-
-                            return (
-                              <td
-                                key={cellKey}
-                                className={`h-12 border border-border px-1 py-1 text-center ${isSelectedDate ? 'bg-primary/5' : 'bg-background'}`}
-                                onClick={() => setSelectedDate(day.date)}
-                              >
-                                <div className="group relative flex justify-center">
-                                  <div
-                                    className={`relative flex h-9 w-9 items-center justify-center rounded-xl border text-xs font-semibold transition-all duration-200 ${
-                                      registerMeta
-                                        ? `${registerMeta.className} border-transparent`
-                                        : 'bg-background text-text-secondary/45 border-border'
-                                    } ${
-                                      canMarkAttendance && !isMarkingCell
-                                        ? 'group-hover:w-[190px] group-hover:justify-start group-hover:px-1.5 group-hover:shadow-lg'
-                                        : ''
-                                    } ${isSelectedDate ? 'ring-2 ring-primary/30' : ''}`}
-                                  >
-                                    <span className={`${canMarkAttendance && !isMarkingCell ? 'group-hover:opacity-0 transition-opacity' : ''}`}>
-                                      {isMarkingCell ? '...' : registerMeta ? registerMeta.symbol : '·'}
-                                    </span>
-                                  </div>
-
-                                  {canMarkAttendance && !isMarkingCell && (
-                                    <div className="pointer-events-none absolute inset-0 z-20 hidden items-center gap-1 px-1.5 group-hover:flex group-hover:pointer-events-auto">
-                                      <button
-                                        type="button"
-                                        onClick={(event) => {
-                                          event.stopPropagation()
-                                          void markAttendance(student.id, 'present', day.date)
-                                        }}
-                                        disabled={disableActions}
-                                        className="rounded-md bg-success/20 px-1.5 py-1 text-[10px] font-medium text-success disabled:opacity-40"
-                                        title="Present"
-                                      >
-                                        + Present
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(event) => {
-                                          event.stopPropagation()
-                                          void markAttendance(student.id, 'absence', day.date)
-                                        }}
-                                        disabled={disableActions}
-                                        className="rounded-md bg-warning/20 px-1.5 py-1 text-[10px] font-medium text-warning disabled:opacity-40"
-                                        title="Absence (Excused)"
-                                      >
-                                        ! Absence
-                                      </button>
-                                      <button
-                                        type="button"
-                                        onClick={(event) => {
-                                          event.stopPropagation()
-                                          void markAttendance(student.id, 'absent', day.date)
-                                        }}
-                                        disabled={disableActions}
-                                        className="rounded-md bg-error/20 px-1.5 py-1 text-[10px] font-medium text-error disabled:opacity-40"
-                                        title="Absent (Unexcused)"
-                                      >
-                                        - Absent
-                                      </button>
-                                    </div>
-                                  )}
-                                </div>
+                            <th className="sticky left-[52px] z-20 min-w-[220px] border border-border bg-surface px-3 py-2 text-left text-xs font-semibold">
+                              Student
+                            </th>
+                            {attendanceMonthDays.map((day) => {
+                              const isSelectedDate = day.date === selectedDate
+                              return (
+                                <th
+                                  key={day.date}
+                                  className={`min-w-[72px] border border-border px-2 py-2 text-center ${
+                                    isSelectedDate ? 'bg-primary/15 text-primary' : 'bg-background'
+                                  }`}
+                                  title={day.date}
+                                >
+                                  <div className="text-[11px] font-semibold leading-none">{day.dayLabel}</div>
+                                  <div className="text-[10px] text-text-secondary mt-1">{day.weekdayLabel}</div>
+                                </th>
+                              )
+                            })}
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {studentsInGroup.map((student, index) => (
+                            <tr key={`${student.id}-${index}`}>
+                              <td className="sticky left-0 z-10 border border-border bg-surface px-2 py-2 text-center text-xs text-text-secondary">
+                                {index + 1}
                               </td>
-                            )
-                          })}
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
+                              <td className="sticky left-[52px] z-10 border border-border bg-surface px-3 py-2">
+                                <p className="text-sm font-medium leading-tight">{getFullName(student)}</p>
+                                <p className="text-xs text-text-secondary mt-0.5">{student.phone || '-'}</p>
+                              </td>
+                              {attendanceMonthDays.map((day) => {
+                                const cellKey = getAttendanceCellKey(student.id, day.date)
+                                const record = attendanceByStudentAndDate.get(cellKey)
+                                const status = record ? normalizeAttendanceStatus(record) : null
+                                const registerMeta = status ? ATTENDANCE_REGISTER_CELL_META[status] : null
+                                const isSelectedDate = day.date === selectedDate
+                                const isMarkingCell = markingAttendance === cellKey
+                                const disableActions = Boolean(markingAttendance && markingAttendance !== cellKey)
 
-                <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
-                  {(Object.keys(ATTENDANCE_REGISTER_CELL_META) as AttendanceStatus[]).map((status) => (
-                    <span key={status} className="inline-flex items-center gap-2 rounded-lg border border-border px-2 py-1">
-                      <span
-                        className={`inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold ${ATTENDANCE_REGISTER_CELL_META[status].className}`}
-                      >
-                        {ATTENDANCE_REGISTER_CELL_META[status].symbol}
+                                return (
+                                  <td
+                                    key={cellKey}
+                                    className={`h-12 border border-border px-1 py-1 text-center ${isSelectedDate ? 'bg-primary/5' : 'bg-background'}`}
+                                    onClick={() => setSelectedDate(day.date)}
+                                  >
+                                    <div className="group relative flex justify-center">
+                                      <div
+                                        className={`relative flex h-9 w-9 items-center justify-center rounded-xl border text-xs font-semibold transition-all duration-200 ${
+                                          registerMeta
+                                            ? `${registerMeta.className} border-transparent`
+                                            : 'bg-background text-text-secondary/45 border-border'
+                                        } ${
+                                          canMarkAttendance && !isMarkingCell
+                                            ? 'group-hover:w-[190px] group-hover:justify-start group-hover:px-1.5 group-hover:shadow-lg'
+                                            : ''
+                                        } ${isSelectedDate ? 'ring-2 ring-primary/30' : ''}`}
+                                      >
+                                        <span className={`${canMarkAttendance && !isMarkingCell ? 'group-hover:opacity-0 transition-opacity' : ''}`}>
+                                          {isMarkingCell ? '...' : registerMeta ? registerMeta.symbol : '·'}
+                                        </span>
+                                      </div>
+
+                                      {canMarkAttendance && !isMarkingCell && (
+                                        <div className="pointer-events-none absolute inset-0 z-20 hidden items-center gap-1 px-1.5 group-hover:flex group-hover:pointer-events-auto">
+                                          <button
+                                            type="button"
+                                            onClick={(event) => {
+                                              event.stopPropagation()
+                                              void markAttendance(student.id, 'present', day.date)
+                                            }}
+                                            disabled={disableActions}
+                                            className="rounded-md bg-success/20 px-1.5 py-1 text-[10px] font-medium text-success disabled:opacity-40"
+                                            title="Present"
+                                          >
+                                            + Present
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={(event) => {
+                                              event.stopPropagation()
+                                              void markAttendance(student.id, 'absence', day.date)
+                                            }}
+                                            disabled={disableActions}
+                                            className="rounded-md bg-warning/20 px-1.5 py-1 text-[10px] font-medium text-warning disabled:opacity-40"
+                                            title="Absence (Excused)"
+                                          >
+                                            ! Absence
+                                          </button>
+                                          <button
+                                            type="button"
+                                            onClick={(event) => {
+                                              event.stopPropagation()
+                                              void markAttendance(student.id, 'absent', day.date)
+                                            }}
+                                            disabled={disableActions}
+                                            className="rounded-md bg-error/20 px-1.5 py-1 text-[10px] font-medium text-error disabled:opacity-40"
+                                            title="Absent (Unexcused)"
+                                          >
+                                            - Absent
+                                          </button>
+                                        </div>
+                                      )}
+                                    </div>
+                                  </td>
+                                )
+                              })}
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+                      {(Object.keys(ATTENDANCE_REGISTER_CELL_META) as AttendanceStatus[]).map((status) => (
+                        <span key={status} className="inline-flex items-center gap-2 rounded-lg border border-border px-2 py-1">
+                          <span
+                            className={`inline-flex h-5 w-5 items-center justify-center rounded text-[11px] font-bold ${ATTENDANCE_REGISTER_CELL_META[status].className}`}
+                          >
+                            {ATTENDANCE_REGISTER_CELL_META[status].symbol}
+                          </span>
+                          {ATTENDANCE_REGISTER_CELL_META[status].label}
+                        </span>
+                      ))}
+                      <span className="inline-flex items-center gap-2 rounded-lg border border-border px-2 py-1">
+                        Marked on selected date: {attendanceByStudentOnDate.size}/{studentsInGroup.length}
                       </span>
-                      {ATTENDANCE_REGISTER_CELL_META[status].label}
-                    </span>
-                  ))}
-                  <span className="inline-flex items-center gap-2 rounded-lg border border-border px-2 py-1">
-                    Marked on selected date: {attendanceByStudentOnDate.size}/{studentsInGroup.length}
-                  </span>
-                </div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <div className="overflow-x-auto">
+                      <table className="min-w-[1320px] w-full border-separate border-spacing-0">
+                        <thead>
+                          <tr>
+                            {ATTENDANCE_WEEKDAY_ORDER.map((weekday) => (
+                              <th
+                                key={weekday.key}
+                                className="min-w-[150px] border border-border bg-background px-3 py-2 text-left text-xs font-semibold"
+                              >
+                                {weekday.label}
+                              </th>
+                            ))}
+                            <th className="sticky right-0 z-20 min-w-[220px] border border-border bg-surface px-3 py-2 text-left text-xs font-semibold">
+                              Student
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {studentsInGroup.map((student, index) => (
+                            <tr key={`${student.id}-${index}`}>
+                              {ATTENDANCE_WEEKDAY_ORDER.map((weekday) => (
+                                <td key={`${student.id}-${weekday.key}`} className="border border-border px-2 py-2 align-top">
+                                  <div className="flex flex-wrap gap-1.5">
+                                    {attendanceMonthDaysByWeekday[weekday.key].map((day) => {
+                                      const cellKey = getAttendanceCellKey(student.id, day.date)
+                                      const record = attendanceByStudentAndDate.get(cellKey)
+                                      const status = record ? normalizeAttendanceStatus(record) : null
+                                      const isMarkingCell = markingAttendance === cellKey
+                                      const isSelectedDate = day.date === selectedDate
+                                      const disableActions = Boolean(markingAttendance && markingAttendance !== cellKey)
+                                      const dayCellClassName =
+                                        status === 'present'
+                                          ? 'bg-success/25 border-success/30 text-success'
+                                          : status === 'absence'
+                                            ? 'bg-warning/25 border-warning/30 text-warning'
+                                            : status === 'absent'
+                                              ? 'bg-error/25 border-error/30 text-error'
+                                              : 'bg-background border-border text-text-secondary/55'
+
+                                      return (
+                                        <div key={cellKey} className="group relative">
+                                          <button
+                                            type="button"
+                                            onClick={() => setSelectedDate(day.date)}
+                                            className={`h-8 w-8 rounded-lg border text-[11px] font-semibold transition-colors ${dayCellClassName} ${
+                                              isSelectedDate ? 'ring-2 ring-primary/40' : ''
+                                            }`}
+                                          >
+                                            {isMarkingCell ? '...' : day.dayNumber}
+                                          </button>
+
+                                          {canMarkAttendance && !isMarkingCell && (
+                                            <div className="pointer-events-none absolute left-1/2 top-full z-30 mt-1 hidden -translate-x-1/2 items-center gap-1 rounded-lg border border-border bg-surface p-1 shadow-lg group-hover:flex group-hover:pointer-events-auto">
+                                              <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                  event.stopPropagation()
+                                                  void markAttendance(student.id, 'present', day.date)
+                                                }}
+                                                disabled={disableActions}
+                                                className="rounded-md bg-success/20 px-1.5 py-1 text-[10px] font-medium text-success disabled:opacity-40"
+                                              >
+                                                Present
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                  event.stopPropagation()
+                                                  void markAttendance(student.id, 'absence', day.date)
+                                                }}
+                                                disabled={disableActions}
+                                                className="rounded-md bg-warning/20 px-1.5 py-1 text-[10px] font-medium text-warning disabled:opacity-40"
+                                              >
+                                                Excused
+                                              </button>
+                                              <button
+                                                type="button"
+                                                onClick={(event) => {
+                                                  event.stopPropagation()
+                                                  void markAttendance(student.id, 'absent', day.date)
+                                                }}
+                                                disabled={disableActions}
+                                                className="rounded-md bg-error/20 px-1.5 py-1 text-[10px] font-medium text-error disabled:opacity-40"
+                                              >
+                                                Absent
+                                              </button>
+                                            </div>
+                                          )}
+                                        </div>
+                                      )
+                                    })}
+                                  </div>
+                                </td>
+                              ))}
+                              <td className="sticky right-0 z-10 border border-border bg-surface px-3 py-2">
+                                <p className="text-sm font-medium leading-tight">{getFullName(student)}</p>
+                                <p className="text-xs text-text-secondary mt-0.5">{student.phone || '-'}</p>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+
+                    <div className="mt-4 flex flex-wrap items-center gap-3 text-xs text-text-secondary">
+                      <span className="inline-flex items-center gap-2 rounded-lg border border-border px-2 py-1">
+                        <span className="inline-flex h-4 w-4 rounded bg-success/25 border border-success/30" />
+                        Present
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-lg border border-border px-2 py-1">
+                        <span className="inline-flex h-4 w-4 rounded bg-warning/25 border border-warning/30" />
+                        Absence (Excused)
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-lg border border-border px-2 py-1">
+                        <span className="inline-flex h-4 w-4 rounded bg-error/25 border border-error/30" />
+                        Absent (Unexcused)
+                      </span>
+                      <span className="inline-flex items-center gap-2 rounded-lg border border-border px-2 py-1">
+                        Marked on selected date: {attendanceByStudentOnDate.size}/{studentsInGroup.length}
+                      </span>
+                    </div>
+                  </>
+                )}
               </div>
             ) : (
               <div className="bg-surface border border-border rounded-2xl text-center py-12 mb-6">
