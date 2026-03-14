@@ -1007,43 +1007,73 @@ export default function GroupDetailPage() {
 
     try {
       const presentPayload = toAttendancePayload('present')
-      const operations: Array<Promise<any>> = []
-
-      studentsInGroup.forEach((student) => {
+      const studentsToMark = studentsInGroup.filter((student) => {
         const cellKey = getAttendanceCellKey(student.id, attendanceDate)
         const existingRecord = attendanceByStudentAndDate.get(cellKey)
-        const existingStatus = normalizeAttendanceStatus(existingRecord)
-        if (existingStatus === 'present') return
-
-        if (existingRecord?.id) {
-          operations.push(
-            apiService.updateAttendance(existingRecord.id, {
-              student: student.id,
-              group: groupIdNumber,
-              date: attendanceDate,
-              ...presentPayload,
-            }),
-          )
-        } else {
-          operations.push(
-            apiService.markAttendance({
-              student: student.id,
-              group: groupIdNumber,
-              date: attendanceDate,
-              ...presentPayload,
-            }),
-          )
-        }
+        return normalizeAttendanceStatus(existingRecord) !== 'present'
       })
 
-      if (!operations.length) {
+      if (!studentsToMark.length) {
         toast.success('All students are already marked as present for this day.')
         return
       }
 
-      await Promise.all(operations)
-      toast.success(`Marked ${operations.length} students as present.`)
+      let successCount = 0
+      const failedStudents: string[] = []
+
+      for (const student of studentsToMark) {
+        const cellKey = getAttendanceCellKey(student.id, attendanceDate)
+        const existingRecord = attendanceByStudentAndDate.get(cellKey)
+
+        try {
+          if (existingRecord?.id) {
+            await apiService.updateAttendance(existingRecord.id, {
+              student: student.id,
+              group: groupIdNumber,
+              date: attendanceDate,
+              ...presentPayload,
+            })
+          } else {
+            await apiService.markAttendance({
+              student: student.id,
+              group: groupIdNumber,
+              date: attendanceDate,
+              ...presentPayload,
+            })
+          }
+          successCount += 1
+        } catch (error) {
+          try {
+            const persisted = await verifyAttendancePersisted(student.id, attendanceDate)
+            if (persisted) {
+              successCount += 1
+              continue
+            }
+          } catch (verificationError) {
+            console.error('Failed to verify bulk attendance persistence:', verificationError)
+          }
+
+          failedStudents.push(getFullName(student))
+        }
+      }
+
       await loadAttendance()
+
+      if (!failedStudents.length) {
+        toast.success(`Marked ${successCount} students as present.`)
+        return
+      }
+
+      const failedPreview = failedStudents.slice(0, 3).join(', ')
+      if (successCount > 0) {
+        toast.error(
+          `Marked ${successCount} students, but ${failedStudents.length} failed (${failedPreview}${failedStudents.length > 3 ? ', ...' : ''}).`,
+        )
+      } else {
+        toast.error(
+          `Failed to mark students as present (${failedPreview}${failedStudents.length > 3 ? ', ...' : ''}).`,
+        )
+      }
     } catch (error: any) {
       console.error('Failed to mark all students as present:', error)
       toast.error(error?.response?.data?.detail || 'Failed to mark all students as present.')
