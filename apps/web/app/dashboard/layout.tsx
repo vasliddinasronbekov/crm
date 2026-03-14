@@ -15,6 +15,8 @@ import InboxNotificationButton from '@/components/InboxNotificationButton'
 import LoadingScreen from '@/components/LoadingScreen'
 import { getDashboardRouteAccess, usePermissions } from '@/lib/permissions'
 
+const SIDEBAR_COLLAPSE_STORAGE_KEY = 'dashboard.sidebar.collapsed'
+
 export default function DashboardLayout({
   children,
 }: {
@@ -49,6 +51,25 @@ export default function DashboardLayout({
   useEffect(() => {
     setIsMobileSidebarOpen(false)
   }, [pathname])
+
+  useEffect(() => {
+    try {
+      const storedValue = localStorage.getItem(SIDEBAR_COLLAPSE_STORAGE_KEY)
+      if (storedValue !== null) {
+        setIsSidebarCollapsed(storedValue === 'true')
+      }
+    } catch {
+      // Ignore storage access failures and keep default state.
+    }
+  }, [])
+
+  useEffect(() => {
+    try {
+      localStorage.setItem(SIDEBAR_COLLAPSE_STORAGE_KEY, String(isSidebarCollapsed))
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [isSidebarCollapsed])
 
   const handleAIModeToggle = (enabled: boolean) => {
     setAiModeEnabled(enabled)
