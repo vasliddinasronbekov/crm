@@ -5,6 +5,7 @@ import NextImage from 'next/image'
 import { useAuth } from '@/contexts/AuthContext'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
+import { resolveApiAssetUrl } from '@/lib/utils/url'
 import { toast } from 'react-hot-toast'
 import { Calendar, Plus, Search, Edit, Trash2, X, Users, MapPin, Clock, Image as ImageIcon, Upload } from 'lucide-react'
 import LoadingScreen from '@/components/LoadingScreen'
@@ -345,7 +346,7 @@ export default function EventsPage() {
                 <div className="h-48 bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center relative">
                   {event.photo ? (
                     <NextImage
-                      src={event.photo}
+                      src={resolveApiAssetUrl(event.photo)}
                       alt={event.title}
                       fill
                       sizes="(max-width: 768px) 100vw, (max-width: 1200px) 50vw, 33vw"

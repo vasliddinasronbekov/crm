@@ -6,6 +6,7 @@ import { useRouter, useParams } from 'next/navigation'
 import apiService from '@/lib/api'
 import { handleApiError, safeAsync } from '@/lib/utils/errorHandler'
 import { getBalanceStatus } from '@/lib/utils/money'
+import { resolveApiAssetUrl } from '@/lib/utils/url'
 import { cachedFetch, invalidateEntityCache, CACHE_KEYS, CACHE_TTL } from '@/lib/utils/cache'
 import { toast } from 'react-hot-toast'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -304,6 +305,7 @@ export default function StudentDetailPage() {
       ? { label: 'Frozen', classes: 'bg-warning/10 text-warning border-warning/30' }
       : { label: 'Active', classes: 'bg-success/10 text-success border-success/30' }
   const isStatusMutationRunning = statusAction !== null
+  const studentPhotoUrl = resolveApiAssetUrl(photo)
 
   return (
     <ProtectedRoute>
@@ -323,9 +325,9 @@ export default function StudentDetailPage() {
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-6">
                 <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold text-3xl border-4 border-primary/20 overflow-hidden">
-                  {photo ? (
+                  {studentPhotoUrl ? (
                     <NextImage
-                      src={photo}
+                      src={studentPhotoUrl}
                       alt={first_name}
                       fill
                       sizes="96px"
