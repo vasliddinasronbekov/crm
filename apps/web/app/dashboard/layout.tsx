@@ -3,6 +3,7 @@
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
 import { usePathname, useRouter } from 'next/navigation'
+import { Menu } from 'lucide-react'
 import { Sidebar } from '@/components/Sidebar'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -25,7 +26,10 @@ export default function DashboardLayout({
   const permissions = usePermissions(user)
   const { currency, language, theme, translateText } = useSettings()
   const [aiModeEnabled, setAiModeEnabled] = useState(false)
+  const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false)
+  const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const content = children as ReactNode
+  const showSidebar = permissions.isStaffSideRole
   const routeAccess = useMemo(
     () => getDashboardRouteAccess(permissions.role, pathname),
     [pathname, permissions.role],
@@ -41,6 +45,10 @@ export default function DashboardLayout({
       router.replace(routeAccess.fallbackPath)
     }
   }, [isAuthenticated, isLoading, pathname, routeAccess.allowed, routeAccess.fallbackPath, router])
+
+  useEffect(() => {
+    setIsMobileSidebarOpen(false)
+  }, [pathname])
 
   const handleAIModeToggle = (enabled: boolean) => {
     setAiModeEnabled(enabled)
@@ -86,21 +94,54 @@ export default function DashboardLayout({
   }
 
   return (
-    <div className="flex h-screen overflow-hidden" key={`${theme}-${language}-${currency}`}>
-      <Sidebar />
-      <div className="flex-1 flex flex-col overflow-hidden">
+    <div className="relative flex h-screen overflow-hidden" key={`${theme}-${language}-${currency}`}>
+      {showSidebar && (
+        <Sidebar
+          collapsed={isSidebarCollapsed}
+          mobileOpen={isMobileSidebarOpen}
+          onToggleCollapse={() => setIsSidebarCollapsed((prev) => !prev)}
+          onCloseMobile={() => setIsMobileSidebarOpen(false)}
+        />
+      )}
+      {showSidebar && isMobileSidebarOpen && (
+        <button
+          type="button"
+          className="fixed inset-0 z-30 bg-black/50 lg:hidden"
+          onClick={() => setIsMobileSidebarOpen(false)}
+          aria-label={translateText('Close sidebar')}
+        />
+      )}
+      <div
+        className={`flex flex-1 flex-col overflow-hidden transition-[padding-left] duration-300 ${
+          showSidebar ? (isSidebarCollapsed ? 'lg:pl-20' : 'lg:pl-72') : ''
+        }`}
+      >
         {/* Top Bar with Search, Inbox, AI Mode, and Date Calendar */}
-        <div className="h-16 border-b border-border bg-surface flex items-center justify-between px-6 gap-4">
+        <div className="h-16 border-b border-border bg-surface flex items-center justify-between px-4 md:px-6 gap-4">
           {/* Left: Global Search */}
-          <div className="flex-1 max-w-2xl">
-            <GlobalSearch />
+          <div className="flex flex-1 items-center gap-3">
+            {showSidebar && (
+              <button
+                type="button"
+                onClick={() => setIsMobileSidebarOpen(true)}
+                className="inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border text-text-secondary hover:bg-background hover:text-text-primary lg:hidden"
+                aria-label={translateText('Open sidebar')}
+              >
+                <Menu className="h-5 w-5" />
+              </button>
+            )}
+            <div className="min-w-0 flex-1 max-w-2xl">
+              <GlobalSearch />
+            </div>
           </div>
 
           {/* Right: Inbox Button + AI Mode Button + Date Calendar */}
           <div className="flex items-center gap-3">
             <InboxNotificationButton />
             <AIModeButton onToggle={handleAIModeToggle} />
-            <DateCalendar />
+            <div className="hidden sm:block">
+              <DateCalendar />
+            </div>
           </div>
         </div>
 

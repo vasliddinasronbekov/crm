@@ -26,6 +26,9 @@ import {
   MessageCircle,
   Wallet,
   Layers,
+  ChevronLeft,
+  ChevronRight,
+  X,
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
@@ -76,7 +79,17 @@ const sectionLabels: Record<NavSection, string> = {
   system: 'System',
 }
 
-export function Sidebar() {
+export function Sidebar({
+  collapsed,
+  mobileOpen,
+  onToggleCollapse,
+  onCloseMobile,
+}: {
+  collapsed: boolean
+  mobileOpen: boolean
+  onToggleCollapse: () => void
+  onCloseMobile: () => void
+}) {
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
@@ -113,12 +126,36 @@ export function Sidebar() {
   const visibleNavigation = navigation.filter((item) => permissions.canAccessPage(item.href))
 
   return (
-    <div className="flex h-screen w-72 flex-col bg-surface border-r border-border">
-      <div className="flex h-16 items-center justify-between px-6 border-b border-border">
-        <h1 className="text-2xl font-bold text-primary">EDUOS</h1>
-        <span className="text-xs px-2 py-1 rounded-md bg-primary/10 text-primary font-medium">
-          {permissions.roleLabel}
-        </span>
+    <div
+      className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-border bg-surface transition-all duration-300 ${
+        mobileOpen ? 'translate-x-0' : '-translate-x-full'
+      } ${collapsed ? 'lg:w-20' : 'lg:w-72'} lg:translate-x-0`}
+    >
+      <div className={`flex h-16 items-center border-b border-border ${collapsed ? 'px-3 lg:px-2' : 'px-6'}`}>
+        <div className={`flex items-center gap-2 ${collapsed ? 'lg:w-full lg:justify-center' : ''}`}>
+          <h1 className="text-2xl font-bold text-primary">{collapsed ? 'EO' : 'EDUOS'}</h1>
+          <span className={`text-xs rounded-md bg-primary/10 px-2 py-1 font-medium text-primary ${collapsed ? 'lg:hidden' : ''}`}>
+            {permissions.roleLabel}
+          </span>
+        </div>
+        <div className={`ml-auto flex items-center gap-1 ${collapsed ? 'lg:absolute lg:right-2' : ''}`}>
+          <button
+            type="button"
+            onClick={onCloseMobile}
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-background hover:text-text-primary lg:hidden"
+            aria-label="Close menu"
+          >
+            <X className="h-4 w-4" />
+          </button>
+          <button
+            type="button"
+            onClick={onToggleCollapse}
+            className="hidden h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-background hover:text-text-primary lg:inline-flex"
+            aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+          >
+            {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       <nav className="flex-1 overflow-y-auto px-3 py-4">
@@ -130,7 +167,7 @@ export function Sidebar() {
 
           return (
             <div key={sectionKey} className="mb-4">
-              <p className="px-3 pb-2 text-[11px] uppercase tracking-wide text-text-secondary font-semibold">
+              <p className={`px-3 pb-2 text-[11px] font-semibold uppercase tracking-wide text-text-secondary ${collapsed ? 'lg:hidden' : ''}`}>
                 {translateText(label)}
               </p>
               <div className="space-y-1">
@@ -142,14 +179,15 @@ export function Sidebar() {
                     <Link
                       key={item.name}
                       href={item.href}
-                      className={`flex items-center gap-3 px-3 py-2.5 text-sm font-medium rounded-xl transition-all ${
+                      className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                         isActive
                           ? 'bg-primary/10 text-primary border border-primary/20'
                           : 'text-text-secondary hover:bg-background hover:text-text-primary'
-                      }`}
+                      } ${collapsed ? 'lg:justify-center lg:gap-0 lg:px-2' : ''}`}
+                      title={collapsed ? translateText(item.name) : undefined}
                     >
                       <Icon className="h-5 w-5" />
-                      <span>{translateText(item.name)}</span>
+                      <span className={collapsed ? 'lg:hidden' : ''}>{translateText(item.name)}</span>
                     </Link>
                   )
                 })}
@@ -160,22 +198,26 @@ export function Sidebar() {
       </nav>
 
       <div className="border-t border-border p-4">
-        <div className="bg-background rounded-xl p-4">
-          <div className="flex items-center gap-3 mb-3">
+        <div className={`rounded-xl bg-background ${collapsed ? 'p-2 lg:p-2' : 'p-4'}`}>
+          <div className={`mb-3 flex items-center gap-3 ${collapsed ? 'lg:mb-2 lg:justify-center lg:gap-0' : ''}`}>
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-background font-bold">
               {getInitials()}
             </div>
-            <div className="flex-1 min-w-0">
+            <div className={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
               <p className="text-sm font-medium truncate">{getDisplayName()}</p>
               <p className="text-xs text-text-secondary">{permissions.roleLabel}</p>
             </div>
           </div>
           <button
+            type="button"
             onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 px-4 py-2 bg-error/10 text-error rounded-lg hover:bg-error/20 transition-colors text-sm font-medium"
+            className={`flex w-full items-center justify-center gap-2 rounded-lg bg-error/10 px-4 py-2 text-sm font-medium text-error transition-colors hover:bg-error/20 ${
+              collapsed ? 'lg:px-0' : ''
+            }`}
+            title={collapsed ? translateText('Logout') : undefined}
           >
             <LogOut className="h-4 w-4" />
-            {translateText('Logout')}
+            <span className={collapsed ? 'lg:hidden' : ''}>{translateText('Logout')}</span>
           </button>
         </div>
       </div>
