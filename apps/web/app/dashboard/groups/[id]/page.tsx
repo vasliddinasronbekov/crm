@@ -14,7 +14,6 @@ import {
   MapPin,
   User,
   CheckCircle,
-  XCircle,
   AlertCircle,
   Plus,
   Save,
@@ -790,15 +789,7 @@ export default function GroupDetailPage() {
     return map
   }, [attendanceByStudentAndDate, selectedDate])
 
-  const sortedAttendanceHistory = useMemo(() => {
-    return [...attendanceByStudentAndDate.values()].sort((left, right) => {
-      const leftDate = getAttendanceRecordDate(left)
-      const rightDate = getAttendanceRecordDate(right)
-      if (leftDate !== rightDate) return rightDate.localeCompare(leftDate)
-
-      return (toNumber(right.id) || 0) - (toNumber(left.id) || 0)
-    })
-  }, [attendanceByStudentAndDate])
+  const selectedWeekdayKey = useMemo(() => getWeekdayKey(selectedDate), [selectedDate])
 
   const shiftAttendanceMonth = (offset: number) => {
     const [yearToken, monthToken] = attendanceMonth.split('-')
@@ -986,6 +977,63 @@ export default function GroupDetailPage() {
   }
 
   const studentsInGroup = group?.students || []
+  const markAllPresentForDate = async (attendanceDate: string) => {
+    if (!canMarkAttendance) {
+      toast.error('You do not have permission to mark attendance.')
+      return
+    }
+
+    const bulkKey = `bulk:${attendanceDate}`
+    setMarkingAttendance(bulkKey)
+    setSelectedDate(attendanceDate)
+
+    try {
+      const presentPayload = toAttendancePayload('present')
+      const operations: Array<Promise<any>> = []
+
+      studentsInGroup.forEach((student) => {
+        const cellKey = getAttendanceCellKey(student.id, attendanceDate)
+        const existingRecord = attendanceByStudentAndDate.get(cellKey)
+        const existingStatus = normalizeAttendanceStatus(existingRecord)
+        if (existingStatus === 'present') return
+
+        if (existingRecord?.id) {
+          operations.push(
+            apiService.updateAttendance(existingRecord.id, {
+              student: student.id,
+              group: groupIdNumber,
+              date: attendanceDate,
+              ...presentPayload,
+            }),
+          )
+        } else {
+          operations.push(
+            apiService.markAttendance({
+              student: student.id,
+              group: groupIdNumber,
+              date: attendanceDate,
+              ...presentPayload,
+            }),
+          )
+        }
+      })
+
+      if (!operations.length) {
+        toast.success('All students are already marked as present for this day.')
+        return
+      }
+
+      await Promise.all(operations)
+      toast.success(`Marked ${operations.length} students as present.`)
+      await loadAttendance()
+    } catch (error: any) {
+      console.error('Failed to mark all students as present:', error)
+      toast.error(error?.response?.data?.detail || 'Failed to mark all students as present.')
+    } finally {
+      setMarkingAttendance(null)
+    }
+  }
+
   const paidStudentsCount = studentsInGroup.filter((student) => (student.balance || 0) <= 0).length
   const debtStudentsCount = studentsInGroup.filter((student) => (student.balance || 0) > 0).length
   const totalBalance = studentsInGroup.reduce((sum, student) => sum + (student.balance || 0), 0)
@@ -2041,6 +2089,9 @@ export default function GroupDetailPage() {
                             </th>
                             {attendanceMonthDays.map((day) => {
                               const isSelectedDate = day.date === selectedDate
+                              const bulkKey = `bulk:${day.date}`
+                              const isBulkMarkingDay = markingAttendance === bulkKey
+                              const isBulkDisabled = Boolean(markingAttendance && markingAttendance !== bulkKey)
                               return (
                                 <th
                                   key={day.date}
@@ -2051,6 +2102,23 @@ export default function GroupDetailPage() {
                                 >
                                   <div className="text-[11px] font-semibold leading-none">{day.dayLabel}</div>
                                   <div className="text-[10px] text-text-secondary mt-1">{day.weekdayLabel}</div>
+                                  <button
+                                    type="button"
+                                    onClick={(event) => {
+                                      event.stopPropagation()
+                                      void markAllPresentForDate(day.date)
+                                    }}
+                                    disabled={!canMarkAttendance || isBulkDisabled}
+                                    className={`mt-1 inline-flex h-5 w-5 items-center justify-center rounded border text-[10px] ${
+                                      canMarkAttendance
+                                        ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
+                                        : 'border-border text-text-secondary/40'
+                                    } disabled:opacity-40`}
+                                    title="Mark all students present for this day"
+                                    aria-label="Mark all students present for this day"
+                                  >
+                                    {isBulkMarkingDay ? '…' : '✓'}
+                                  </button>
                                 </th>
                               )
                             })}
@@ -2171,12 +2239,46 @@ export default function GroupDetailPage() {
                         <thead>
                           <tr>
                             {ATTENDANCE_WEEKDAY_ORDER.map((weekday) => (
-                              <th
-                                key={weekday.key}
-                                className="min-w-[150px] border border-border bg-background px-3 py-2 text-left text-xs font-semibold"
-                              >
-                                {weekday.label}
-                              </th>
+                              (() => {
+                                const isSelectedWeekday = weekday.key === selectedWeekdayKey
+                                const bulkKey = `bulk:${selectedDate}`
+                                const isBulkMarkingSelectedDay = markingAttendance === bulkKey
+                                const isBulkDisabled =
+                                  !isSelectedWeekday ||
+                                  !canMarkAttendance ||
+                                  Boolean(markingAttendance && markingAttendance !== bulkKey)
+
+                                return (
+                                  <th
+                                    key={weekday.key}
+                                    className={`min-w-[150px] border border-border px-3 py-2 text-left text-xs font-semibold ${
+                                      isSelectedWeekday ? 'bg-primary/10' : 'bg-background'
+                                    }`}
+                                  >
+                                    <div className="flex items-center justify-between gap-2">
+                                      <span>{weekday.label}</span>
+                                      <button
+                                        type="button"
+                                        onClick={() => void markAllPresentForDate(selectedDate)}
+                                        disabled={isBulkDisabled}
+                                        className={`inline-flex h-5 w-5 items-center justify-center rounded border text-[10px] ${
+                                          isSelectedWeekday && canMarkAttendance
+                                            ? 'border-success/40 bg-success/10 text-success hover:bg-success/20'
+                                            : 'border-border text-text-secondary/40'
+                                        } disabled:opacity-40`}
+                                        title={
+                                          isSelectedWeekday
+                                            ? `Mark all students present for ${selectedDate}`
+                                            : 'Select a date in this weekday column to enable'
+                                        }
+                                        aria-label="Mark all students present for selected day"
+                                      >
+                                        {isBulkMarkingSelectedDay && isSelectedWeekday ? '…' : '✓'}
+                                      </button>
+                                    </div>
+                                  </th>
+                                )
+                              })()
                             ))}
                             <th className="sticky right-0 z-20 min-w-[220px] border border-border bg-surface px-3 py-2 text-left text-xs font-semibold">
                               Student
@@ -2297,65 +2399,6 @@ export default function GroupDetailPage() {
               </div>
             )}
 
-            {sortedAttendanceHistory.length > 0 && (
-              <div>
-                <h3 className="text-xl font-semibold mb-4">Attendance History</h3>
-                <div className="bg-surface border border-border rounded-2xl p-6">
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-border">
-                          <th className="text-left py-3 px-4">Date</th>
-                          <th className="text-left py-3 px-4">Student</th>
-                          <th className="text-center py-3 px-4">Status</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {sortedAttendanceHistory.map((record, index) => {
-                          const studentId = extractId(record.student)
-                          const student = studentId ? studentById.get(studentId) : null
-                          const recordDate = getAttendanceRecordDate(record)
-                          const status = normalizeAttendanceStatus(record)
-                          const rowKey =
-                            record.id || `${studentId || 'unknown'}-${normalizeAttendanceDate(recordDate)}-${index}`
-
-                          return (
-                            <tr key={rowKey} className="border-b border-border/50 hover:bg-background/50">
-                              <td className="py-3 px-4">
-                                {recordDate ? new Date(recordDate).toLocaleDateString() : '-'}
-                              </td>
-                              <td className="py-3 px-4">{student ? getFullName(student) : 'Unknown student'}</td>
-                              <td className="py-3 px-4 text-center">
-                                <span
-                                  className={`inline-flex items-center gap-2 px-3 py-1 rounded-lg text-sm font-medium ${ATTENDANCE_STATUS_META[status].badgeClassName}`}
-                                >
-                                  {status === 'present' ? (
-                                    <>
-                                      <CheckCircle className="h-4 w-4" />
-                                      Present
-                                    </>
-                                  ) : status === 'absence' ? (
-                                    <>
-                                      <AlertCircle className="h-4 w-4" />
-                                      Absence (Excused)
-                                    </>
-                                  ) : (
-                                    <>
-                                      <XCircle className="h-4 w-4" />
-                                      Absent (Unexcused)
-                                    </>
-                                  )}
-                                </span>
-                              </td>
-                            </tr>
-                          )
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                </div>
-              </div>
-            )}
           </div>
         )}
       </div>
