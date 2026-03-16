@@ -10,18 +10,6 @@ CELERY_BEAT_SCHEDULE = {
     # FINANCIAL AUTOMATION
     # ============================================
 
-    # Apply monthly fees on the 1st of every month at 4 AM
-    'apply-monthly-fees': {
-        'task': 'apply_monthly_fees',
-        'schedule': crontab(day_of_month=1, hour=4, minute=0),
-    },
-
-    # Daily check to ensure monthly fees were not missed
-    'check-and-apply-monthly-fees': {
-        'task': 'check_and_apply_monthly_fees',
-        'schedule': crontab(hour=2, minute=0),
-    },
-
     # Calculate yesterday's financial summary every day at 1 AM
     'calculate-daily-summary': {
         'task': 'calculate_daily_financial_summary',

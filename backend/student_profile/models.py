@@ -124,6 +124,13 @@ class Room(models.Model):
         return f"{self.name} ({self.branch.name})"
 
 class Group(models.Model):
+    BILLING_MODE_FIXED_PLANNED = 'fixed_planned'
+    BILLING_MODE_ACTUAL_MONTHLY = 'actual_monthly'
+    BILLING_MODE_CHOICES = [
+        (BILLING_MODE_FIXED_PLANNED, 'Fixed planned lesson count'),
+        (BILLING_MODE_ACTUAL_MONTHLY, 'Actual monthly calendar lesson count'),
+    ]
+
     name = models.CharField(max_length=255)
     branch = models.ForeignKey(Branch, on_delete=models.SET_NULL, null=True, blank=True)
     course = models.ForeignKey('Course', on_delete=models.PROTECT, related_name='groups', null=False)
@@ -135,6 +142,16 @@ class Group(models.Model):
     start_time = models.TimeField()
     end_time = models.TimeField()
     days = models.CharField(max_length=100)
+    billing_mode = models.CharField(
+        max_length=20,
+        choices=BILLING_MODE_CHOICES,
+        default=BILLING_MODE_FIXED_PLANNED,
+        help_text="How per-lesson fee denominator is resolved.",
+    )
+    planned_monthly_lessons = models.PositiveIntegerField(
+        default=12,
+        help_text="Used when billing mode is fixed_planned.",
+    )
     students = models.ManyToManyField(User, related_name='student_groups', blank=True)
 
     def __str__(self):
@@ -493,6 +510,8 @@ from .accounting_models import (
     StudentAccount,
     MonthlySubscriptionCharge,
     AccountingActivityLog,
+    AttendanceCharge,
+    CompanyShareEntry,
     StudentBalance,
     TeacherEarnings,
     StudentFine,

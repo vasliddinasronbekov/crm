@@ -495,12 +495,28 @@ class AttendanceViewSet(viewsets.ModelViewSet):
 
         validated = serializer.validated_data
         attendance_status = validated.get('attendance_status', Attendance.STATUS_PRESENT)
-        attendance_obj, created = Attendance.objects.update_or_create(
-            student=validated['student'],
-            group=validated['group'],
-            date=validated['date'],
-            defaults={'attendance_status': attendance_status},
+        attendance_obj = (
+            Attendance.objects.filter(
+                student=validated['student'],
+                group=validated['group'],
+                date=validated['date'],
+            )
+            .order_by('-id')
+            .first()
         )
+        created = attendance_obj is None
+
+        if attendance_obj:
+            if attendance_obj.attendance_status != attendance_status:
+                attendance_obj.attendance_status = attendance_status
+                attendance_obj.save(update_fields=['attendance_status', 'is_present'])
+        else:
+            attendance_obj = Attendance.objects.create(
+                student=validated['student'],
+                group=validated['group'],
+                date=validated['date'],
+                attendance_status=attendance_status,
+            )
 
         self._apply_attendance_policies_safely(attendance_obj)
 

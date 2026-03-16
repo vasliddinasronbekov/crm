@@ -213,6 +213,7 @@ class RealtimeAccountingDashboardView(APIView):
             'total_debt_sum': metrics['total_debt_tiyin'] / 100,
             'net_profit_sum': metrics['net_profit_tiyin'] / 100,
             'teacher_payroll_sum': metrics['teacher_payroll_tiyin'] / 100,
+            'company_share_sum': metrics.get('company_share_tiyin', 0) / 100,
             'recent_logs': AccountingActivityLogSerializer(recent_logs, many=True).data,
         })
 
@@ -369,7 +370,14 @@ class TeacherEarningsViewSet(viewsets.ModelViewSet):
         elif date_to:
             queryset = queryset.filter(date__lte=date_to)
 
-        return queryset.select_related('teacher', 'payment', 'group', 'payment__by_user').order_by('-date')
+        return queryset.select_related(
+            'teacher',
+            'payment',
+            'payment__by_user',
+            'attendance_charge',
+            'student',
+            'group',
+        ).order_by('-date')
 
     @action(detail=False, methods=['get'])
     def summary(self, request):

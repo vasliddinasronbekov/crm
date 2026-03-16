@@ -17,7 +17,9 @@ from users.models import User
 from student_profile.accounting_models import (
     AccountTransaction,
     AccountingActivityLog,
+    CompanyShareEntry,
     MonthlySubscriptionCharge,
+    AttendanceCharge,
     StudentBalance,
     StudentAccount,
     TeacherEarnings,
@@ -90,13 +92,50 @@ def estimate_group_class_days(group: Group, year: int, month: int) -> int:
     return days_count if days_count > 0 else DEFAULT_MONTHLY_SESSIONS
 
 
+def resolve_group_lesson_denominator(group: Group, target_date: date) -> int:
+    """
+    Resolve lesson denominator according to group billing mode.
+    - fixed_planned: use planned_monthly_lessons
+    - actual_monthly: use real calendar lesson count for the month
+    """
+    mode = getattr(group, 'billing_mode', Group.BILLING_MODE_FIXED_PLANNED)
+    if mode == Group.BILLING_MODE_ACTUAL_MONTHLY:
+        return max(estimate_group_class_days(group, target_date.year, target_date.month), 1)
+    return max(int(getattr(group, 'planned_monthly_lessons', DEFAULT_MONTHLY_SESSIONS) or DEFAULT_MONTHLY_SESSIONS), 1)
+
+
+def calculate_per_lesson_fee_tiyin(group: Group, target_date: date) -> tuple[int, int, int]:
+    """
+    Returns: (course_price_tiyin, denominator, per_lesson_fee_tiyin)
+    """
+    course_price_tiyin = int(getattr(group.course, 'price', 0) or 0)
+    denominator = resolve_group_lesson_denominator(group, target_date)
+    per_lesson_fee_tiyin = _round_tiyin(
+        Decimal(course_price_tiyin) / Decimal(max(denominator, 1))
+    )
+    return course_price_tiyin, denominator, per_lesson_fee_tiyin
+
+
+def split_lesson_fee_tiyin(per_lesson_fee_tiyin: int, teacher_share_percent: int = TEACHER_SHARE_PERCENT) -> tuple[int, int]:
+    normalized_percent = max(0, min(int(teacher_share_percent), 100))
+    teacher_amount_tiyin = _round_tiyin(
+        Decimal(per_lesson_fee_tiyin) * Decimal(normalized_percent) / Decimal(100)
+    )
+    company_amount_tiyin = int(per_lesson_fee_tiyin) - int(teacher_amount_tiyin)
+    return int(teacher_amount_tiyin), int(company_amount_tiyin)
+
+
 def get_or_create_student_account(student: User) -> StudentAccount:
     account, _ = StudentAccount.objects.get_or_create(student=student)
     return account
 
 
 def _broadcast_activity_log(log: AccountingActivityLog) -> None:
-    channel_layer = get_channel_layer()
+    try:
+        channel_layer = get_channel_layer()
+    except Exception as exc:
+        logger.debug("Accounting websocket layer unavailable: %s", exc)
+        return
     if not channel_layer:
         return
 
@@ -162,6 +201,321 @@ def create_activity_log(
     )
     _broadcast_activity_log(log)
     return log
+
+
+def _get_active_attendance_charge(attendance: Attendance) -> Optional[AttendanceCharge]:
+    return (
+        AttendanceCharge.objects.filter(
+            attendance=attendance,
+            entry_type=AttendanceCharge.ENTRY_CHARGE,
+            is_active_charge=True,
+        )
+        .order_by('-created_at', '-id')
+        .first()
+    )
+
+
+@transaction.atomic
+def post_attendance_charge(attendance: Attendance, actor: Optional[User] = None) -> Optional[AttendanceCharge]:
+    """
+    Post one lesson charge when attendance becomes PRESENT.
+    Idempotent: repeated PRESENT saves do not duplicate active charge rows.
+    """
+    attendance_locked = (
+        Attendance.objects.select_for_update()
+        .select_related('student', 'group', 'group__course', 'group__main_teacher')
+        .get(pk=attendance.pk)
+    )
+
+    if attendance_locked.attendance_status != Attendance.STATUS_PRESENT:
+        return None
+
+    active_charge = _get_active_attendance_charge(attendance_locked)
+    if active_charge:
+        return active_charge
+
+    group = attendance_locked.group
+    student = attendance_locked.student
+    if not group.course_id:
+        logger.warning("Skipping attendance charge because group %s has no course", group.id)
+        return None
+
+    course_price_tiyin, denominator, per_lesson_fee_tiyin = calculate_per_lesson_fee_tiyin(
+        group=group,
+        target_date=attendance_locked.date,
+    )
+    if per_lesson_fee_tiyin <= 0:
+        logger.warning(
+            "Skipping attendance charge for attendance_id=%s because per_lesson_fee_tiyin=%s",
+            attendance_locked.id,
+            per_lesson_fee_tiyin,
+        )
+        return None
+
+    teacher = group.main_teacher
+    teacher_share_percent = TEACHER_SHARE_PERCENT if teacher else 0
+    teacher_amount_tiyin, company_amount_tiyin = split_lesson_fee_tiyin(
+        per_lesson_fee_tiyin=per_lesson_fee_tiyin,
+        teacher_share_percent=teacher_share_percent,
+    )
+
+    account = StudentAccount.objects.select_for_update().filter(student=student).first()
+    if not account:
+        account = get_or_create_student_account(student)
+        account = StudentAccount.objects.select_for_update().get(pk=account.pk)
+    balance_before_tiyin = int(account.balance_tiyin)
+    balance_after_tiyin = balance_before_tiyin - int(per_lesson_fee_tiyin)
+    account.balance_tiyin = balance_after_tiyin
+    account.save(update_fields=['balance_tiyin', 'updated_at'])
+
+    charge = AttendanceCharge.objects.create(
+        attendance=attendance_locked,
+        account=account,
+        student=student,
+        group=group,
+        teacher=teacher,
+        entry_type=AttendanceCharge.ENTRY_CHARGE,
+        is_active_charge=True,
+        course_price_tiyin=course_price_tiyin,
+        lesson_denominator=denominator,
+        per_lesson_fee_tiyin=per_lesson_fee_tiyin,
+        teacher_share_percent=teacher_share_percent,
+        teacher_amount_tiyin=teacher_amount_tiyin,
+        company_amount_tiyin=company_amount_tiyin,
+        balance_before_tiyin=balance_before_tiyin,
+        balance_after_tiyin=balance_after_tiyin,
+        created_by=actor,
+        metadata={
+            'attendance_status': attendance_locked.attendance_status,
+            'pricing_mode': group.billing_mode,
+            'planned_monthly_lessons': group.planned_monthly_lessons,
+        },
+    )
+
+    if teacher and teacher_amount_tiyin:
+        TeacherEarnings.objects.create(
+            teacher=teacher,
+            payment=None,
+            attendance_charge=charge,
+            student=student,
+            group=group,
+            source_type=TeacherEarnings.SOURCE_ATTENDANCE,
+            entry_type=TeacherEarnings.ENTRY_ACCRUAL,
+            payment_amount=per_lesson_fee_tiyin,
+            percentage_applied=teacher_share_percent,
+            amount=teacher_amount_tiyin,
+            date=attendance_locked.date,
+            is_paid_to_teacher=False,
+        )
+
+    CompanyShareEntry.objects.create(
+        charge=charge,
+        amount_tiyin=company_amount_tiyin,
+    )
+
+    AccountTransaction.objects.create(
+        transaction_type='attendance_charge',
+        transaction_id=f"ATT-{charge.id}",
+        student=student,
+        teacher=teacher,
+        group=group,
+        amount=-per_lesson_fee_tiyin,
+        balance_before=balance_before_tiyin,
+        balance_after=balance_after_tiyin,
+        status='completed',
+        description=(
+            f"Attendance charge posted for {student.username} on {attendance_locked.date.isoformat()} "
+            f"({per_lesson_fee_tiyin / 100:.2f} UZS)"
+        ),
+        transaction_date=attendance_locked.date,
+        created_by=actor,
+    )
+
+    create_activity_log(
+        action_type=AccountingActivityLog.ACTION_ATTENDANCE_CHARGED,
+        message=(
+            f"Attendance charge posted for {student.username}: "
+            f"{per_lesson_fee_tiyin / 100:.2f} UZS deducted."
+        ),
+        actor=actor,
+        student=student,
+        group=group,
+        attendance=attendance_locked,
+        amount_tiyin=-per_lesson_fee_tiyin,
+        balance_after_tiyin=balance_after_tiyin,
+        metadata={
+            'attendance_charge_id': charge.id,
+            'teacher_amount_tiyin': teacher_amount_tiyin,
+            'company_amount_tiyin': company_amount_tiyin,
+        },
+    )
+
+    create_activity_log(
+        action_type=AccountingActivityLog.ACTION_TEACHER_ACCRUED,
+        message=(
+            f"Teacher accrual posted for {teacher.username if teacher else 'N/A'}: "
+            f"{teacher_amount_tiyin / 100:.2f} UZS."
+        ),
+        actor=actor,
+        student=student,
+        group=group,
+        attendance=attendance_locked,
+        amount_tiyin=teacher_amount_tiyin,
+        metadata={'attendance_charge_id': charge.id},
+    )
+
+    create_activity_log(
+        action_type=AccountingActivityLog.ACTION_COMPANY_SHARE_RECORDED,
+        message=(
+            f"Company share recorded from attendance of {student.username}: "
+            f"{company_amount_tiyin / 100:.2f} UZS."
+        ),
+        actor=actor,
+        student=student,
+        group=group,
+        attendance=attendance_locked,
+        amount_tiyin=company_amount_tiyin,
+        metadata={'attendance_charge_id': charge.id},
+    )
+
+    if balance_after_tiyin < 0:
+        create_activity_log(
+            action_type=AccountingActivityLog.ACTION_DEBT_CREATED,
+            message=(
+                f"{student.username} is now in debt after attendance charge: "
+                f"{abs(balance_after_tiyin) / 100:.2f} UZS."
+            ),
+            actor=actor,
+            student=student,
+            group=group,
+            attendance=attendance_locked,
+            amount_tiyin=balance_after_tiyin,
+            balance_after_tiyin=balance_after_tiyin,
+            metadata={'attendance_charge_id': charge.id},
+        )
+
+    return charge
+
+
+@transaction.atomic
+def reverse_attendance_charge(
+    attendance: Attendance,
+    *,
+    actor: Optional[User] = None,
+    reason: str = 'attendance_status_changed',
+) -> Optional[AttendanceCharge]:
+    """
+    Reverse one active attendance charge when attendance leaves PRESENT state.
+    Idempotent: if no active charge exists, nothing happens.
+    """
+    attendance_locked = (
+        Attendance.objects.select_for_update()
+        .select_related('student', 'group', 'group__main_teacher')
+        .get(pk=attendance.pk)
+    )
+    original_charge = _get_active_attendance_charge(attendance_locked)
+    if not original_charge:
+        return None
+
+    account = StudentAccount.objects.select_for_update().get(pk=original_charge.account_id)
+    balance_before_tiyin = int(account.balance_tiyin)
+    balance_after_tiyin = balance_before_tiyin + int(original_charge.per_lesson_fee_tiyin)
+    account.balance_tiyin = balance_after_tiyin
+    account.save(update_fields=['balance_tiyin', 'updated_at'])
+
+    reversal_charge = AttendanceCharge.objects.create(
+        attendance=attendance_locked,
+        account=account,
+        student=original_charge.student,
+        group=original_charge.group,
+        teacher=original_charge.teacher,
+        entry_type=AttendanceCharge.ENTRY_REVERSAL,
+        is_active_charge=False,
+        original_charge=original_charge,
+        course_price_tiyin=original_charge.course_price_tiyin,
+        lesson_denominator=original_charge.lesson_denominator,
+        per_lesson_fee_tiyin=-int(original_charge.per_lesson_fee_tiyin),
+        teacher_share_percent=original_charge.teacher_share_percent,
+        teacher_amount_tiyin=-int(original_charge.teacher_amount_tiyin),
+        company_amount_tiyin=-int(original_charge.company_amount_tiyin),
+        balance_before_tiyin=balance_before_tiyin,
+        balance_after_tiyin=balance_after_tiyin,
+        created_by=actor,
+        metadata={
+            'reason': reason,
+            'original_charge_id': original_charge.id,
+            'attendance_status': attendance_locked.attendance_status,
+        },
+    )
+
+    original_charge.is_active_charge = False
+    original_charge.save(update_fields=['is_active_charge'])
+
+    original_earning = TeacherEarnings.objects.filter(attendance_charge=original_charge).first()
+    if original_charge.teacher and original_charge.teacher_amount_tiyin:
+        TeacherEarnings.objects.create(
+            teacher=original_charge.teacher,
+            payment=None,
+            attendance_charge=reversal_charge,
+            student=original_charge.student,
+            group=original_charge.group,
+            source_type=TeacherEarnings.SOURCE_ATTENDANCE,
+            entry_type=TeacherEarnings.ENTRY_REVERSAL,
+            payment_amount=original_charge.per_lesson_fee_tiyin,
+            percentage_applied=original_charge.teacher_share_percent,
+            amount=-int(original_charge.teacher_amount_tiyin),
+            date=attendance_locked.date,
+            is_paid_to_teacher=bool(original_earning.is_paid_to_teacher) if original_earning else False,
+        )
+
+    CompanyShareEntry.objects.create(
+        charge=reversal_charge,
+        amount_tiyin=-int(original_charge.company_amount_tiyin),
+    )
+
+    AccountTransaction.objects.create(
+        transaction_type='attendance_charge_reversal',
+        transaction_id=f"ATT-REV-{reversal_charge.id}",
+        student=original_charge.student,
+        teacher=original_charge.teacher,
+        group=original_charge.group,
+        amount=int(original_charge.per_lesson_fee_tiyin),
+        balance_before=balance_before_tiyin,
+        balance_after=balance_after_tiyin,
+        status='completed',
+        description=(
+            f"Attendance charge reversal for {original_charge.student.username} "
+            f"on {attendance_locked.date.isoformat()} ({reason})"
+        ),
+        transaction_date=attendance_locked.date,
+        created_by=actor,
+    )
+
+    create_activity_log(
+        action_type=AccountingActivityLog.ACTION_ATTENDANCE_REVERSED,
+        message=(
+            f"Attendance charge reversed for {original_charge.student.username}: "
+            f"{original_charge.per_lesson_fee_tiyin / 100:.2f} UZS restored."
+        ),
+        actor=actor,
+        student=original_charge.student,
+        group=original_charge.group,
+        attendance=attendance_locked,
+        amount_tiyin=original_charge.per_lesson_fee_tiyin,
+        balance_after_tiyin=balance_after_tiyin,
+        metadata={
+            'original_charge_id': original_charge.id,
+            'reversal_charge_id': reversal_charge.id,
+            'reason': reason,
+        },
+    )
+    return reversal_charge
+
+
+def sync_attendance_financials(attendance: Attendance, actor: Optional[User] = None) -> Optional[AttendanceCharge]:
+    if attendance.attendance_status == Attendance.STATUS_PRESENT:
+        return post_attendance_charge(attendance, actor=actor)
+    return reverse_attendance_charge(attendance, actor=actor, reason='attendance_status_not_present')
 
 
 @transaction.atomic
@@ -376,7 +730,11 @@ def sync_teacher_earning_for_payment(payment: Payment) -> Optional[TeacherEarnin
         payment=payment,
         defaults={
             'teacher': teacher,
+            'attendance_charge': None,
+            'student': payment.by_user,
             'group': payment.group,
+            'source_type': TeacherEarnings.SOURCE_PAYMENT,
+            'entry_type': TeacherEarnings.ENTRY_ACCRUAL,
             'payment_amount': payment_amount,
             'percentage_applied': percentage_applied,
             'amount': earning_amount,
@@ -418,7 +776,6 @@ def sync_payment_financial_records(payment: Payment) -> None:
     Keep payment-linked financial artifacts aligned with the current payment state.
     """
     sync_payment_transaction_for_payment(payment)
-    sync_teacher_earning_for_payment(payment)
 
 
 @transaction.atomic
@@ -549,32 +906,7 @@ def apply_attendance_policies(attendance: Attendance, actor: Optional[User] = No
             'attendance_status': attendance.attendance_status,
         },
     )
-
-    _, present_count, unexcused_count, excused_count = _month_attendance_summary(student, group, target_date)
-
-    if unexcused_count >= 3:
-        chargeable_days = present_count + min(unexcused_count, 3)
-        _settle_charge_and_change_status(
-            student=student,
-            group=group,
-            target_date=target_date,
-            target_status=StudentAccount.STATUS_DEACTIVATED,
-            settlement_status=MonthlySubscriptionCharge.SETTLEMENT_DEACTIVATED,
-            chargeable_days=chargeable_days,
-            actor=actor,
-        )
-        return
-
-    if excused_count >= 3:
-        _settle_charge_and_change_status(
-            student=student,
-            group=group,
-            target_date=target_date,
-            target_status=StudentAccount.STATUS_FROZEN,
-            settlement_status=MonthlySubscriptionCharge.SETTLEMENT_FROZEN,
-            chargeable_days=present_count,
-            actor=actor,
-        )
+    sync_attendance_financials(attendance, actor=actor)
 
 
 @transaction.atomic
@@ -700,21 +1032,21 @@ def set_student_account_status(
 
 
 def calculate_group_teacher_payroll_tiyin(group: Group, share_percent: int = TEACHER_SHARE_PERCENT) -> int:
-    charges = MonthlySubscriptionCharge.objects.filter(group=group)
-    total = 0
-    for charge in charges:
-        salary_value = Decimal(_effective_charge_tiyin(charge)) * Decimal(share_percent) / Decimal(100)
-        total += _round_tiyin(salary_value)
-    return total
+    total = (
+        TeacherEarnings.objects.filter(
+            group=group,
+            source_type=TeacherEarnings.SOURCE_ATTENDANCE,
+            is_paid_to_teacher=False,
+        ).aggregate(total=Sum('amount'))['total'] or 0
+    )
+    return max(int(total), 0)
 
 
 def teacher_payroll_owed_tiyin(share_percent: int = TEACHER_SHARE_PERCENT) -> int:
-    charges = MonthlySubscriptionCharge.objects.select_related('group').filter(group__main_teacher__isnull=False)
-    total = 0
-    for charge in charges:
-        salary_value = Decimal(_effective_charge_tiyin(charge)) * Decimal(share_percent) / Decimal(100)
-        total += _round_tiyin(salary_value)
-    return int(total)
+    total = (
+        TeacherEarnings.objects.filter(is_paid_to_teacher=False).aggregate(total=Sum('amount'))['total'] or 0
+    )
+    return max(int(total), 0)
 
 
 def accounting_realtime_metrics():
@@ -727,8 +1059,13 @@ def accounting_realtime_metrics():
     total_debt_tiyin = (
         StudentAccount.objects.filter(balance_tiyin__lt=0).aggregate(total=Sum('balance_tiyin'))['total'] or 0
     )
-    teacher_payroll_tiyin = teacher_payroll_owed_tiyin()
-    net_profit_tiyin = total_income_tiyin + total_balance_tiyin
+    teacher_payroll_tiyin = (
+        TeacherEarnings.objects.filter(is_paid_to_teacher=False).aggregate(total=Sum('amount'))['total'] or 0
+    )
+    company_share_tiyin = (
+        CompanyShareEntry.objects.aggregate(total=Sum('amount_tiyin'))['total'] or 0
+    )
+    net_profit_tiyin = int(company_share_tiyin)
 
     return {
         'total_income_tiyin': int(total_income_tiyin),
@@ -736,5 +1073,6 @@ def accounting_realtime_metrics():
         'raw_debt_tiyin': int(total_debt_tiyin),
         'total_balance_tiyin': int(total_balance_tiyin),
         'net_profit_tiyin': int(net_profit_tiyin),
-        'teacher_payroll_tiyin': int(teacher_payroll_tiyin),
+        'teacher_payroll_tiyin': max(int(teacher_payroll_tiyin), 0),
+        'company_share_tiyin': int(company_share_tiyin),
     }

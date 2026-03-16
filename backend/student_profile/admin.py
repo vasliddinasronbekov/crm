@@ -8,7 +8,7 @@ from .models import (
     Course, Room, ExpenseType, Expense, LeaveReason, Information,
     PaymentType, AutomaticFine, AssistantSlot, Booking,
     StudentAccount, MonthlySubscriptionCharge, AccountingActivityLog,
-    StudentBalance, TeacherEarnings, StudentFine, AccountTransaction, FinancialSummary,
+    AttendanceCharge, CompanyShareEntry, StudentBalance, TeacherEarnings, StudentFine, AccountTransaction, FinancialSummary,
     IELTSExam, IELTSQuestion, IELTSAttempt, IELTSAnswer,
     IELTSExamDraft, IELTSQuestionDraft, AIExamGenerationRequest,
     Notification, InboxSettings,
@@ -41,6 +41,8 @@ admin.site.register(AssistantSlot)
 admin.site.register(Booking)
 admin.site.register(MonthlySubscriptionCharge)
 admin.site.register(AccountingActivityLog)
+admin.site.register(AttendanceCharge)
+admin.site.register(CompanyShareEntry)
 admin.site.register(StudentBalance)
 admin.site.register(TeacherEarnings)
 admin.site.register(StudentFine)

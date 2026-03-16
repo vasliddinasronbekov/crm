@@ -93,8 +93,9 @@ class TeacherEarningsSerializer(serializers.ModelSerializer):
     teacher_name = serializers.CharField(source='teacher.get_full_name', read_only=True)
     teacher_username = serializers.CharField(source='teacher.username', read_only=True)
     group_name = serializers.CharField(source='group.name', read_only=True)
-    payment_id = serializers.IntegerField(source='payment.id', read_only=True)
-    student_name = serializers.CharField(source='payment.by_user.get_full_name', read_only=True)
+    payment_id = serializers.SerializerMethodField()
+    attendance_charge_id = serializers.SerializerMethodField()
+    student_name = serializers.SerializerMethodField()
 
     # Display amounts in sum (UZS)
     payment_amount_sum = serializers.SerializerMethodField()
@@ -114,9 +115,12 @@ class TeacherEarningsSerializer(serializers.ModelSerializer):
             'teacher_username',
             'payment',
             'payment_id',
+            'attendance_charge_id',
             'student_name',
             'group',
             'group_name',
+            'source_type',
+            'entry_type',
             'payment_amount',
             'payment_amount_sum',
             'percentage_applied',
@@ -138,6 +142,25 @@ class TeacherEarningsSerializer(serializers.ModelSerializer):
 
     def get_payment_amount_sum(self, obj) -> Any:
         return obj.payment_amount / 100
+
+    def get_payment_id(self, obj) -> Any:
+        return obj.payment_id
+
+    def get_attendance_charge_id(self, obj) -> Any:
+        return obj.attendance_charge_id
+
+    def get_student_name(self, obj) -> str:
+        if obj.student:
+            full_name = obj.student.get_full_name().strip()
+            if full_name:
+                return full_name
+            return obj.student.username
+        if obj.payment and obj.payment.by_user:
+            full_name = obj.payment.by_user.get_full_name().strip()
+            if full_name:
+                return full_name
+            return obj.payment.by_user.username
+        return ''
 
 
 class TeacherEarningsSummarySerializer(serializers.Serializer):

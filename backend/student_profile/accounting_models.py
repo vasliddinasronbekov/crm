@@ -2,6 +2,7 @@
 # These models handle automated financial tracking, student balances, teacher earnings, and fines
 
 from django.db import models
+from django.db.models import Q
 from django.utils import timezone
 from users.models import User
 from .models import Group, Payment, Attendance, AutomaticFine
@@ -132,6 +133,10 @@ class AccountingActivityLog(models.Model):
     ACTION_ACCOUNT_DEACTIVATED = 'account_deactivated'
     ACTION_ACCOUNT_FROZEN = 'account_frozen'
     ACTION_ACCOUNT_REACTIVATED = 'account_reactivated'
+    ACTION_ATTENDANCE_CHARGED = 'attendance_charged'
+    ACTION_ATTENDANCE_REVERSED = 'attendance_reversed'
+    ACTION_TEACHER_ACCRUED = 'teacher_accrued'
+    ACTION_COMPANY_SHARE_RECORDED = 'company_share_recorded'
     ACTION_SYSTEM = 'system_action'
 
     ACTION_CHOICES = [
@@ -143,6 +148,10 @@ class AccountingActivityLog(models.Model):
         (ACTION_ACCOUNT_DEACTIVATED, 'Account deactivated'),
         (ACTION_ACCOUNT_FROZEN, 'Account frozen'),
         (ACTION_ACCOUNT_REACTIVATED, 'Account reactivated'),
+        (ACTION_ATTENDANCE_CHARGED, 'Attendance charge posted'),
+        (ACTION_ATTENDANCE_REVERSED, 'Attendance charge reversed'),
+        (ACTION_TEACHER_ACCRUED, 'Teacher accrual posted'),
+        (ACTION_COMPANY_SHARE_RECORDED, 'Company share posted'),
         (ACTION_SYSTEM, 'System action'),
     ]
 
@@ -199,6 +208,136 @@ class AccountingActivityLog(models.Model):
 
     def __str__(self):
         return f"{self.action_type} | {self.message[:80]}"
+
+
+class AttendanceCharge(models.Model):
+    """
+    Immutable attendance-driven charging ledger.
+    One active CHARGE can exist per attendance at a time.
+    A REVERSAL row links to the original charge row.
+    """
+
+    ENTRY_CHARGE = 'charge'
+    ENTRY_REVERSAL = 'reversal'
+    ENTRY_CHOICES = [
+        (ENTRY_CHARGE, 'Charge'),
+        (ENTRY_REVERSAL, 'Reversal'),
+    ]
+
+    attendance = models.ForeignKey(
+        Attendance,
+        on_delete=models.CASCADE,
+        related_name='financial_charges',
+    )
+    account = models.ForeignKey(
+        StudentAccount,
+        on_delete=models.CASCADE,
+        related_name='attendance_charges',
+    )
+    student = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='attendance_charges',
+        limit_choices_to={'is_teacher': False},
+    )
+    group = models.ForeignKey(
+        Group,
+        on_delete=models.CASCADE,
+        related_name='attendance_charges',
+    )
+    teacher = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='attendance_charge_rows',
+        limit_choices_to={'is_teacher': True},
+    )
+
+    entry_type = models.CharField(max_length=16, choices=ENTRY_CHOICES, db_index=True)
+    is_active_charge = models.BooleanField(
+        default=False,
+        db_index=True,
+        help_text="Only CHARGE entries can be active; set false once reversed.",
+    )
+    original_charge = models.ForeignKey(
+        'self',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='reversal_entries',
+        help_text="Set for reversal rows to point to original charge row.",
+    )
+
+    course_price_tiyin = models.BigIntegerField()
+    lesson_denominator = models.PositiveIntegerField(default=12)
+    per_lesson_fee_tiyin = models.BigIntegerField()
+    teacher_share_percent = models.PositiveIntegerField(default=40)
+    teacher_amount_tiyin = models.BigIntegerField()
+    company_amount_tiyin = models.BigIntegerField()
+
+    balance_before_tiyin = models.BigIntegerField()
+    balance_after_tiyin = models.BigIntegerField()
+
+    created_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='attendance_charge_creations',
+    )
+    metadata = models.JSONField(default=dict, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['attendance'],
+                condition=Q(entry_type='charge', is_active_charge=True),
+                name='uniq_active_charge_per_attendance',
+            ),
+            models.UniqueConstraint(
+                fields=['original_charge'],
+                condition=Q(entry_type='reversal'),
+                name='uniq_reversal_per_charge',
+            ),
+        ]
+        indexes = [
+            models.Index(fields=['student', '-created_at'], name='att_charge_student_idx'),
+            models.Index(fields=['teacher', '-created_at'], name='att_charge_teacher_idx'),
+            models.Index(fields=['group', '-created_at'], name='att_charge_group_idx'),
+        ]
+        verbose_name = "Attendance Charge"
+        verbose_name_plural = "Attendance Charges"
+
+    def __str__(self):
+        return (
+            f"{self.entry_type} | attendance#{self.attendance_id} | "
+            f"fee={self.per_lesson_fee_tiyin / 100:.2f} UZS"
+        )
+
+
+class CompanyShareEntry(models.Model):
+    """
+    Explicit company-share row for each attendance charge/reversal.
+    """
+
+    charge = models.OneToOneField(
+        AttendanceCharge,
+        on_delete=models.CASCADE,
+        related_name='company_share_entry',
+    )
+    amount_tiyin = models.BigIntegerField()
+    created_at = models.DateTimeField(auto_now_add=True, db_index=True)
+
+    class Meta:
+        ordering = ['-created_at', '-id']
+        verbose_name = "Company Share Entry"
+        verbose_name_plural = "Company Share Entries"
+
+    def __str__(self):
+        return f"Charge#{self.charge_id} | {self.amount_tiyin / 100:.2f} UZS"
 
 
 class StudentBalance(models.Model):
@@ -332,11 +471,30 @@ class TeacherEarnings(models.Model):
         related_name='earnings',
         limit_choices_to={'is_teacher': True}
     )
-    payment = models.OneToOneField(
+    payment = models.ForeignKey(
         Payment,
-        on_delete=models.CASCADE,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='teacher_earnings',
+        help_text="Source payment when source_type='payment'."
+    )
+    attendance_charge = models.OneToOneField(
+        AttendanceCharge,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
         related_name='teacher_earning',
-        help_text="Source payment that generated this earning"
+        help_text="Source attendance charge when source_type='attendance'.",
+    )
+    student = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='teacher_earning_rows',
+        limit_choices_to={'is_teacher': False},
+        help_text="Student that generated this earning row.",
     )
     group = models.ForeignKey(
         Group,
@@ -345,10 +503,35 @@ class TeacherEarnings(models.Model):
         blank=True,
         related_name='teacher_earnings'
     )
+    SOURCE_PAYMENT = 'payment'
+    SOURCE_ATTENDANCE = 'attendance'
+    SOURCE_CHOICES = [
+        (SOURCE_PAYMENT, 'Payment'),
+        (SOURCE_ATTENDANCE, 'Attendance'),
+    ]
+    ENTRY_ACCRUAL = 'accrual'
+    ENTRY_REVERSAL = 'reversal'
+    ENTRY_CHOICES = [
+        (ENTRY_ACCRUAL, 'Accrual'),
+        (ENTRY_REVERSAL, 'Reversal'),
+    ]
+
+    source_type = models.CharField(
+        max_length=16,
+        choices=SOURCE_CHOICES,
+        default=SOURCE_PAYMENT,
+        db_index=True,
+    )
+    entry_type = models.CharField(
+        max_length=16,
+        choices=ENTRY_CHOICES,
+        default=ENTRY_ACCRUAL,
+        db_index=True,
+    )
 
     # Earning details
     payment_amount = models.BigIntegerField(
-        help_text="Original payment amount in tiyin"
+        help_text="Base amount in tiyin (payment amount or attendance lesson fee)"
     )
     percentage_applied = models.PositiveIntegerField(
         help_text="Teacher's salary percentage (e.g., 40 for 40%)"
@@ -380,9 +563,16 @@ class TeacherEarnings(models.Model):
         ordering = ['-date']
         verbose_name = "Teacher Earning"
         verbose_name_plural = "Teacher Earnings"
+        indexes = [
+            models.Index(fields=['teacher', '-date'], name='teacher_earn_date_idx'),
+            models.Index(fields=['source_type', 'entry_type'], name='teacher_earn_source_idx'),
+        ]
 
     def __str__(self):
-        return f"{self.teacher.username} - {self.amount / 100} UZS ({self.percentage_applied}%)"
+        return (
+            f"{self.teacher.username} - {self.amount / 100} UZS "
+            f"({self.source_type}/{self.entry_type}, {self.percentage_applied}%)"
+        )
 
     @property
     def amount_in_sum(self):
@@ -514,6 +704,9 @@ class AccountTransaction(models.Model):
         ('payment', 'Student Payment'),
         ('expense', 'Expense'),
         ('teacher_earning', 'Teacher Earning'),
+        ('attendance_charge', 'Attendance Charge'),
+        ('attendance_charge_reversal', 'Attendance Charge Reversal'),
+        ('company_share', 'Company Share Entry'),
         ('fine', 'Student Fine'),
         ('refund', 'Refund'),
         ('adjustment', 'Balance Adjustment'),
@@ -529,7 +722,7 @@ class AccountTransaction(models.Model):
 
     # Transaction identification
     transaction_type = models.CharField(
-        max_length=20,
+        max_length=32,
         choices=TRANSACTION_TYPES,
         db_index=True,
         help_text="Type of financial transaction"

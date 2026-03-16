@@ -7,7 +7,6 @@ import logging
 from celery import shared_task
 from django.utils import timezone
 from django.db.models import Sum, Q
-from django.db import transaction
 from datetime import datetime, timedelta
 from typing import Optional
 
@@ -19,12 +18,9 @@ from .accounting_models import (
     TeacherEarnings,
     StudentFine,
     AccountTransaction,
-    MonthlyFeeLog
 )
 from .models import Branch, Payment
-from .models import Group
 from users.models import User
-from .services.financial_automation import apply_monthly_subscription_charge
 
 
 @shared_task(name='calculate_daily_financial_summary')
@@ -445,137 +441,25 @@ CELERY_BEAT_SCHEDULE = {
 @shared_task(name='apply_monthly_fees')
 def apply_monthly_fees(target_date: Optional[str] = None):
     """
-    Apply monthly course fees to all active student balances.
-    This task should run on the first day of each month.
-    If target_date is provided, it applies fees for that date.
+    Deprecated in attendance-based billing mode.
+    Charging is now applied only when attendance is marked PRESENT.
     """
-    if target_date:
-        today = datetime.strptime(target_date, '%Y-%m-%d').date()
-    else:
-        today = timezone.now().date()
-        
-    # Find all active student balances in groups that are currently active
-    active_balances = StudentBalance.objects.filter(
-        group__start_day__lte=today,
-        group__end_day__gte=today,
-        student__is_active=True
-    ).select_related('student', 'group', 'group__course')
-
-    fees_applied = 0
-    subscription_charges_applied = 0
-    errors = []
-
-    try:
-        for balance in active_balances:
-            try:
-                # Idempotency check: See if a monthly fee has already been applied for this month
-                if AccountTransaction.objects.filter(
-                    student=balance.student,
-                    group=balance.group,
-                    transaction_type='monthly_fee',
-                    transaction_date__year=today.year,
-                    transaction_date__month=today.month
-                ).exists():
-                    continue # Skip if already applied
-
-                with transaction.atomic():
-                    course = balance.group.course
-                    # The user specified that `course.price` is the monthly fee.
-                    if course and course.price and course.price > 0:
-                        monthly_fee = course.price
-                    else:
-                        # If course price is not set or is zero, skip this balance.
-                        continue
-
-                    # Add the charge to the student's balance by increasing their owed fee
-                    balance.add_charge(monthly_fee)
-
-                    # Create a transaction record for the audit trail
-                    AccountTransaction.create_from_monthly_fee(
-                        student=balance.student,
-                        group=balance.group,
-                        amount=monthly_fee,
-                        fee_date=today
-                    )
-                    fees_applied += 1
-            except Exception as e:
-                logger.error(f"Error applying monthly fee for balance {balance.id}: {e}")
-                errors.append({
-                    'balance_id': balance.id,
-                    'student_id': balance.student.id,
-                    'error': str(e)
-                })
-    except Exception as e:
-        logger.critical(f"FATAL: The 'apply_monthly_fees' task failed catastrophically. Error: {e}", exc_info=True)
-        raise
-
-    # Internal account billing (negative balances supported) for every active student-group enrollment.
-    active_groups = Group.objects.filter(
-        start_day__lte=today,
-        end_day__gte=today,
-    ).select_related('course').prefetch_related('students')
-
-    for group in active_groups:
-        if not group.course or group.course.price <= 0:
-            continue
-        for student in group.students.filter(is_active=True, is_teacher=False):
-            try:
-                _, created = apply_monthly_subscription_charge(
-                    student=student,
-                    group=group,
-                    target_date=today,
-                    actor=None,
-                )
-                if created:
-                    subscription_charges_applied += 1
-            except Exception as e:
-                logger.error(
-                    "Error applying internal monthly charge for student %s in group %s: %s",
-                    student.id,
-                    group.id,
-                    e,
-                )
-                errors.append({
-                    'student_id': student.id,
-                    'group_id': group.id,
-                    'error': str(e),
-                    'type': 'internal_subscription_charge',
-                })
-
-    # Log that fees for this month have been applied
-    if fees_applied > 0 and not target_date:
-        logger.info(f"Successfully applied monthly fees for {today.month}/{today.year} to {fees_applied} students.")
-        MonthlyFeeLog.objects.get_or_create(year=today.year, month=today.month)
-
+    logger.info("apply_monthly_fees skipped: attendance-based billing is enabled.")
     return {
         'success': True,
-        'total_active_balances': active_balances.count(),
-        'fees_applied_count': fees_applied,
-        'internal_subscription_charges': subscription_charges_applied,
-        'errors': errors
+        'status': 'skipped',
+        'reason': 'attendance_based_billing_enabled',
+        'target_date': target_date,
     }
 
 
 @shared_task(name='check_and_apply_monthly_fees')
 def check_and_apply_monthly_fees():
     """
-    Daily task to check if monthly fees have been applied for the current month.
-    If not, it runs the apply_monthly_fees task.
+    Deprecated watchdog in attendance-based billing mode.
     """
-    today = timezone.now().date()
-    year = today.year
-    month = today.month
-
-    # Check if fees have already been applied for this month
-    if MonthlyFeeLog.objects.filter(year=year, month=month).exists():
-        logger.info(f"Fees already applied for {month}/{year}.")
-        return {'status': 'Fees already applied for this month.'}
-
-    # If it's past the 1st of the month and fees haven't been applied, run the task
-    if today.day > 1:
-        logger.critical(f"SELF-HEAL: Monthly fees for {month}/{year} were missed. Applying them automatically now.")
-        apply_monthly_fees.delay()
-        return {'status': f"Fees for {month}/{year} were missed and are now being applied."}
-
-    logger.info(f"Not yet time to apply fees for {month}/{year}.")
-    return {'status': 'Not yet time to apply fees for this month.'}
+    logger.info("check_and_apply_monthly_fees skipped: attendance-based billing is enabled.")
+    return {
+        'status': 'skipped',
+        'reason': 'attendance_based_billing_enabled',
+    }
