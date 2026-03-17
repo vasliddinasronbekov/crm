@@ -103,6 +103,8 @@ type PaymentGroupOption = {
   } | null
 }
 
+const TIYIN_PER_UZS = 100
+
 const PAYMENT_STATUS_META: Record<
   PaymentStatus,
   { label: string; tone: string; icon: typeof CheckCircle2 }
@@ -200,8 +202,8 @@ export default function FinanceDashboard() {
     group: '',
     course: '',
     payment_type: '',
-    amount: '',
-    course_price: '',
+    amount_tiyin: 0,
+    course_price_tiyin: 0,
     pricing_mode: 'course' as 'course' | 'manual',
     status: 'paid' as PaymentStatus,
     detail: '',
@@ -494,12 +496,11 @@ export default function FinanceDashboard() {
       return draft
     }
 
-    const displayPrice = toSelectedCurrency(coursePriceMinor / 100)
     return {
       ...draft,
       course: String(selectedCourse.id),
-      amount: displayPrice.toString(),
-      course_price: displayPrice.toString(),
+      amount_tiyin: Math.round(coursePriceMinor),
+      course_price_tiyin: Math.round(coursePriceMinor),
     }
   }
 
@@ -525,21 +526,17 @@ export default function FinanceDashboard() {
       return
     }
 
-    if (!isCourseMode && (!paymentForm.amount || Number(paymentForm.amount) <= 0)) {
+    if (!isCourseMode && paymentForm.amount_tiyin <= 0) {
       toast.error('Please enter a valid payment amount')
       return
     }
 
     const amountInMinor = isCourseMode
       ? derivedCoursePriceMinor
-      : Math.round(fromSelectedCurrency(Number(paymentForm.amount)) * 100)
+      : Math.round(paymentForm.amount_tiyin)
     const coursePriceInMinor = isCourseMode
       ? derivedCoursePriceMinor
-      : Math.round(
-          fromSelectedCurrency(
-            paymentForm.course_price ? Number(paymentForm.course_price) : Number(paymentForm.amount)
-          ) * 100
-        )
+      : Math.round(paymentForm.course_price_tiyin > 0 ? paymentForm.course_price_tiyin : paymentForm.amount_tiyin)
 
     createPayment.mutate(
       {
@@ -551,8 +548,8 @@ export default function FinanceDashboard() {
         status: paymentForm.status,
         detail: paymentForm.detail || undefined,
         date: paymentForm.date,
-        amount: amountInMinor,
-        course_price: coursePriceInMinor,
+        amount_tiyin: amountInMinor,
+        course_price_tiyin: coursePriceInMinor,
       },
       {
         onSuccess: () => {
@@ -562,8 +559,8 @@ export default function FinanceDashboard() {
             group: '',
             course: '',
             payment_type: '',
-            amount: '',
-            course_price: '',
+            amount_tiyin: 0,
+            course_price_tiyin: 0,
             pricing_mode: 'course',
             status: 'paid',
             detail: '',
@@ -1240,9 +1237,16 @@ export default function FinanceDashboard() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={paymentForm.amount}
+                    value={
+                      paymentForm.amount_tiyin > 0
+                        ? Number(toSelectedCurrency(paymentForm.amount_tiyin / TIYIN_PER_UZS).toFixed(2))
+                        : ''
+                    }
                     onChange={(event) =>
-                      setPaymentForm((prev) => ({ ...prev, amount: event.target.value }))
+                      setPaymentForm((prev) => ({
+                        ...prev,
+                        amount_tiyin: Math.round(fromSelectedCurrency(Number(event.target.value) || 0) * TIYIN_PER_UZS),
+                      }))
                     }
                     className="w-full px-4 py-3 bg-background border border-border rounded-xl disabled:opacity-60"
                     required
@@ -1255,9 +1259,16 @@ export default function FinanceDashboard() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={paymentForm.course_price}
+                    value={
+                      paymentForm.course_price_tiyin > 0
+                        ? Number(toSelectedCurrency(paymentForm.course_price_tiyin / TIYIN_PER_UZS).toFixed(2))
+                        : ''
+                    }
                     onChange={(event) =>
-                      setPaymentForm((prev) => ({ ...prev, course_price: event.target.value }))
+                      setPaymentForm((prev) => ({
+                        ...prev,
+                        course_price_tiyin: Math.round(fromSelectedCurrency(Number(event.target.value) || 0) * TIYIN_PER_UZS),
+                      }))
                     }
                     className="w-full px-4 py-3 bg-background border border-border rounded-xl disabled:opacity-60"
                     placeholder={paymentForm.pricing_mode === 'course' ? 'Auto-filled from course' : 'Defaults to amount'}

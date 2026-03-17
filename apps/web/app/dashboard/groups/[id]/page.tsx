@@ -43,7 +43,7 @@ interface Student {
   phone?: string
   email?: string
   photo?: string
-  balance?: number
+  balance_tiyin?: number
 }
 
 interface CourseOption {
@@ -116,8 +116,8 @@ interface GroupConfigForm {
 
 interface PaymentForm {
   by_user: number | ''
-  amount: number
-  course_price: number
+  amount_tiyin: number
+  course_price_tiyin: number
   status: 'pending' | 'paid' | 'failed'
   date: string
   payment_type: number | ''
@@ -147,6 +147,8 @@ const ATTENDANCE_WEEKDAY_ORDER: Array<{ key: WeekdayKey; label: string }> = [
   { key: 'sat', label: 'Sat' },
   { key: 'sun', label: 'Sun' },
 ]
+
+const TIYIN_PER_UZS = 100
 
 const parseListPayload = <T,>(payload: any): T[] => {
   if (Array.isArray(payload)) return payload
@@ -305,14 +307,32 @@ const getFullName = (person: { first_name?: string; last_name?: string; username
   return fullName || person.username || 'Unknown'
 }
 
-const toStudentBalance = (raw: any): number => {
-  if (raw?.balance_sum !== undefined && raw?.balance_sum !== null && raw?.balance_sum !== '') {
-    const parsed = Number(raw.balance_sum)
-    if (Number.isFinite(parsed)) return parsed
-  }
+const toTiyin = (value: any): number | null => {
+  const parsed = toNumber(value)
+  if (parsed === null) return null
+  return Math.round(parsed)
+}
 
-  const balance = Number(raw?.balance ?? 0)
-  return Number.isFinite(balance) ? balance : 0
+const uzsToTiyin = (value: any): number | null => {
+  const parsed = toNumber(value)
+  if (parsed === null) return null
+  return Math.round(parsed * TIYIN_PER_UZS)
+}
+
+const toStudentBalanceTiyin = (raw: any): number | null => {
+  const fromTiyinAlias = toTiyin(raw?.balance_tiyin)
+  if (fromTiyinAlias !== null) return fromTiyinAlias
+
+  const fromCanonical = toTiyin(raw?.balance)
+  if (fromCanonical !== null) return fromCanonical
+
+  const fromUzsAlias = uzsToTiyin(raw?.balance_uzs)
+  if (fromUzsAlias !== null) return fromUzsAlias
+
+  const fromLegacySum = uzsToTiyin(raw?.balance_sum)
+  if (fromLegacySum !== null) return fromLegacySum
+
+  return null
 }
 
 const emptyConfigForm: GroupConfigForm = {
@@ -331,8 +351,8 @@ const emptyConfigForm: GroupConfigForm = {
 
 const emptyPaymentForm = (): PaymentForm => ({
   by_user: '',
-  amount: 0,
-  course_price: 0,
+  amount_tiyin: 0,
+  course_price_tiyin: 0,
   status: 'paid',
   date: new Date().toISOString().split('T')[0],
   payment_type: '',
@@ -345,7 +365,7 @@ export default function GroupDetailPage() {
   const router = useRouter()
   const groupIdNumber = Number(params.id)
 
-  const { formatCurrency, fromSelectedCurrency, currency } = useSettings()
+  const { formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency, currency } = useSettings()
   const { user } = useAuth()
   const permissionState = usePermissions(user)
   const canConfigureGroup = permissionState.hasPermission('groups.edit')
@@ -382,6 +402,16 @@ export default function GroupDetailPage() {
 
   const [newPayment, setNewPayment] = useState<PaymentForm>(emptyPaymentForm)
   const [isCreatingPayment, setIsCreatingPayment] = useState(false)
+
+  const selectedCurrencyAmountToTiyin = useCallback(
+    (amountInSelectedCurrency: number): number => Math.round(fromSelectedCurrency(amountInSelectedCurrency) * TIYIN_PER_UZS),
+    [fromSelectedCurrency],
+  )
+
+  const tiyinToSelectedCurrencyAmount = useCallback(
+    (amountTiyin: number): number => toSelectedCurrency(amountTiyin / TIYIN_PER_UZS),
+    [toSelectedCurrency],
+  )
 
   const fetchAllPages = useCallback(async <T,>(fetchPage: (page: number) => Promise<any>): Promise<T[]> => {
     const collected: T[] = []
@@ -454,12 +484,15 @@ export default function GroupDetailPage() {
           photo: studentFromPayload?.photo || studentFromLookup?.photo || '',
         }
 
-        const balanceFromStudent = toNumber(studentFromPayload?.balance ?? studentFromLookup?.balance)
-        if (balanceFromStudent !== null) {
-          student.balance = balanceFromStudent
+        const balanceFromPayload = toStudentBalanceTiyin(studentFromPayload)
+        const balanceFromLookup = toStudentBalanceTiyin(studentFromLookup)
+        const resolvedBalanceTiyin =
+          balanceFromPayload !== null ? balanceFromPayload : balanceFromLookup
+        if (resolvedBalanceTiyin !== null) {
+          student.balance_tiyin = resolvedBalanceTiyin
         }
         if (studentBalanceById[studentId] !== undefined) {
-          student.balance = studentBalanceById[studentId]
+          student.balance_tiyin = studentBalanceById[studentId]
         }
 
         normalizedStudents.push(student)
@@ -501,6 +534,8 @@ export default function GroupDetailPage() {
     if (!rawGroup) return null
     return normalizeGroup(rawGroup)
   }, [normalizeGroup, rawGroup])
+
+  const studentsInGroup = useMemo(() => group?.students || [], [group?.students])
 
   const loadReferenceData = useCallback(async () => {
     const [courseRows, teacherRows, roomRows, studentRows, paymentTypeRows] = await Promise.all([
@@ -613,7 +648,7 @@ export default function GroupDetailPage() {
     rows.forEach((row) => {
       const studentId = extractId(row?.student)
       if (!studentId) return
-      nextMap[studentId] = toStudentBalance(row)
+      nextMap[studentId] = toStudentBalanceTiyin(row) ?? 0
     })
     setStudentBalanceById(nextMap)
   }, [fetchAllPages, groupIdNumber])
@@ -789,6 +824,25 @@ export default function GroupDetailPage() {
     return map
   }, [attendanceByStudentAndDate, selectedDate])
 
+  const selectedDateAttendanceTotals = useMemo(
+    () =>
+      studentsInGroup.reduce(
+        (totals, student) => {
+          const record = attendanceByStudentAndDate.get(getAttendanceCellKey(student.id, selectedDate))
+          if (!record) {
+            totals.unmarked += 1
+            return totals
+          }
+
+          const status = normalizeAttendanceStatus(record)
+          totals[status] += 1
+          return totals
+        },
+        { present: 0, absence: 0, absent: 0, unmarked: 0 },
+      ),
+    [attendanceByStudentAndDate, selectedDate, studentsInGroup],
+  )
+
   const selectedWeekdayKey = useMemo(() => getWeekdayKey(selectedDate), [selectedDate])
 
   const shiftAttendanceMonth = (offset: number) => {
@@ -910,14 +964,14 @@ export default function GroupDetailPage() {
         })
       }
       toast.success(`Attendance marked as ${ATTENDANCE_STATUS_META[status].label.toLowerCase()}.`)
-      await loadAttendance()
+      await Promise.all([loadAttendance(), loadStudentBalances()])
     } catch (error: any) {
       console.error('Failed to mark attendance:', error)
       try {
         const persisted = await verifyAttendancePersisted(studentId, attendanceDate)
         if (persisted) {
           toast.success('Attendance saved successfully. Server returned an automation error.')
-          await loadAttendance()
+          await Promise.all([loadAttendance(), loadStudentBalances()])
           return
         }
       } catch (verificationError) {
@@ -938,21 +992,18 @@ export default function GroupDetailPage() {
       toast.error('Select a student first.')
       return
     }
-    if (newPayment.amount <= 0 || newPayment.course_price <= 0) {
+    if (newPayment.amount_tiyin <= 0 || newPayment.course_price_tiyin <= 0) {
       toast.error('Amount and course price must be greater than 0.')
       return
     }
 
     setIsCreatingPayment(true)
     try {
-      const amountInUzs = fromSelectedCurrency(newPayment.amount)
-      const coursePriceInUzs = fromSelectedCurrency(newPayment.course_price)
-
       await apiService.createPayment({
         by_user: Number(newPayment.by_user),
         group: group.id,
-        amount: Math.round(amountInUzs * 100),
-        course_price: Math.round(coursePriceInUzs * 100),
+        amount_tiyin: newPayment.amount_tiyin,
+        course_price_tiyin: newPayment.course_price_tiyin,
         status: newPayment.status,
         date: newPayment.date,
         payment_type: newPayment.payment_type ? Number(newPayment.payment_type) : null,
@@ -963,8 +1014,8 @@ export default function GroupDetailPage() {
       toast.success('Payment recorded successfully.')
       setNewPayment((previous) => ({
         ...previous,
-        amount: 0,
-        course_price: 0,
+        amount_tiyin: 0,
+        course_price_tiyin: 0,
         detail: '',
       }))
       await Promise.all([loadGroupDetail(), loadStudentBalances()])
@@ -976,7 +1027,6 @@ export default function GroupDetailPage() {
     }
   }
 
-  const studentsInGroup = useMemo(() => group?.students || [], [group?.students])
   const allPresentDates = useMemo(() => {
     const dates = new Set<string>()
     if (!studentsInGroup.length) return dates
@@ -1057,7 +1107,7 @@ export default function GroupDetailPage() {
         }
       }
 
-      await loadAttendance()
+      await Promise.all([loadAttendance(), loadStudentBalances()])
 
       if (!failedStudents.length) {
         toast.success(`Marked ${successCount} students as present.`)
@@ -1082,9 +1132,9 @@ export default function GroupDetailPage() {
     }
   }
 
-  const paidStudentsCount = studentsInGroup.filter((student) => (student.balance || 0) <= 0).length
-  const debtStudentsCount = studentsInGroup.filter((student) => (student.balance || 0) > 0).length
-  const totalBalance = studentsInGroup.reduce((sum, student) => sum + (student.balance || 0), 0)
+  const paidStudentsCount = studentsInGroup.filter((student) => (student.balance_tiyin || 0) <= 0).length
+  const debtStudentsCount = studentsInGroup.filter((student) => (student.balance_tiyin || 0) > 0).length
+  const totalBalanceTiyin = studentsInGroup.reduce((sum, student) => sum + (student.balance_tiyin || 0), 0)
   const ongoingSession = useMemo(
     () => (ongoingGroupsData?.results || []).find((item) => Number(item.id) === groupIdNumber) || null,
     [groupIdNumber, ongoingGroupsData?.results],
@@ -1406,7 +1456,7 @@ export default function GroupDetailPage() {
             <div className="bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-5">
               <p className="text-xs text-text-secondary uppercase tracking-wide mb-2">Financial snapshot</p>
               <div className="flex items-center justify-between gap-3">
-                <p className="text-lg font-semibold">{formatCurrency(totalBalance)}</p>
+                <p className="text-lg font-semibold">{formatCurrencyFromMinor(totalBalanceTiyin)}</p>
                 {canViewPayments && (
                   <button
                     onClick={() => setActiveTab('payments')}
@@ -1554,11 +1604,11 @@ export default function GroupDetailPage() {
                         {student.email && (
                           <p className="text-sm text-text-secondary mb-2">Email: {student.email}</p>
                         )}
-                        {typeof student.balance !== 'undefined' && (
+                        {typeof student.balance_tiyin !== 'undefined' && (
                           <div className="mt-3 pt-3 border-t border-border flex items-center justify-between">
                             <span className="text-sm text-text-secondary">Balance:</span>
-                            <span className={`font-semibold ${(student.balance || 0) <= 0 ? 'text-success' : 'text-error'}`}>
-                              {formatCurrency(student.balance || 0)}
+                            <span className={`font-semibold ${(student.balance_tiyin || 0) <= 0 ? 'text-success' : 'text-error'}`}>
+                              {formatCurrencyFromMinor(student.balance_tiyin || 0)}
                             </span>
                           </div>
                         )}
@@ -1869,11 +1919,15 @@ export default function GroupDetailPage() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={newPayment.amount}
+                    value={
+                      newPayment.amount_tiyin > 0
+                        ? Number(tiyinToSelectedCurrencyAmount(newPayment.amount_tiyin).toFixed(2))
+                        : ''
+                    }
                     onChange={(event) =>
                       setNewPayment((previous) => ({
                         ...previous,
-                        amount: Number(event.target.value) || 0,
+                        amount_tiyin: selectedCurrencyAmountToTiyin(Number(event.target.value) || 0),
                       }))
                     }
                     placeholder={`Amount (${currency})`}
@@ -1884,11 +1938,15 @@ export default function GroupDetailPage() {
                     type="number"
                     min="0"
                     step="0.01"
-                    value={newPayment.course_price}
+                    value={
+                      newPayment.course_price_tiyin > 0
+                        ? Number(tiyinToSelectedCurrencyAmount(newPayment.course_price_tiyin).toFixed(2))
+                        : ''
+                    }
                     onChange={(event) =>
                       setNewPayment((previous) => ({
                         ...previous,
-                        course_price: Number(event.target.value) || 0,
+                        course_price_tiyin: selectedCurrencyAmountToTiyin(Number(event.target.value) || 0),
                       }))
                     }
                     placeholder={`Course price (${currency})`}
@@ -1991,7 +2049,7 @@ export default function GroupDetailPage() {
                   <tbody>
                     {studentsInGroup.length > 0 ? (
                       studentsInGroup.map((student, index) => {
-                        const hasDebt = (student.balance || 0) > 0
+                        const hasDebt = (student.balance_tiyin || 0) > 0
                         return (
                           <tr key={`${student.id}-${index}`} className="border-b border-border/50 hover:bg-background/50">
                             <td className="py-3 px-4">
@@ -2000,7 +2058,7 @@ export default function GroupDetailPage() {
                             <td className="py-3 px-4 text-text-secondary">{student.phone || '-'}</td>
                             <td className="py-3 px-4 text-right">
                               <span className={`font-semibold ${hasDebt ? 'text-error' : 'text-success'}`}>
-                                {formatCurrency(student.balance || 0)}
+                                {formatCurrencyFromMinor(student.balance_tiyin || 0)}
                               </span>
                             </td>
                             <td className="py-3 px-4 text-center">
@@ -2038,7 +2096,7 @@ export default function GroupDetailPage() {
                   <div className="text-sm text-text-secondary">Students with Debt</div>
                 </div>
                 <div className="bg-surface border border-border rounded-2xl p-5">
-                  <div className="text-3xl font-bold">{formatCurrency(totalBalance)}</div>
+                  <div className="text-3xl font-bold">{formatCurrencyFromMinor(totalBalanceTiyin)}</div>
                   <div className="text-sm text-text-secondary">Total Balance</div>
                 </div>
               </div>
@@ -2093,6 +2151,18 @@ export default function GroupDetailPage() {
               </span>
               <span className="rounded-lg border border-border bg-surface px-3 py-1.5">
                 Selected day: {new Date(`${selectedDate}T00:00:00`).toLocaleDateString()}
+              </span>
+              <span className="rounded-lg border border-success/40 bg-success/10 px-3 py-1.5 text-success">
+                Present: {selectedDateAttendanceTotals.present}
+              </span>
+              <span className="rounded-lg border border-warning/40 bg-warning/10 px-3 py-1.5 text-warning">
+                Excused: {selectedDateAttendanceTotals.absence}
+              </span>
+              <span className="rounded-lg border border-error/40 bg-error/10 px-3 py-1.5 text-error">
+                Absent: {selectedDateAttendanceTotals.absent}
+              </span>
+              <span className="rounded-lg border border-border bg-surface px-3 py-1.5">
+                Unmarked: {selectedDateAttendanceTotals.unmarked}
               </span>
             </div>
             <div className="mb-4 inline-flex items-center rounded-xl border border-border bg-surface p-1">

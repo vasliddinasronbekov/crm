@@ -23,6 +23,7 @@ import LoadingScreen from '@/components/LoadingScreen'
 import { usePermissions } from '@/lib/permissions'
 
 type StudentAccountStatus = 'active' | 'frozen' | 'deactivated'
+const TIYIN_PER_UZS = 100
 
 const normalizeStudentAccountStatus = (value: unknown): StudentAccountStatus => {
   if (value === 'frozen' || value === 'deactivated') {
@@ -54,6 +55,7 @@ interface StudentDetailData {
     name: string
     branch?: string
     course?: string
+    course_price_tiyin?: number
     course_price?: number
     room?: string
     main_teacher?: string
@@ -69,10 +71,13 @@ interface StudentDetailData {
 
   // Payments
   payments: {
+    total_paid_tiyin?: number
     total_paid: number
+    pending_amount_tiyin?: number
     pending_amount: number
     payment_count: number
     last_payment_date?: string
+    last_payment_amount_tiyin?: number
     last_payment_amount?: number
   }
   account?: {
@@ -83,6 +88,7 @@ interface StudentDetailData {
   recent_payments: Array<{
     id: number
     date: string
+    amount_tiyin?: number
     amount: number
     status: string
     group?: string
@@ -143,7 +149,7 @@ export default function StudentDetailPage() {
   const params = useParams()
   const { user } = useAuth()
   const permissionState = usePermissions(user)
-  const { formatCurrency } = useSettings()
+  const { formatCurrencyFromMinor } = useSettings()
   const studentId = parseInt(params.id as string)
   const canManageAccountStatus = permissionState.hasPermission('students.edit')
 
@@ -207,6 +213,20 @@ export default function StudentDetailPage() {
     const f = first_name && first_name.length > 0 ? first_name[0] : ''
     const l = last_name && last_name.length > 0 ? last_name[0] : ''
     return (f + l).toUpperCase() || (username ? username[0].toUpperCase() : '?')
+  }
+
+  const resolveMoneyTiyin = (explicitTiyin: unknown, fallbackUzs: unknown): number => {
+    const explicit = Number(explicitTiyin)
+    if (Number.isFinite(explicit)) {
+      return Math.round(explicit)
+    }
+
+    const fallback = Number(fallbackUzs)
+    if (Number.isFinite(fallback)) {
+      return Math.round(fallback * TIYIN_PER_UZS)
+    }
+
+    return 0
   }
 
   const setStudentAccountStatus = (nextStatus: StudentAccountStatus) => {
@@ -283,7 +303,11 @@ export default function StudentDetailPage() {
     exams, recent_exams,
     coins, risk_assessment, account
   } = student
-  const balanceStatus = getBalanceStatus(payments.pending_amount)
+  const totalPaidTiyin = resolveMoneyTiyin(payments.total_paid_tiyin, payments.total_paid)
+  const pendingAmountTiyin = resolveMoneyTiyin(payments.pending_amount_tiyin, payments.pending_amount)
+  const accountBalanceTiyin = resolveMoneyTiyin(account?.balance_tiyin, account?.balance)
+
+  const balanceStatus = getBalanceStatus(pendingAmountTiyin)
   const accountStatus = normalizeStudentAccountStatus(account?.status)
   const normalizedExamScore = Math.min(Math.max(exams.average_score || 0, 0), 100)
   const engagementIndex = Math.round((attendance.attendance_rate_30days * 0.6) + (normalizedExamScore * 0.4))
@@ -295,7 +319,7 @@ export default function StudentDetailPage() {
       : { label: 'At Risk', classes: 'text-error bg-error/10 border-error/30' }
   const recommendations = [
     attendance.attendance_rate_30days < 75 ? 'Schedule attendance follow-up' : null,
-    payments.pending_amount > 0 ? 'Review payment plan and outstanding balance' : null,
+    pendingAmountTiyin > 0 ? 'Review payment plan and outstanding balance' : null,
     !email || !phone ? 'Complete missing contact information' : null,
   ].filter(Boolean) as string[]
   const accountStatusMeta =
@@ -451,14 +475,14 @@ export default function StudentDetailPage() {
                   <AlertCircle className="h-5 w-5 text-error" />
                 )}
               </div>
-              <p className="text-3xl font-bold mb-1">{formatCurrency(payments.total_paid)}</p>
+              <p className="text-3xl font-bold mb-1">{formatCurrencyFromMinor(totalPaidTiyin)}</p>
               <p className="text-sm text-text-secondary mb-2">Total Paid</p>
               <div className={`text-xs font-medium ${balanceStatus.color}`}>
-                Debt: {formatCurrency(payments.pending_amount)}
+                Debt: {formatCurrencyFromMinor(pendingAmountTiyin)}
               </div>
               {account && (
                 <div className="text-xs text-text-secondary mt-1">
-                  Internal balance: {formatCurrency(account.balance)}
+                  Internal balance: {formatCurrencyFromMinor(accountBalanceTiyin)}
                 </div>
               )}
             </div>
@@ -583,9 +607,9 @@ export default function StudentDetailPage() {
                           <h3 className="font-bold">{group.name}</h3>
                           {group.course && <p className="text-sm text-text-secondary">{group.course}</p>}
                         </div>
-                        {group.course_price && (
+                        {resolveMoneyTiyin(group.course_price_tiyin, group.course_price) > 0 && (
                           <span className="px-3 py-1 bg-primary/10 text-primary rounded-lg text-xs font-medium">
-                            {formatCurrency(group.course_price)}
+                            {formatCurrencyFromMinor(resolveMoneyTiyin(group.course_price_tiyin, group.course_price))}
                           </span>
                         )}
                       </div>
@@ -627,7 +651,9 @@ export default function StudentDetailPage() {
                     <div key={payment.id} className="p-4 bg-background rounded-xl border border-border">
                       <div className="flex items-start justify-between mb-2">
                         <div>
-                          <p className="font-bold text-success">{formatCurrency(payment.amount)}</p>
+                          <p className="font-bold text-success">
+                            {formatCurrencyFromMinor(resolveMoneyTiyin(payment.amount_tiyin, payment.amount))}
+                          </p>
                           <p className="text-xs text-text-secondary">{payment.group || 'N/A'}</p>
                         </div>
                         <span className={`px-3 py-1 rounded-lg text-xs font-medium ${
