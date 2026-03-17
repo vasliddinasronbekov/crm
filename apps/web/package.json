@@ -12,6 +12,7 @@
     "@tanstack/react-query": "^5.90.7",
     "@tanstack/react-query-devtools": "^5.90.2",
     "@vercel/analytics": "^2.0.1",
+    "@vercel/speed-insights": "^2.0.0",
     "axios": "^1.12.2",
     "file-saver": "^2.0.5",
     "fuzzy-search": "^3.2.1",
