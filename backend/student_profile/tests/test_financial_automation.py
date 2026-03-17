@@ -56,7 +56,7 @@ class FinancialAutomationTests(TestCase):
         self.branch = Branch.objects.create(name='Main Branch')
         self.course = Course.objects.create(
             name='Math',
-            price=600_000,
+            price=60_000_000,  # 600,000 UZS stored as tiyin
             duration_months=1,
         )
         self.group = Group.objects.create(
@@ -75,7 +75,7 @@ class FinancialAutomationTests(TestCase):
         self.group.students.add(self.student)
 
     def test_present_attendance_posts_charge_and_split(self):
-        account = StudentAccount.objects.create(student=self.student, balance_tiyin=1_000_000)
+        account = StudentAccount.objects.create(student=self.student, balance_tiyin=10_000_000)
         attendance = Attendance.objects.create(
             student=self.student,
             group=self.group,
@@ -92,15 +92,15 @@ class FinancialAutomationTests(TestCase):
             is_active_charge=True,
         )
 
-        self.assertEqual(account.balance_tiyin, 950_000)
-        self.assertEqual(charge.per_lesson_fee_tiyin, 50_000)
-        self.assertEqual(charge.teacher_amount_tiyin, 20_000)
-        self.assertEqual(charge.company_amount_tiyin, 30_000)
-        self.assertTrue(TeacherEarnings.objects.filter(attendance_charge=charge, amount=20_000).exists())
-        self.assertTrue(CompanyShareEntry.objects.filter(charge=charge, amount_tiyin=30_000).exists())
+        self.assertEqual(account.balance_tiyin, 5_000_000)
+        self.assertEqual(charge.per_lesson_fee_tiyin, 5_000_000)
+        self.assertEqual(charge.teacher_amount_tiyin, 2_000_000)
+        self.assertEqual(charge.company_amount_tiyin, 3_000_000)
+        self.assertTrue(TeacherEarnings.objects.filter(attendance_charge=charge, amount=2_000_000).exists())
+        self.assertTrue(CompanyShareEntry.objects.filter(charge=charge, amount_tiyin=3_000_000).exists())
 
     def test_present_marking_is_idempotent(self):
-        account = StudentAccount.objects.create(student=self.student, balance_tiyin=1_000_000)
+        account = StudentAccount.objects.create(student=self.student, balance_tiyin=10_000_000)
         attendance = Attendance.objects.create(
             student=self.student,
             group=self.group,
@@ -112,7 +112,7 @@ class FinancialAutomationTests(TestCase):
         apply_attendance_policies(attendance, actor=self.admin)
 
         account.refresh_from_db()
-        self.assertEqual(account.balance_tiyin, 950_000)
+        self.assertEqual(account.balance_tiyin, 5_000_000)
         self.assertEqual(
             AttendanceCharge.objects.filter(
                 attendance=attendance,
@@ -123,7 +123,7 @@ class FinancialAutomationTests(TestCase):
         )
 
     def test_reversal_restores_balance_and_financial_entries(self):
-        account = StudentAccount.objects.create(student=self.student, balance_tiyin=1_000_000)
+        account = StudentAccount.objects.create(student=self.student, balance_tiyin=10_000_000)
         attendance = Attendance.objects.create(
             student=self.student,
             group=self.group,
@@ -149,7 +149,7 @@ class FinancialAutomationTests(TestCase):
         self.assertIsNotNone(original_charge)
         self.assertIsNotNone(reversal_charge)
         self.assertFalse(original_charge.is_active_charge)
-        self.assertEqual(account.balance_tiyin, 1_000_000)
+        self.assertEqual(account.balance_tiyin, 10_000_000)
         self.assertEqual(
             TeacherEarnings.objects.filter(attendance_charge__attendance=attendance).count(),
             2,
@@ -173,14 +173,14 @@ class FinancialAutomationTests(TestCase):
         )
         apply_attendance_policies(attendance, actor=self.admin)
         account.refresh_from_db()
-        self.assertEqual(account.balance_tiyin, -50_000)
+        self.assertEqual(account.balance_tiyin, -5_000_000)
 
     def test_payment_reduces_existing_debt(self):
-        account = StudentAccount.objects.create(student=self.student, balance_tiyin=-50_000)
+        account = StudentAccount.objects.create(student=self.student, balance_tiyin=-5_000_000)
         payment = Payment.objects.create(
             by_user=self.student,
             group=self.group,
-            amount=100_000,
+            amount=10_000_000,  # 100,000 UZS stored as tiyin
             status=Payment.PaymentStatus.PAID,
             course_price=self.course.price,
             date=date(2026, 3, 2),
@@ -188,7 +188,7 @@ class FinancialAutomationTests(TestCase):
 
         apply_payment_to_student_account(payment, actor=self.admin)
         account.refresh_from_db()
-        self.assertEqual(account.balance_tiyin, 50_000)
+        self.assertEqual(account.balance_tiyin, 5_000_000)
 
     def test_actual_monthly_mode_uses_calendar_denominator(self):
         self.group.billing_mode = Group.BILLING_MODE_ACTUAL_MONTHLY

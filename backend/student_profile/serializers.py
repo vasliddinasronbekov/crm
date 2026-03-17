@@ -1,4 +1,5 @@
 from datetime import date, time
+from decimal import Decimal
 import re
 from typing import Any
 # /mnt/usb/edu-api-project/student_profile/serializers.py
@@ -471,6 +472,10 @@ class PaymentSerializer(serializers.ModelSerializer):
     group_name = serializers.CharField(source='group.name', read_only=True)
     branch_name = serializers.CharField(source='group.branch.name', read_only=True)
     course_service_name = serializers.CharField(source='group.course.name', read_only=True)
+    amount_tiyin = serializers.IntegerField(source='amount', read_only=True)
+    course_price_tiyin = serializers.IntegerField(source='course_price', read_only=True)
+    amount_uzs = serializers.SerializerMethodField()
+    course_price_uzs = serializers.SerializerMethodField()
 
     class Meta:
         model = Payment
@@ -489,9 +494,23 @@ class PaymentSerializer(serializers.ModelSerializer):
         full_name = obj.by_user.get_full_name().strip()
         return full_name or obj.by_user.username
 
+    def get_amount_uzs(self, obj) -> Any:
+        return Decimal(obj.amount or 0) / Decimal(100)
+
+    def get_course_price_uzs(self, obj) -> Any:
+        return Decimal(obj.course_price or 0) / Decimal(100)
+
 
 class PaymentAuditLogSerializer(serializers.ModelSerializer):
     changed_by_user_name = serializers.SerializerMethodField()
+    amount_before_tiyin = serializers.IntegerField(source='amount_before', read_only=True)
+    amount_after_tiyin = serializers.IntegerField(source='amount_after', read_only=True)
+    course_price_before_tiyin = serializers.IntegerField(source='course_price_before', read_only=True)
+    course_price_after_tiyin = serializers.IntegerField(source='course_price_after', read_only=True)
+    amount_before_uzs = serializers.SerializerMethodField()
+    amount_after_uzs = serializers.SerializerMethodField()
+    course_price_before_uzs = serializers.SerializerMethodField()
+    course_price_after_uzs = serializers.SerializerMethodField()
 
     class Meta:
         model = PaymentAuditLog
@@ -504,9 +523,17 @@ class PaymentAuditLogSerializer(serializers.ModelSerializer):
             'changed_by_user_name',
             'changed_by_display',
             'amount_before',
+            'amount_before_tiyin',
+            'amount_before_uzs',
             'amount_after',
+            'amount_after_tiyin',
+            'amount_after_uzs',
             'course_price_before',
+            'course_price_before_tiyin',
+            'course_price_before_uzs',
             'course_price_after',
+            'course_price_after_tiyin',
+            'course_price_after_uzs',
             'status_before',
             'status_after',
             'changed_fields',
@@ -529,6 +556,18 @@ class PaymentAuditLogSerializer(serializers.ModelSerializer):
             return obj.changed_by_user.username
         return obj.changed_by_display or 'System'
 
+    def get_amount_before_uzs(self, obj) -> Any:
+        return Decimal(obj.amount_before) / Decimal(100) if obj.amount_before is not None else None
+
+    def get_amount_after_uzs(self, obj) -> Any:
+        return Decimal(obj.amount_after) / Decimal(100) if obj.amount_after is not None else None
+
+    def get_course_price_before_uzs(self, obj) -> Any:
+        return Decimal(obj.course_price_before) / Decimal(100) if obj.course_price_before is not None else None
+
+    def get_course_price_after_uzs(self, obj) -> Any:
+        return Decimal(obj.course_price_after) / Decimal(100) if obj.course_price_after is not None else None
+
 
 class PaymentWriteSerializer(serializers.ModelSerializer):
     PRICING_MODE_COURSE = 'course'
@@ -550,6 +589,8 @@ class PaymentWriteSerializer(serializers.ModelSerializer):
         default=PRICING_MODE_COURSE,
         write_only=True,
     )
+    amount_tiyin = serializers.IntegerField(required=False, write_only=True, min_value=1)
+    course_price_tiyin = serializers.IntegerField(required=False, write_only=True, min_value=1)
 
     class Meta:
         model = Payment
@@ -561,13 +602,20 @@ class PaymentWriteSerializer(serializers.ModelSerializer):
             'group',
             'teacher',
             'amount',
+            'amount_tiyin',
             'payment_type',
             'detail',
             'course_price',
+            'course_price_tiyin',
             'transaction_id',
             'course',
             'pricing_mode',
         ]
+        extra_kwargs = {
+            # Create flow can derive these from course/group or tiyin aliases.
+            'amount': {'required': False},
+            'course_price': {'required': False},
+        }
 
     def _resolve_course(self, attrs):
         group = attrs.get('group')
@@ -586,6 +634,21 @@ class PaymentWriteSerializer(serializers.ModelSerializer):
 
     def validate(self, attrs):
         attrs = super().validate(attrs)
+
+        amount_tiyin = attrs.pop('amount_tiyin', None)
+        course_price_tiyin = attrs.pop('course_price_tiyin', None)
+
+        if amount_tiyin is not None:
+            existing_amount = attrs.get('amount')
+            if existing_amount is not None and int(existing_amount) != int(amount_tiyin):
+                raise serializers.ValidationError({'amount_tiyin': 'Conflicts with amount value.'})
+            attrs['amount'] = int(amount_tiyin)
+
+        if course_price_tiyin is not None:
+            existing_course_price = attrs.get('course_price')
+            if existing_course_price is not None and int(existing_course_price) != int(course_price_tiyin):
+                raise serializers.ValidationError({'course_price_tiyin': 'Conflicts with course_price value.'})
+            attrs['course_price'] = int(course_price_tiyin)
 
         pricing_mode = attrs.get('pricing_mode', self.PRICING_MODE_COURSE)
         is_create = self.instance is None
@@ -623,6 +686,8 @@ class PaymentWriteSerializer(serializers.ModelSerializer):
         # Keep backward-compatible updates (status/detail/amount edits) untouched.
         validated_data.pop('course', None)
         validated_data.pop('pricing_mode', None)
+        validated_data.pop('amount_tiyin', None)
+        validated_data.pop('course_price_tiyin', None)
         return super().update(instance, validated_data)
 
 
