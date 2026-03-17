@@ -7,6 +7,7 @@ import { QueryProvider } from '@/contexts/QueryProvider'
 import { ToasterProvider } from '@/components/ToasterProvider'
 import { AIProvider } from '@/lib/hooks/useAI'
 import GlobalLanguageBridge from '@/components/GlobalLanguageBridge'
+import { Analytics } from '@vercel/analytics/next'
 
 export const metadata: Metadata = {
   title: 'EDUOS - Dashboard',
@@ -40,6 +41,7 @@ export default function RootLayout({
             </AuthProvider>
           </SettingsProvider>
         </QueryProvider>
+        <Analytics />
       </body>
     </html>
   )
