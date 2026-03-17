@@ -12,6 +12,7 @@ from rest_framework.decorators import action
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from django.contrib.auth import update_session_auth_hash
+from django.db.models import Q
 from .models import User, UserRoleEnum
 from .serializers import (
     UserSerializer,
@@ -571,6 +572,17 @@ class TeacherViewSet(viewsets.ModelViewSet):
             return TeacherWriteSerializer
         return UserSerializer
 
+    @staticmethod
+    def _parse_bool_param(value):
+        if value is None:
+            return None
+        normalized = str(value).strip().lower()
+        if normalized in {'1', 'true', 'yes'}:
+            return True
+        if normalized in {'0', 'false', 'no'}:
+            return False
+        return None
+
     def get_queryset(self):
         queryset = User.objects.filter(role=UserRoleEnum.TEACHER.value)
 
@@ -578,6 +590,36 @@ class TeacherViewSet(viewsets.ModelViewSet):
         date_param = self.request.query_params.get('date', None)
         if date_param:
             queryset = queryset.filter(date_joined__date=date_param)
+
+        search = (self.request.query_params.get('search') or '').strip()
+        if search:
+            queryset = queryset.filter(
+                Q(username__icontains=search)
+                | Q(first_name__icontains=search)
+                | Q(last_name__icontains=search)
+                | Q(email__icontains=search)
+                | Q(phone__icontains=search)
+            )
+
+        is_staff = self._parse_bool_param(self.request.query_params.get('is_staff'))
+        if is_staff is not None:
+            queryset = queryset.filter(is_staff=is_staff)
+
+        is_active = self._parse_bool_param(self.request.query_params.get('is_active'))
+        if is_active is not None:
+            queryset = queryset.filter(is_active=is_active)
+
+        has_email = self._parse_bool_param(self.request.query_params.get('has_email'))
+        if has_email is True:
+            queryset = queryset.exclude(email__isnull=True).exclude(email__exact='')
+        elif has_email is False:
+            queryset = queryset.filter(Q(email__isnull=True) | Q(email__exact=''))
+
+        has_phone = self._parse_bool_param(self.request.query_params.get('has_phone'))
+        if has_phone is True:
+            queryset = queryset.exclude(phone__isnull=True).exclude(phone__exact='')
+        elif has_phone is False:
+            queryset = queryset.filter(Q(phone__isnull=True) | Q(phone__exact=''))
 
         return queryset.order_by('-date_joined')
 

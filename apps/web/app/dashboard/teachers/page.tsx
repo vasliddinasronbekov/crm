@@ -1,7 +1,8 @@
 'use client'
 
 import { useState } from 'react'
-import { Search, Plus, Edit, Trash2, Users, Shield, Mail, Phone, Eye, Grid, List, TrendingUp } from 'lucide-react'
+import { useRouter } from 'next/navigation'
+import { Search, Plus, Edit, Trash2, Users, Shield, Mail, Phone, Eye, Grid, List, TrendingUp, UserCheck, UserRoundX } from 'lucide-react'
 import toast from '@/lib/toast'
 import { useTeachers, useCreateTeacher, useUpdateTeacher, useDeleteTeacher, Teacher } from '@/lib/hooks/useTeachers'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
@@ -11,9 +12,10 @@ import { usePermissions } from '@/lib/permissions'
 import LoadingScreen from '@/components/LoadingScreen'
 
 type ViewMode = 'grid' | 'table'
-type FilterType = 'all' | 'admin' | 'teacher' | 'withEmail' | 'withPhone'
+type FilterType = 'all' | 'admin' | 'teacher' | 'withEmail' | 'withPhone' | 'active' | 'inactive'
 
 export default function TeachersPage() {
+  const router = useRouter()
   const { user } = useAuth()
   const permissionState = usePermissions(user)
   const canCreateTeacher = permissionState.hasPermission('teachers.create')
@@ -22,29 +24,28 @@ export default function TeachersPage() {
 
   // React Query hooks
   const [page, setPage] = useState(1)
-  const [limit, setLimit] = useState(9)
+  const [limit] = useState(9)
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300)
   const [filterType, setFilterType] = useState<FilterType>('all')
 
   const { data: teachersData, isLoading } = useTeachers({
-  page,
-  limit,
-  search: debouncedSearchQuery,
-  // 1. Agar 'all' bo'lsa, hech qanday staff filtrini yubormaymiz.
-  // 2. Faqat 'admin' yoki 'teacher' tanlangandagina mos filtrni yuboramiz.
-  ...(filterType === 'admin' ? { is_staff: true } : {}),
-  ...(filterType === 'teacher' ? { is_staff: false } : {}), // Bazada teacherlar staff bo'lmasa
-  ...(filterType === 'withEmail' ? { has_email: true } : {}),
-  ...(filterType === 'withPhone' ? { has_phone: true } : {}),
-})
+    page,
+    limit,
+    search: debouncedSearchQuery,
+    ...(filterType === 'admin' ? { is_staff: true } : {}),
+    ...(filterType === 'teacher' ? { is_staff: false } : {}),
+    ...(filterType === 'withEmail' ? { has_email: true } : {}),
+    ...(filterType === 'withPhone' ? { has_phone: true } : {}),
+    ...(filterType === 'active' ? { is_active: true } : {}),
+    ...(filterType === 'inactive' ? { is_active: false } : {}),
+  })
   const createTeacher = useCreateTeacher()
   const updateTeacher = useUpdateTeacher()
   const deleteTeacher = useDeleteTeacher()
 
   // Local UI state
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null)
-  const [showDetailModal, setShowDetailModal] = useState<Teacher | null>(null)
   const [isAddingTeacher, setIsAddingTeacher] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [newTeacher, setNewTeacher] = useState({
@@ -80,8 +81,12 @@ export default function TeachersPage() {
     total: totalTeachers,
     // The following stats would require dedicated API endpoints for accuracy with pagination
     admins: teachers.filter((t: Teacher) => t.is_staff).length,
-    withEmail: teachers.filter((t: Teacher) => t.email).length,
-    withPhone: teachers.filter((t: Teacher) => t.phone).length,
+    active: teachers.filter((t: Teacher) => t.is_active !== false).length,
+    inactive: teachers.filter((t: Teacher) => t.is_active === false).length,
+  }
+
+  const openTeacherDetail = (teacherId: number) => {
+    router.push(`/dashboard/teachers/${teacherId}`)
   }
 
   const handleDelete = async (teacher: Teacher) => {
@@ -230,27 +235,27 @@ export default function TeachersPage() {
           <div className="bg-surface rounded-2xl border border-border p-6 hover:border-cyan-500/50 transition-all hover:shadow-lg hover:shadow-cyan-500/10">
             <div className="flex items-center justify-between mb-4">
               <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 flex items-center justify-center border border-cyan-500/20">
-                <Mail className="h-6 w-6 text-cyan-500" />
+                <UserCheck className="h-6 w-6 text-cyan-500" />
               </div>
               <span className="text-xs font-semibold text-text-secondary">
                 On this page
               </span>
             </div>
-            <p className="text-3xl font-bold mb-1">{stats.withEmail}</p>
-            <p className="text-sm text-text-secondary">With Email</p>
+            <p className="text-3xl font-bold mb-1">{stats.active}</p>
+            <p className="text-sm text-text-secondary">Active Accounts</p>
           </div>
 
           <div className="bg-surface rounded-2xl border border-border p-6 hover:border-green-500/50 transition-all hover:shadow-lg hover:shadow-green-500/10">
             <div className="flex items-center justify-between mb-4">
               <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-500/20 to-green-500/5 flex items-center justify-center border border-green-500/20">
-                <Phone className="h-6 w-6 text-green-500" />
+                <UserRoundX className="h-6 w-6 text-green-500" />
               </div>
               <span className="text-xs font-semibold text-text-secondary">
                 On this page
               </span>
             </div>
-            <p className="text-3xl font-bold mb-1">{stats.withPhone}</p>
-            <p className="text-sm text-text-secondary">With Phone</p>
+            <p className="text-3xl font-bold mb-1">{stats.inactive}</p>
+            <p className="text-sm text-text-secondary">Inactive Accounts</p>
           </div>
         </div>
 
@@ -310,6 +315,33 @@ export default function TeachersPage() {
               >
                 With Email
               </button>
+              <button
+                onClick={() => { setFilterType('withPhone'); setPage(1); }}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'withPhone'
+                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/20'
+                  : 'bg-surface border border-border hover:border-green-500/50'
+                  }`}
+              >
+                With Phone
+              </button>
+              <button
+                onClick={() => { setFilterType('active'); setPage(1); }}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'active'
+                  ? 'bg-gradient-to-r from-success to-green-600 text-white shadow-lg shadow-success/20'
+                  : 'bg-surface border border-border hover:border-success/50'
+                  }`}
+              >
+                Active
+              </button>
+              <button
+                onClick={() => { setFilterType('inactive'); setPage(1); }}
+                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'inactive'
+                  ? 'bg-gradient-to-r from-error to-red-600 text-white shadow-lg shadow-error/20'
+                  : 'bg-surface border border-border hover:border-error/50'
+                  }`}
+              >
+                Inactive
+              </button>
             </div>
           </div>
 
@@ -363,7 +395,8 @@ export default function TeachersPage() {
             {teachers.map((teacher: Teacher) => (
               <div
                 key={teacher.id}
-                className="bg-surface border border-border rounded-2xl p-6 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all group"
+                onClick={() => openTeacherDetail(teacher.id)}
+                className="bg-surface border border-border rounded-2xl p-6 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all group cursor-pointer"
               >
                 {/* Header */}
                 <div className="flex items-start justify-between mb-4">
@@ -376,14 +409,25 @@ export default function TeachersPage() {
                       <p className="text-sm text-text-secondary">@{teacher.username}</p>
                     </div>
                   </div>
-                  <span
-                    className={`px-3 py-1 rounded-lg text-xs font-semibold ${teacher.is_staff
-                      ? 'bg-gradient-to-r from-warning/20 to-orange-500/20 text-warning border border-warning/30'
-                      : 'bg-gradient-to-r from-success/20 to-green-500/20 text-success border border-success/30'
+                  <div className="flex flex-col items-end gap-1">
+                    <span
+                      className={`px-3 py-1 rounded-lg text-xs font-semibold ${teacher.is_staff
+                        ? 'bg-gradient-to-r from-warning/20 to-orange-500/20 text-warning border border-warning/30'
+                        : 'bg-gradient-to-r from-success/20 to-green-500/20 text-success border border-success/30'
+                        }`}
+                    >
+                      {teacher.is_staff ? '🛡️ Admin' : '👨‍🏫 Teacher'}
+                    </span>
+                    <span
+                      className={`px-3 py-1 rounded-lg text-[11px] font-semibold border ${
+                        teacher.is_active === false
+                          ? 'bg-error/10 text-error border-error/30'
+                          : 'bg-primary/10 text-primary border-primary/30'
                       }`}
-                  >
-                    {teacher.is_staff ? '🛡️ Admin' : '👨‍🏫 Teacher'}
-                  </span>
+                    >
+                      {teacher.is_active === false ? 'Inactive' : 'Active'}
+                    </span>
+                  </div>
                 </div>
 
                 {/* Contact Info */}
@@ -405,14 +449,20 @@ export default function TeachersPage() {
                 {/* Actions */}
                 <div className="flex items-center gap-2 pt-4 border-t border-border">
                   <button
-                    onClick={() => setShowDetailModal(teacher)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      openTeacherDetail(teacher.id)
+                    }}
                     className="flex-1 px-4 py-2 bg-background hover:bg-primary/10 rounded-xl text-sm font-semibold transition-all hover:border-primary/50 border border-border flex items-center justify-center gap-2"
                   >
                     <Eye className="h-4 w-4" />
-                    View
+                    Open
                   </button>
                   <button
-                    onClick={() => handleEdit(teacher)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      handleEdit(teacher)
+                    }}
                     disabled={!canEditTeacher}
                     title={!canEditTeacher ? 'You do not have permission to edit teachers' : undefined}
                     className={`px-4 py-2 rounded-xl transition-all ${
@@ -424,7 +474,10 @@ export default function TeachersPage() {
                     <Edit className={`h-4 w-4 ${canEditTeacher ? 'text-primary' : 'text-text-secondary/60'}`} />
                   </button>
                   <button
-                    onClick={() => handleDelete(teacher)}
+                    onClick={(event) => {
+                      event.stopPropagation()
+                      handleDelete(teacher)
+                    }}
                     disabled={!canDeleteTeacher || deleteTeacher.isPending}
                     title={!canDeleteTeacher ? 'You do not have permission to delete teachers' : undefined}
                     className={`px-4 py-2 rounded-xl transition-all ${
@@ -453,6 +506,7 @@ export default function TeachersPage() {
                     <th className="text-left py-4 px-6 text-sm font-semibold">Email</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold">Phone</th>
                     <th className="text-left py-4 px-6 text-sm font-semibold">Role</th>
+                    <th className="text-left py-4 px-6 text-sm font-semibold">Status</th>
                     <th className="text-right py-4 px-6 text-sm font-semibold">Actions</th>
                   </tr>
                 </thead>
@@ -486,9 +540,20 @@ export default function TeachersPage() {
                         </span>
                       </td>
                       <td className="py-4 px-6">
+                        <span
+                          className={`px-3 py-1 rounded-lg text-xs font-semibold ${
+                            teacher.is_active === false
+                              ? 'bg-error/10 text-error border border-error/30'
+                              : 'bg-primary/10 text-primary border border-primary/30'
+                          }`}
+                        >
+                          {teacher.is_active === false ? 'Inactive' : 'Active'}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6">
                         <div className="flex items-center justify-end gap-2">
                           <button
-                            onClick={() => setShowDetailModal(teacher)}
+                            onClick={() => openTeacherDetail(teacher.id)}
                             className="p-2 hover:bg-background rounded-lg transition-colors"
                           >
                             <Eye className="h-4 w-4 text-cyan-500" />
@@ -736,77 +801,6 @@ export default function TeachersPage() {
           </div>
         )}
 
-        {/* Detail Modal */}
-        {showDetailModal && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-surface rounded-2xl p-6 max-w-md w-full border border-border shadow-2xl">
-              {/* Header */}
-              <div className="flex items-center justify-between mb-6">
-                <h2 className="text-2xl font-bold bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent">
-                  Teacher Details
-                </h2>
-                <button
-                  onClick={() => setShowDetailModal(null)}
-                  className="p-2 hover:bg-background rounded-lg transition-colors"
-                >
-                  <span className="text-2xl">&times;</span>
-                </button>
-              </div>
-
-              {/* Profile */}
-              <div className="flex items-center gap-4 mb-6 p-4 bg-gradient-to-br from-primary/10 to-cyan-500/10 rounded-xl border border-primary/20">
-                <div className="h-16 w-16 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold text-xl border-2 border-primary/30">
-                  {getInitials(showDetailModal)}
-                </div>
-                <div>
-                  <h3 className="font-bold text-xl">{getFullName(showDetailModal)}</h3>
-                  <p className="text-sm text-text-secondary">@{showDetailModal.username}</p>
-                </div>
-              </div>
-
-              {/* Info */}
-              <div className="space-y-4">
-                <div className="p-4 bg-background rounded-xl">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Mail className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-semibold text-text-secondary uppercase">Email</p>
-                  </div>
-                  <p className="font-medium">{showDetailModal.email || 'Not provided'}</p>
-                </div>
-
-                <div className="p-4 bg-background rounded-xl">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Phone className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-semibold text-text-secondary uppercase">Phone</p>
-                  </div>
-                  <p className="font-medium">{showDetailModal.phone || 'Not provided'}</p>
-                </div>
-
-                <div className="p-4 bg-background rounded-xl">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Shield className="h-4 w-4 text-primary" />
-                    <p className="text-xs font-semibold text-text-secondary uppercase">Role</p>
-                  </div>
-                  <span
-                    className={`inline-flex px-3 py-1 rounded-lg text-sm font-semibold ${showDetailModal.is_staff
-                      ? 'bg-warning/20 text-warning border border-warning/30'
-                      : 'bg-success/20 text-success border border-success/30'
-                      }`}
-                  >
-                    {showDetailModal.is_staff ? '🛡️ Administrator' : '👨‍🏫 Teacher'}
-                  </span>
-                </div>
-              </div>
-
-              <button
-                onClick={() => setShowDetailModal(null)}
-                className="w-full mt-6 px-6 py-3 bg-gradient-to-r from-primary to-cyan-500 text-white rounded-xl hover:shadow-xl hover:shadow-primary/30 transition-all font-semibold"
-              >
-                Close
-              </button>
-            </div>
-          </div>
-        )}
       </div>
     </ProtectedRoute>
   )

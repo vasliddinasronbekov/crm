@@ -20,12 +20,23 @@ class UserSerializer(serializers.ModelSerializer):
             'phone',
             'email',
             'photo',
+            'is_active',
             'is_teacher',
             'is_staff',
             'is_superuser',
             'role',
+            'date_joined',
+            'last_login',
         ]
-        read_only_fields = ['id', 'is_teacher', 'is_staff', 'is_superuser', 'role']
+        read_only_fields = [
+            'id',
+            'is_teacher',
+            'is_staff',
+            'is_superuser',
+            'role',
+            'date_joined',
+            'last_login',
+        ]
 
 
 class MyTokenObtainPairSerializer(TokenObtainPairSerializer):

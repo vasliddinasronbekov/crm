@@ -1873,6 +1873,14 @@ class ApiService {
     return response.data;
   }
 
+  async getTeacherEarningsSummary(params?: { [key: string]: any }) {
+    const response = await this.api.get(
+      "/v1/student-profile/accounting/teacher-earnings/summary/",
+      { params },
+    );
+    return response.data;
+  }
+
   async markTeacherEarningPaid(id: number, data: { paid_date?: string }) {
     const response = await this.api.patch(
       `/v1/student-profile/accounting/teacher-earnings/${id}/`,

@@ -11,6 +11,10 @@ export interface Teacher {
   email: string
   phone?: string
   photo?: string
+  role?: string
+  is_active?: boolean
+  date_joined?: string
+  last_login?: string | null
   is_staff: boolean
 }
 
@@ -38,26 +42,22 @@ export const teachersKeys = {
  * @param filters - Optional filters for teachers list
  */
 export function useTeachers({ page = 1, limit = 10, search = "", ...restFilters } = {}) {
-  // Faqat kerakli filtrlarni yuboramiz. 
-  // Agar is_staff=true bo'sh ro'yxat qaytarayotgan bo'lsa, uni olib tashlaymiz
-  const filters = { 
-    page, 
-    limit, 
+  const filters = {
+    page,
+    limit,
     search,
-    // Agar is_staff shart bo'lmasa, bu qatorni o'chiring:
-    // is_staff: restFilters.is_staff 
-  };
+    ...restFilters,
+  }
 
   return useQuery({
     queryKey: teachersKeys.list(filters),
     queryFn: async () => {
-      const data = await apiService.getTeachers(filters);
-      return data; // Return the full response object
+      const data = await apiService.getTeachers(filters)
+      return data
     },
-    // Bu yerda select ishlatish ham xatolikni kamaytiradi
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
-  });
+  })
 }
 
 
