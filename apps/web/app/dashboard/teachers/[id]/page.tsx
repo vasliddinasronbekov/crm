@@ -214,6 +214,8 @@ const resolveAttendanceStatus = (
   return 'absent'
 }
 
+const clampScore = (value: number): number => Math.max(0, Math.min(100, value))
+
 export default function TeacherDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -547,6 +549,94 @@ export default function TeacherDetailPage() {
     [trendByMonth],
   )
 
+  const performanceScorecard = useMemo(() => {
+    const currentMonth = trendByMonth[trendByMonth.length - 1]?.totalTiyin || 0
+    const previousMonth = trendByMonth[trendByMonth.length - 2]?.totalTiyin || 0
+
+    let trendScore = 40
+    if (previousMonth <= 0 && currentMonth > 0) {
+      trendScore = 82
+    } else if (previousMonth > 0) {
+      const growthRate = (currentMonth - previousMonth) / previousMonth
+      trendScore = clampScore(55 + growthRate * 55)
+    }
+
+    const groupLoadScore = clampScore(groups.length * 18)
+    const studentReachScore = clampScore(totalStudents * 2.6)
+    const calendarActivityScore = clampScore(attendanceSummary.lessonDays * 6)
+    const engagementScore = Math.round(
+      groupLoadScore * 0.25 +
+      studentReachScore * 0.25 +
+      calendarActivityScore * 0.2 +
+      attendanceSummary.presenceRate * 0.3,
+    )
+
+    const unpaidRatio = summaryTotalEarningsTiyin > 0 ? summaryUnpaidTiyin / summaryTotalEarningsTiyin : 0
+    const absenceRatio = attendanceSummary.total > 0
+      ? (attendanceSummary.absence + attendanceSummary.absent) / attendanceSummary.total
+      : 0
+
+    const riskScore = Math.round(
+      clampScore(
+        unpaidRatio * 55 +
+        absenceRatio * 35 +
+        (teacher?.is_active === false ? 25 : 0) +
+        (trendScore < 45 ? 10 : 0),
+      ),
+    )
+
+    const overallScore = Math.round(
+      clampScore(
+        trendScore * 0.35 +
+        engagementScore * 0.45 +
+        (100 - riskScore) * 0.2,
+      ),
+    )
+
+    const rankLabel =
+      overallScore >= 85
+        ? 'Elite'
+        : overallScore >= 70
+          ? 'Strong'
+          : overallScore >= 55
+            ? 'Stable'
+            : overallScore >= 40
+              ? 'Watch'
+              : 'Critical'
+
+    const trendDirection =
+      currentMonth > previousMonth
+        ? 'Up'
+        : currentMonth < previousMonth
+          ? 'Down'
+          : 'Flat'
+
+    return {
+      trendScore: Math.round(clampScore(trendScore)),
+      engagementScore,
+      riskScore,
+      overallScore,
+      rankLabel,
+      trendDirection,
+      currentMonth,
+      previousMonth,
+      unpaidRatio: Math.round(unpaidRatio * 100),
+      absenceRatio: Math.round(absenceRatio * 100),
+    }
+  }, [
+    attendanceSummary.absence,
+    attendanceSummary.absent,
+    attendanceSummary.lessonDays,
+    attendanceSummary.presenceRate,
+    attendanceSummary.total,
+    groups.length,
+    summaryTotalEarningsTiyin,
+    summaryUnpaidTiyin,
+    teacher?.is_active,
+    totalStudents,
+    trendByMonth,
+  ])
+
   const openEditModal = () => {
     if (!teacher) return
     setEditForm({
@@ -626,7 +716,7 @@ export default function TeacherDetailPage() {
     return (
       <ProtectedRoute>
         <div className="p-8">
-          <div className="max-w-2xl mx-auto bg-surface border border-border rounded-2xl p-8 text-center">
+          <div className="max-w-2xl mx-auto bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-8 text-center">
             <h1 className="text-2xl font-bold mb-3">Teacher not found</h1>
             <p className="text-text-secondary mb-6">The teacher may have been removed or you may not have access.</p>
             <button
@@ -643,7 +733,14 @@ export default function TeacherDetailPage() {
 
   return (
     <ProtectedRoute>
-      <div className="p-8 space-y-8">
+      <div className="relative p-8">
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
+          <div className="absolute top-1/4 -right-24 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-warning/20 blur-3xl" />
+        </div>
+
+        <div className="relative z-10 space-y-8">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <button
@@ -724,33 +821,62 @@ export default function TeacherDetailPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
-          <div className="bg-surface border border-border rounded-2xl p-4">
+          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Groups</p>
             <p className="text-2xl font-bold">{groups.length}</p>
           </div>
-          <div className="bg-surface border border-border rounded-2xl p-4">
+          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Active Groups</p>
             <p className="text-2xl font-bold">{activeGroupCount}</p>
           </div>
-          <div className="bg-surface border border-border rounded-2xl p-4">
+          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Students</p>
             <p className="text-2xl font-bold">{totalStudents}</p>
           </div>
-          <div className="bg-surface border border-border rounded-2xl p-4">
+          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">This Month</p>
             <p className="text-2xl font-bold text-primary">{formatCurrencyFromMinor(currentMonthEarningsTiyin)}</p>
           </div>
-          <div className="bg-surface border border-border rounded-2xl p-4">
+          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Unpaid Accrual</p>
             <p className="text-2xl font-bold text-warning">{formatCurrencyFromMinor(summaryUnpaidTiyin)}</p>
           </div>
-          <div className="bg-surface border border-border rounded-2xl p-4">
+          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Payout Rate</p>
             <p className="text-2xl font-bold">{payoutRate}%</p>
           </div>
         </div>
 
-        <div className="inline-flex items-center rounded-xl border border-border bg-surface p-1">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4">
+          <div className="rounded-2xl border border-primary/25 bg-gradient-to-br from-primary/20 via-primary/10 to-cyan-500/10 backdrop-blur-xl p-4 shadow-[0_20px_45px_-28px_rgba(59,130,246,0.75)]">
+            <p className="text-xs uppercase tracking-wide text-primary/90 mb-2">Performance Rank</p>
+            <p className="text-3xl font-bold">{performanceScorecard.overallScore}</p>
+            <p className="text-sm text-primary/80 mt-1">{performanceScorecard.rankLabel}</p>
+          </div>
+          <div className="rounded-2xl border border-success/30 bg-success/10 backdrop-blur-xl p-4">
+            <p className="text-xs uppercase tracking-wide text-success mb-2">Trend Score</p>
+            <p className="text-3xl font-bold">{performanceScorecard.trendScore}</p>
+            <p className="text-xs text-success/80 mt-1">
+              {performanceScorecard.trendDirection} • {formatCurrencyFromMinor(performanceScorecard.currentMonth)}
+            </p>
+          </div>
+          <div className="rounded-2xl border border-cyan-500/30 bg-cyan-500/10 backdrop-blur-xl p-4">
+            <p className="text-xs uppercase tracking-wide text-cyan-500 mb-2">Engagement Score</p>
+            <p className="text-3xl font-bold">{performanceScorecard.engagementScore}</p>
+            <p className="text-xs text-cyan-500/90 mt-1">
+              Presence {attendanceSummary.presenceRate}% • {attendanceSummary.lessonDays} lesson days
+            </p>
+          </div>
+          <div className="rounded-2xl border border-warning/30 bg-warning/10 backdrop-blur-xl p-4">
+            <p className="text-xs uppercase tracking-wide text-warning mb-2">Risk Score</p>
+            <p className="text-3xl font-bold">{performanceScorecard.riskScore}</p>
+            <p className="text-xs text-warning/90 mt-1">
+              Unpaid {performanceScorecard.unpaidRatio}% • Absence {performanceScorecard.absenceRatio}%
+            </p>
+          </div>
+        </div>
+
+        <div className="inline-flex items-center rounded-xl border border-white/15 bg-surface/70 backdrop-blur-xl p-1">
           {([
             ['overview', 'Overview'],
             ['groups', 'Groups'],
@@ -774,7 +900,7 @@ export default function TeacherDetailPage() {
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-1 space-y-6">
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <h2 className="text-lg font-bold mb-4">Profile</h2>
                 <div className="space-y-4 text-sm">
                   <div className="flex items-center gap-3">
@@ -800,7 +926,7 @@ export default function TeacherDetailPage() {
                 </div>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <h2 className="text-lg font-bold mb-4">Compensation Snapshot</h2>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
@@ -823,7 +949,7 @@ export default function TeacherDetailPage() {
             </div>
 
             <div className="xl:col-span-2 space-y-6">
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold">Earnings Trend (6 months)</h2>
                   <TrendingUp className="h-5 w-5 text-primary" />
@@ -846,7 +972,7 @@ export default function TeacherDetailPage() {
                 </div>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <h2 className="text-lg font-bold mb-4">Recent Accrual Events</h2>
                 <div className="space-y-3">
                   {earnings.slice(0, 8).map((entry) => (
@@ -890,7 +1016,7 @@ export default function TeacherDetailPage() {
         {activeTab === 'groups' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {groups.map((group) => (
-              <div key={group.id} className="bg-surface border border-border rounded-2xl p-5">
+              <div key={group.id} className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
                     <h3 className="text-lg font-bold">{group.name}</h3>
@@ -934,7 +1060,7 @@ export default function TeacherDetailPage() {
               </div>
             ))}
             {groups.length === 0 && (
-              <div className="col-span-full bg-surface border border-border rounded-2xl p-10 text-center text-text-secondary">
+              <div className="col-span-full bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-10 text-center text-text-secondary">
                 No assigned groups found for this teacher.
               </div>
             )}
@@ -943,7 +1069,7 @@ export default function TeacherDetailPage() {
 
         {activeTab === 'attendance' && (
           <div className="space-y-6">
-            <div className="bg-surface border border-border rounded-2xl p-5">
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
               <div className="flex flex-wrap items-center gap-3">
                 <input
                   type="month"
@@ -976,40 +1102,40 @@ export default function TeacherDetailPage() {
             </div>
 
             {attendanceLoading ? (
-              <div className="bg-surface border border-border rounded-2xl p-10">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-10">
                 <LoadingScreen message="Loading attendance insights..." fullHeight={false} />
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
-                  <div className="bg-surface border border-border rounded-2xl p-4">
+                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Attendance Rows</p>
                     <p className="text-2xl font-bold">{attendanceSummary.total}</p>
                   </div>
-                  <div className="bg-surface border border-border rounded-2xl p-4">
+                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Present</p>
                     <p className="text-2xl font-bold text-success">{attendanceSummary.present}</p>
                   </div>
-                  <div className="bg-surface border border-border rounded-2xl p-4">
+                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Excused</p>
                     <p className="text-2xl font-bold text-warning">{attendanceSummary.absence}</p>
                   </div>
-                  <div className="bg-surface border border-border rounded-2xl p-4">
+                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Unexcused</p>
                     <p className="text-2xl font-bold text-error">{attendanceSummary.absent}</p>
                   </div>
-                  <div className="bg-surface border border-border rounded-2xl p-4">
+                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Students Marked</p>
                     <p className="text-2xl font-bold">{attendanceSummary.uniqueStudents}</p>
                   </div>
-                  <div className="bg-surface border border-border rounded-2xl p-4">
+                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Presence Rate</p>
                     <p className="text-2xl font-bold">{attendanceSummary.presenceRate}%</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                  <div className="xl:col-span-2 bg-surface border border-border rounded-2xl p-5">
+                  <div className="xl:col-span-2 bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-bold">Daily Attendance Heatmap</h2>
                       <span className="text-sm text-text-secondary">
@@ -1056,7 +1182,7 @@ export default function TeacherDetailPage() {
                     </div>
                   </div>
 
-                  <div className="bg-surface border border-border rounded-2xl p-5">
+                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                     <h2 className="text-lg font-bold mb-4">Latest Marked Days</h2>
                     <div className="space-y-2">
                       {attendanceTimeline.slice(0, 10).map((row) => (
@@ -1086,7 +1212,7 @@ export default function TeacherDetailPage() {
         )}
 
         {activeTab === 'earnings' && (
-          <div className="bg-surface border border-border rounded-2xl overflow-hidden">
+          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl overflow-hidden">
             <div className="p-5 border-b border-border flex flex-wrap items-center gap-3">
               <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm">
                 <Coins className="h-4 w-4 text-primary" />
@@ -1168,7 +1294,7 @@ export default function TeacherDetailPage() {
 
         {isEditModalOpen && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-lg bg-surface border border-border rounded-2xl p-6">
+            <div className="w-full max-w-lg bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4">Edit Teacher Profile</h2>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">
@@ -1251,6 +1377,7 @@ export default function TeacherDetailPage() {
             </div>
           </div>
         )}
+        </div>
       </div>
     </ProtectedRoute>
   )

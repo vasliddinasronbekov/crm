@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -15,6 +15,8 @@ import {
   GraduationCap,
   Loader2,
   RefreshCw,
+  ShieldAlert,
+  Sparkles,
   Target,
   TrendingDown,
   TrendingUp,
@@ -40,6 +42,25 @@ import apiService from '@/lib/api'
 
 type TabKey = 'overview' | 'reports'
 
+interface TeacherPerformanceRow {
+  id: number
+  name: string
+  username: string
+  isActive: boolean
+  trendScore: number
+  engagementScore: number
+  riskScore: number
+  overallScore: number
+  currentMonthEarningsTiyin: number
+  previousMonthEarningsTiyin: number
+  unpaidRatioPercent: number
+  absenceRatioPercent: number
+  groupCount: number
+  studentLoad: number
+  presentCount: number
+  attendanceRows: number
+}
+
 function percent(value: number): string {
   return `${value.toFixed(1)}%`
 }
@@ -49,10 +70,91 @@ function clampWidth(value: number, max: number): number {
   return Math.min(100, Math.max(0, (value / max) * 100))
 }
 
+function clampScoreValue(value: number): number {
+  return Math.min(100, Math.max(0, value))
+}
+
 function getStatusClass(isGood: boolean): string {
   return isGood
     ? 'bg-success/10 text-success border-success/20'
     : 'bg-warning/10 text-warning border-warning/20'
+}
+
+function parseListPayload<T>(payload: any): T[] {
+  if (Array.isArray(payload)) return payload as T[]
+  if (Array.isArray(payload?.results)) return payload.results as T[]
+  return []
+}
+
+function monthKeyFromDate(value?: string): string | null {
+  if (!value) return null
+  return value.length >= 7 ? value.slice(0, 7) : null
+}
+
+function teacherTier(score: number): string {
+  if (score >= 85) return 'Elite'
+  if (score >= 70) return 'Strong'
+  if (score >= 55) return 'Stable'
+  if (score >= 40) return 'Watch'
+  return 'Critical'
+}
+
+interface TeacherLite {
+  id: number
+  username?: string
+  first_name?: string
+  last_name?: string
+  is_active?: boolean
+}
+
+interface GroupLite {
+  id: number
+  student_count?: number
+  students?: Array<number | { id?: number }>
+  main_teacher?: number | { id?: number }
+  assistant_teacher?: number | { id?: number }
+}
+
+interface TeacherEarningLite {
+  id: number
+  teacher?: number
+  date?: string
+  amount_tiyin?: number
+  amount?: number
+  is_paid_to_teacher?: boolean
+}
+
+interface AttendanceLite {
+  id: number
+  group?: number | { id?: number }
+  attendance_status?: string
+  status?: string
+  is_present?: boolean
+}
+
+function readRelatedId(value: unknown): number | null {
+  if (typeof value === 'number') return value
+  if (value && typeof value === 'object' && 'id' in value) {
+    const idValue = Number((value as { id?: unknown }).id)
+    if (Number.isFinite(idValue)) return Math.round(idValue)
+  }
+  return null
+}
+
+function groupStudentCount(group: GroupLite): number {
+  const direct = Number(group.student_count)
+  if (Number.isFinite(direct) && direct >= 0) return Math.round(direct)
+  if (Array.isArray(group.students)) return group.students.length
+  return 0
+}
+
+function resolveAttendanceStatus(row: AttendanceLite): 'present' | 'absence' | 'absent' {
+  const normalized = String(row.attendance_status || row.status || '').toLowerCase()
+  if (normalized === 'present') return 'present'
+  if (normalized === 'absence' || normalized === 'excused' || normalized === 'absence_excused') return 'absence'
+  if (normalized === 'absent' || normalized === 'absent_unexcused') return 'absent'
+  if (typeof row.is_present === 'boolean') return row.is_present ? 'present' : 'absent'
+  return 'absent'
 }
 
 export default function AnalyticsPage() {
@@ -82,6 +184,8 @@ export default function AnalyticsPage() {
   const [reportType, setReportType] = useState('student-performance')
   const [reportPeriod, setReportPeriod] = useState('month')
   const [selectedReport, setSelectedReport] = useState<Report | null>(null)
+  const [teacherPerformanceRows, setTeacherPerformanceRows] = useState<TeacherPerformanceRow[]>([])
+  const [teacherPerformanceLoading, setTeacherPerformanceLoading] = useState(true)
 
   const trends = useMemo(() => analytics?.trends ?? [], [analytics?.trends])
   const leadDistribution = useMemo(
@@ -130,6 +234,37 @@ export default function AnalyticsPage() {
     [paymentDistribution]
   )
 
+  const topTeacherPerformance = useMemo(
+    () => teacherPerformanceRows.slice(0, 8),
+    [teacherPerformanceRows],
+  )
+
+  const teacherPerformanceAverages = useMemo(() => {
+    if (teacherPerformanceRows.length === 0) {
+      return {
+        trend: 0,
+        engagement: 0,
+        risk: 0,
+      }
+    }
+
+    const totals = teacherPerformanceRows.reduce(
+      (acc, row) => {
+        acc.trend += row.trendScore
+        acc.engagement += row.engagementScore
+        acc.risk += row.riskScore
+        return acc
+      },
+      { trend: 0, engagement: 0, risk: 0 },
+    )
+
+    return {
+      trend: Math.round(totals.trend / teacherPerformanceRows.length),
+      engagement: Math.round(totals.engagement / teacherPerformanceRows.length),
+      risk: Math.round(totals.risk / teacherPerformanceRows.length),
+    }
+  }, [teacherPerformanceRows])
+
   const kpis = analytics?.kpis
   const operations = analytics?.operations
 
@@ -137,8 +272,248 @@ export default function AnalyticsPage() {
     (analytics?.this_month.lead_conversion_rate || '0').replace('%', '')
   )
 
+  const fetchAllPages = useCallback(async <T,>(fetchPage: (page: number) => Promise<any>): Promise<T[]> => {
+    const rows: T[] = []
+    let page = 1
+    let guard = 0
+
+    while (guard < 60) {
+      const response = await fetchPage(page)
+      const pageRows = parseListPayload<T>(response)
+      rows.push(...pageRows)
+
+      if (!response?.next) break
+      page += 1
+      guard += 1
+    }
+
+    return rows
+  }, [])
+
+  const loadTeacherPerformance = useCallback(async () => {
+    const dateToToken = (date: Date): string => {
+      const year = date.getFullYear()
+      const month = String(date.getMonth() + 1).padStart(2, '0')
+      const day = String(date.getDate()).padStart(2, '0')
+      return `${year}-${month}-${day}`
+    }
+
+    const now = new Date()
+    const currentMonthKey = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+    const previousMonthDate = new Date(now.getFullYear(), now.getMonth() - 1, 1)
+    const previousMonthKey = `${previousMonthDate.getFullYear()}-${String(previousMonthDate.getMonth() + 1).padStart(2, '0')}`
+    const earningsDateFrom = dateToToken(new Date(now.getFullYear(), now.getMonth() - 3, 1))
+    const attendanceDateFrom = dateToToken(new Date(now.getFullYear(), now.getMonth(), 1))
+    const attendanceDateTo = dateToToken(new Date(now.getFullYear(), now.getMonth() + 1, 0))
+
+    setTeacherPerformanceLoading(true)
+
+    try {
+      const [teachers, groups, earnings] = await Promise.all([
+        fetchAllPages<TeacherLite>((page) =>
+          apiService.getTeachers({ page, limit: 100 }),
+        ),
+        fetchAllPages<GroupLite>((page) =>
+          apiService.getGroups({ page, limit: 100 }),
+        ),
+        fetchAllPages<TeacherEarningLite>((page) =>
+          apiService.getTeacherEarnings({
+            page,
+            limit: 200,
+            date_from: earningsDateFrom,
+          }),
+        ),
+      ])
+
+      const teacherMap = new Map<number, TeacherLite>()
+      teachers.forEach((teacher) => {
+        if (typeof teacher.id === 'number') {
+          teacherMap.set(teacher.id, teacher)
+        }
+      })
+
+      const groupInsights = new Map<number, { groupCount: number; studentLoad: number }>()
+      const teacherIdsByGroup = new Map<number, number[]>()
+
+      groups.forEach((group) => {
+        const linkedTeachers = [readRelatedId(group.main_teacher), readRelatedId(group.assistant_teacher)]
+          .filter((teacherId): teacherId is number => teacherId !== null && teacherMap.has(teacherId))
+
+        if (linkedTeachers.length === 0) return
+
+        teacherIdsByGroup.set(group.id, linkedTeachers)
+
+        const students = groupStudentCount(group)
+        linkedTeachers.forEach((teacherId) => {
+          const current = groupInsights.get(teacherId) || { groupCount: 0, studentLoad: 0 }
+          current.groupCount += 1
+          current.studentLoad += students
+          groupInsights.set(teacherId, current)
+        })
+      })
+
+      const attendanceByTeacher = new Map<number, { present: number; absence: number; absent: number; total: number }>()
+      const groupIds = Array.from(teacherIdsByGroup.keys()).slice(0, 60)
+      if (groupIds.length > 0) {
+        const attendancePayloads = await Promise.all(
+          groupIds.map(async (groupId) => {
+            const groupRows = await fetchAllPages<AttendanceLite>((page) =>
+              apiService.getAttendance({
+                page,
+                limit: 200,
+                group: groupId,
+                date_from: attendanceDateFrom,
+                date_to: attendanceDateTo,
+              }),
+            )
+            return groupRows.map((row) => ({
+              ...row,
+              group: row.group || groupId,
+            }))
+          }),
+        )
+
+        attendancePayloads.flat().forEach((row) => {
+          const groupId = readRelatedId(row.group)
+          if (groupId === null) return
+          const linkedTeacherIds = teacherIdsByGroup.get(groupId)
+          if (!linkedTeacherIds || linkedTeacherIds.length === 0) return
+
+          const status = resolveAttendanceStatus(row)
+          linkedTeacherIds.forEach((teacherId) => {
+            const current = attendanceByTeacher.get(teacherId) || { present: 0, absence: 0, absent: 0, total: 0 }
+            current[status] += 1
+            current.total += 1
+            attendanceByTeacher.set(teacherId, current)
+          })
+        })
+      }
+
+      const earningsByTeacher = new Map<number, {
+        current: number
+        previous: number
+        total: number
+        unpaid: number
+        eventsCurrent: number
+      }>()
+
+      earnings.forEach((entry) => {
+        const teacherId = Number(entry.teacher)
+        if (!Number.isFinite(teacherId) || !teacherMap.has(teacherId)) return
+
+        const amount = Number(entry.amount_tiyin ?? entry.amount ?? 0)
+        if (!Number.isFinite(amount)) return
+
+        const monthKey = monthKeyFromDate(entry.date)
+        const current = earningsByTeacher.get(teacherId) || {
+          current: 0,
+          previous: 0,
+          total: 0,
+          unpaid: 0,
+          eventsCurrent: 0,
+        }
+
+        current.total += amount
+        if (!entry.is_paid_to_teacher) current.unpaid += amount
+
+        if (monthKey === currentMonthKey) {
+          current.current += amount
+          current.eventsCurrent += 1
+        } else if (monthKey === previousMonthKey) {
+          current.previous += amount
+        }
+
+        earningsByTeacher.set(teacherId, current)
+      })
+
+      const scoreRows: TeacherPerformanceRow[] = Array.from(teacherMap.values()).map((teacher) => {
+        const teacherId = teacher.id
+        const earning = earningsByTeacher.get(teacherId) || { current: 0, previous: 0, total: 0, unpaid: 0, eventsCurrent: 0 }
+        const attendance = attendanceByTeacher.get(teacherId) || { present: 0, absence: 0, absent: 0, total: 0 }
+        const groupInfo = groupInsights.get(teacherId) || { groupCount: 0, studentLoad: 0 }
+
+        let trendScore = 40
+        if (earning.previous <= 0 && earning.current > 0) {
+          trendScore = 82
+        } else if (earning.previous > 0) {
+          const growthRate = (earning.current - earning.previous) / earning.previous
+          trendScore = clampScoreValue(55 + growthRate * 55)
+        }
+
+        const groupLoadScore = clampScoreValue(groupInfo.groupCount * 18)
+        const studentReachScore = clampScoreValue(groupInfo.studentLoad * 2.4)
+        const activityScore = clampScoreValue(earning.eventsCurrent * 6)
+        const attendancePresenceRate = attendance.total > 0 ? (attendance.present / attendance.total) * 100 : 0
+
+        const engagementScore = Math.round(
+          groupLoadScore * 0.25 +
+          studentReachScore * 0.25 +
+          activityScore * 0.2 +
+          attendancePresenceRate * 0.3,
+        )
+
+        const totalEarningMagnitude = Math.max(Math.abs(earning.total), 1)
+        const unpaidRatio = earning.unpaid > 0 ? Math.min(1, earning.unpaid / totalEarningMagnitude) : 0
+        const absenceRatio = attendance.total > 0
+          ? (attendance.absence + attendance.absent) / attendance.total
+          : 0
+        const riskScore = Math.round(
+          clampScoreValue(
+            unpaidRatio * 55 +
+            absenceRatio * 35 +
+            (teacher.is_active === false ? 20 : 0) +
+            (trendScore < 45 ? 10 : 0),
+          ),
+        )
+
+        const overallScore = Math.round(
+          clampScoreValue(
+            trendScore * 0.35 +
+            engagementScore * 0.45 +
+            (100 - riskScore) * 0.2,
+          ),
+        )
+
+        const fullName = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim()
+
+        return {
+          id: teacherId,
+          name: fullName || teacher.username || `Teacher #${teacherId}`,
+          username: teacher.username || '-',
+          isActive: teacher.is_active !== false,
+          trendScore: Math.round(clampScoreValue(trendScore)),
+          engagementScore,
+          riskScore,
+          overallScore,
+          currentMonthEarningsTiyin: Math.round(earning.current),
+          previousMonthEarningsTiyin: Math.round(earning.previous),
+          unpaidRatioPercent: Math.round(unpaidRatio * 100),
+          absenceRatioPercent: Math.round(absenceRatio * 100),
+          groupCount: groupInfo.groupCount,
+          studentLoad: groupInfo.studentLoad,
+          presentCount: attendance.present,
+          attendanceRows: attendance.total,
+        }
+      })
+
+      scoreRows.sort((left, right) => right.overallScore - left.overallScore)
+      setTeacherPerformanceRows(scoreRows)
+    } catch (error: any) {
+      console.error('Failed to load teacher performance data:', error)
+      toast.error(error?.response?.data?.detail || 'Failed to load teacher performance scorecards')
+      setTeacherPerformanceRows([])
+    } finally {
+      setTeacherPerformanceLoading(false)
+    }
+  }, [fetchAllPages])
+
+  useEffect(() => {
+    void loadTeacherPerformance()
+  }, [loadTeacherPerformance])
+
   const handleRefresh = () => {
     refreshAnalytics()
+    void loadTeacherPerformance()
     toast.success('Analytics refreshed')
   }
 
@@ -189,8 +564,14 @@ export default function AnalyticsPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="relative min-h-screen bg-background p-8">
+      <div className="pointer-events-none absolute inset-0 overflow-hidden">
+        <div className="absolute -top-28 -left-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute top-1/3 -right-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-purple-500/15 blur-3xl" />
+      </div>
+
+      <div className="max-w-7xl mx-auto space-y-6 relative z-10">
         <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
@@ -204,20 +585,20 @@ export default function AnalyticsPage() {
 
           <button
             onClick={handleRefresh}
-            className="px-4 py-2 bg-surface border border-border rounded-xl hover:bg-border/50 transition-colors flex items-center gap-2 font-medium"
+            className="px-4 py-2 bg-surface/70 backdrop-blur-xl border border-white/20 rounded-xl hover:bg-surface/90 transition-colors flex items-center gap-2 font-medium"
           >
             <RefreshCw className="h-5 w-5" />
             Refresh Data
           </button>
         </div>
 
-        <div className="flex gap-2 border-b border-border">
+        <div className="inline-flex gap-2 border border-white/15 bg-surface/70 backdrop-blur-xl rounded-2xl p-1">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-5 py-3 border-b-2 transition-colors ${
+            className={`px-5 py-3 rounded-xl transition-colors ${
               activeTab === 'overview'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
+                ? 'bg-primary text-background'
+                : 'text-text-secondary hover:text-text-primary hover:bg-background/70'
             }`}
           >
             <BarChart3 className="h-4 w-4 inline mr-2" />
@@ -225,10 +606,10 @@ export default function AnalyticsPage() {
           </button>
           <button
             onClick={() => setActiveTab('reports')}
-            className={`px-5 py-3 border-b-2 transition-colors ${
+            className={`px-5 py-3 rounded-xl transition-colors ${
               activeTab === 'reports'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
+                ? 'bg-primary text-background'
+                : 'text-text-secondary hover:text-text-primary hover:bg-background/70'
             }`}
           >
             <FileText className="h-4 w-4 inline mr-2" />
@@ -239,7 +620,7 @@ export default function AnalyticsPage() {
         {activeTab === 'overview' && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-4 gap-4">
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <Users className="h-5 w-5 text-primary" />
                   <span className="text-xs text-text-secondary">Total</span>
@@ -248,7 +629,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-text-secondary">Students</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <Activity className="h-5 w-5 text-success" />
                   <span className={`text-xs px-2 py-1 rounded-full border ${getStatusClass((kpis?.active_students_30d || 0) > 0)}`}>
@@ -259,7 +640,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-text-secondary">Active Students</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <Wallet className="h-5 w-5 text-info" />
                   <TrendingUp className="h-4 w-4 text-success" />
@@ -268,7 +649,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-text-secondary">Monthly Revenue</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <DollarSign className="h-5 w-5 text-primary" />
                   {(kpis?.monthly_net_profit ?? analytics?.this_month.net_profit ?? 0) >= 0 ? (
@@ -281,7 +662,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-text-secondary">Net Profit</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <GraduationCap className="h-5 w-5 text-warning" />
                   <span className="text-xs text-text-secondary">30d</span>
@@ -290,7 +671,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-text-secondary">Attendance Rate</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <Target className="h-5 w-5 text-success" />
                   <span className="text-xs text-text-secondary">30d</span>
@@ -299,7 +680,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-text-secondary">Exam Pass Rate</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <BookOpen className="h-5 w-5 text-primary" />
                   <span className="text-xs text-text-secondary">LMS</span>
@@ -308,7 +689,7 @@ export default function AnalyticsPage() {
                 <p className="text-sm text-text-secondary">Completion Rate</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <AlertTriangle className="h-5 w-5 text-error" />
                   <span className="text-xs text-text-secondary">Risk</span>
@@ -318,8 +699,109 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
+              <div className="flex flex-wrap items-start justify-between gap-3 mb-5">
+                <div>
+                  <h2 className="text-xl font-bold flex items-center gap-2">
+                    <Sparkles className="h-5 w-5 text-primary" />
+                    Teacher Performance Command Center
+                  </h2>
+                  <p className="text-sm text-text-secondary mt-1">
+                    Trend, engagement, and risk ranking based on attendance-linked financial activity.
+                  </p>
+                </div>
+                <button
+                  onClick={() => void loadTeacherPerformance()}
+                  className="px-3 py-2 rounded-xl border border-white/20 bg-background/60 hover:bg-background/80 text-sm"
+                >
+                  Refresh Scorecards
+                </button>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-5">
+                <div className="rounded-xl border border-success/25 bg-success/10 p-4">
+                  <p className="text-xs uppercase tracking-wide text-success mb-1">Avg Trend</p>
+                  <p className="text-2xl font-bold">{teacherPerformanceAverages.trend}</p>
+                </div>
+                <div className="rounded-xl border border-cyan-500/25 bg-cyan-500/10 p-4">
+                  <p className="text-xs uppercase tracking-wide text-cyan-500 mb-1">Avg Engagement</p>
+                  <p className="text-2xl font-bold">{teacherPerformanceAverages.engagement}</p>
+                </div>
+                <div className="rounded-xl border border-warning/30 bg-warning/10 p-4">
+                  <p className="text-xs uppercase tracking-wide text-warning mb-1">Avg Risk</p>
+                  <p className="text-2xl font-bold">{teacherPerformanceAverages.risk}</p>
+                </div>
+              </div>
+
+              {teacherPerformanceLoading ? (
+                <div className="h-32 rounded-2xl border border-white/10 bg-background/40 flex items-center justify-center text-text-secondary">
+                  <Loader2 className="h-5 w-5 animate-spin mr-2" />
+                  Building teacher scorecards...
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {topTeacherPerformance.map((row, index) => (
+                    <div
+                      key={row.id}
+                      className="rounded-2xl border border-white/10 bg-background/40 p-4"
+                    >
+                      <div className="flex flex-wrap items-center justify-between gap-3">
+                        <div className="min-w-0">
+                          <p className="font-semibold truncate">
+                            #{index + 1} {row.name}
+                          </p>
+                          <p className="text-xs text-text-secondary">@{row.username}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-lg font-bold">{row.overallScore}</p>
+                          <p className="text-xs text-text-secondary">{teacherTier(row.overallScore)}</p>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-1 md:grid-cols-3 gap-3 mt-3">
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-text-secondary mb-1">Trend</p>
+                          <div className="h-2 rounded-full bg-background overflow-hidden">
+                            <div className="h-full rounded-full bg-success" style={{ width: `${row.trendScore}%` }} />
+                          </div>
+                          <p className="text-xs mt-1 text-text-secondary">
+                            {formatCurrencyFromMinor(row.currentMonthEarningsTiyin)}
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-text-secondary mb-1">Engagement</p>
+                          <div className="h-2 rounded-full bg-background overflow-hidden">
+                            <div className="h-full rounded-full bg-cyan-500" style={{ width: `${row.engagementScore}%` }} />
+                          </div>
+                          <p className="text-xs mt-1 text-text-secondary">
+                            {row.groupCount} groups • {row.studentLoad} students
+                          </p>
+                        </div>
+                        <div>
+                          <p className="text-[11px] uppercase tracking-wide text-text-secondary mb-1">Risk</p>
+                          <div className="h-2 rounded-full bg-background overflow-hidden">
+                            <div className="h-full rounded-full bg-warning" style={{ width: `${row.riskScore}%` }} />
+                          </div>
+                          <p className="text-xs mt-1 text-text-secondary">
+                            Unpaid {row.unpaidRatioPercent}% • Absence {row.absenceRatioPercent}%
+                          </p>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+
+                  {topTeacherPerformance.length === 0 && (
+                    <div className="rounded-2xl border border-white/10 bg-background/40 p-6 text-center text-text-secondary">
+                      <ShieldAlert className="h-5 w-5 inline mr-2" />
+                      No teacher scorecards yet.
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 lg:grid-cols-7 gap-6">
-              <div className="lg:col-span-4 bg-surface border border-border rounded-2xl p-6">
+              <div className="lg:col-span-4 bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
                 <div className="flex items-center justify-between mb-5">
                   <h2 className="text-lg font-bold">6-Month Financial Trend</h2>
                   <p className="text-sm text-text-secondary">Revenue vs Expense vs Net</p>
@@ -356,7 +838,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="lg:col-span-3 bg-surface border border-border rounded-2xl p-6">
+              <div className="lg:col-span-3 bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
                 <h2 className="text-lg font-bold mb-5">Learning Quality</h2>
                 <div className="space-y-4">
                   <div>
@@ -409,7 +891,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="lg:col-span-2 bg-surface border border-border rounded-2xl p-6">
+              <div className="lg:col-span-2 bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
                 <h2 className="text-lg font-bold mb-5">Lead Funnel & Conversion</h2>
                 <div className="space-y-4">
                   {leadDistribution.length > 0 ? (
@@ -445,7 +927,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-6">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
                 <h2 className="text-lg font-bold mb-5">Collection Health</h2>
                 <div className="space-y-3">
                   <div className="p-3 rounded-xl bg-background">
@@ -479,7 +961,7 @@ export default function AnalyticsPage() {
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              <div className="bg-surface border border-border rounded-2xl p-6">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
                 <h2 className="text-lg font-bold mb-5 flex items-center gap-2">
                   <Building2 className="h-5 w-5 text-primary" />
                   Branch Distribution
@@ -503,7 +985,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-6">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
                 <h2 className="text-lg font-bold mb-5 flex items-center gap-2">
                   <BookOpen className="h-5 w-5 text-primary" />
                   Course Demand
@@ -527,7 +1009,7 @@ export default function AnalyticsPage() {
                 </div>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-6">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
                 <h2 className="text-lg font-bold mb-5 flex items-center gap-2">
                   <Trophy className="h-5 w-5 text-primary" />
                   Top Students
@@ -556,7 +1038,7 @@ export default function AnalyticsPage() {
               </div>
             </div>
 
-            <div className="bg-surface border border-border rounded-2xl p-6">
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
               <h2 className="text-lg font-bold mb-5">Operational Monitor</h2>
               <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-5 gap-4">
                 <div className="p-4 rounded-xl bg-background border border-border">
@@ -627,7 +1109,7 @@ export default function AnalyticsPage() {
 
         {activeTab === 'reports' && (
           <div className="space-y-6">
-            <div className="bg-surface p-6 rounded-2xl border border-border">
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 p-6 rounded-2xl">
               <h3 className="text-lg font-bold mb-4">Generate Analytical Report</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
@@ -687,7 +1169,7 @@ export default function AnalyticsPage() {
             </div>
 
             {selectedReport && (
-              <div className="bg-surface p-6 rounded-2xl border border-border">
+              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 p-6 rounded-2xl">
                 <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-6">
                   <div>
                     <h3 className="text-xl font-bold">{selectedReport.title}</h3>
@@ -746,7 +1228,7 @@ export default function AnalyticsPage() {
             )}
 
             {!selectedReport && (reportsData.results?.length || 0) === 0 && (
-              <div className="text-center py-12 bg-surface rounded-2xl border border-border">
+              <div className="text-center py-12 bg-surface/70 backdrop-blur-xl rounded-2xl border border-white/15">
                 <FileText className="h-14 w-14 text-text-secondary/50 mx-auto mb-4" />
                 <p className="text-text-secondary text-lg mb-1">No generated reports yet</p>
                 <p className="text-sm text-text-secondary">Create your first report for detailed analysis output.</p>
