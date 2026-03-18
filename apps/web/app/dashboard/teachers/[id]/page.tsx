@@ -28,7 +28,7 @@ import toast from '@/lib/toast'
 import { resolveApiAssetUrl } from '@/lib/utils/url'
 import { useTeacher, useUpdateTeacher, type Teacher } from '@/lib/hooks/useTeachers'
 
-type DetailTab = 'overview' | 'groups' | 'earnings'
+type DetailTab = 'overview' | 'groups' | 'attendance' | 'earnings'
 type EarningsStatusFilter = 'all' | 'paid' | 'unpaid'
 
 interface TeacherGroup {
@@ -62,6 +62,17 @@ interface TeacherEarningRow {
   student_name?: string
   source_type?: string
   entry_type?: string
+}
+
+interface TeacherAttendanceRow {
+  id: number
+  student?: number | { id?: number; first_name?: string; last_name?: string; username?: string }
+  group?: number | { id?: number; name?: string }
+  group_name?: string
+  date?: string
+  attendance_status?: string
+  status?: string
+  is_present?: boolean
 }
 
 interface TeacherEarningsSummary {
@@ -159,6 +170,50 @@ const getRecentMonthKeys = (count: number): string[] => {
   return result
 }
 
+const getMonthDateRange = (monthKey: string): { from: string; to: string; daysInMonth: number; monthLabel: string } => {
+  const [yearRaw, monthRaw] = monthKey.split('-')
+  const year = Number(yearRaw)
+  const month = Number(monthRaw)
+
+  if (!Number.isFinite(year) || !Number.isFinite(month) || month < 1 || month > 12) {
+    const fallback = new Date()
+    const fallbackYear = fallback.getFullYear()
+    const fallbackMonth = fallback.getMonth() + 1
+    const fallbackDays = new Date(fallbackYear, fallbackMonth, 0).getDate()
+    return {
+      from: `${fallbackYear}-${String(fallbackMonth).padStart(2, '0')}-01`,
+      to: `${fallbackYear}-${String(fallbackMonth).padStart(2, '0')}-${String(fallbackDays).padStart(2, '0')}`,
+      daysInMonth: fallbackDays,
+      monthLabel: `${fallbackYear}-${String(fallbackMonth).padStart(2, '0')}`,
+    }
+  }
+
+  const daysInMonth = new Date(year, month, 0).getDate()
+  const monthToken = `${year}-${String(month).padStart(2, '0')}`
+
+  return {
+    from: `${monthToken}-01`,
+    to: `${monthToken}-${String(daysInMonth).padStart(2, '0')}`,
+    daysInMonth,
+    monthLabel: monthToken,
+  }
+}
+
+const resolveAttendanceStatus = (
+  entry: TeacherAttendanceRow,
+): 'present' | 'absence' | 'absent' => {
+  const normalized = String(entry.attendance_status || entry.status || '').toLowerCase()
+  if (normalized === 'present') return 'present'
+  if (normalized === 'absence' || normalized === 'excused' || normalized === 'absence_excused') return 'absence'
+  if (normalized === 'absent' || normalized === 'absent_unexcused') return 'absent'
+
+  if (typeof entry.is_present === 'boolean') {
+    return entry.is_present ? 'present' : 'absent'
+  }
+
+  return 'absent'
+}
+
 export default function TeacherDetailPage() {
   const params = useParams()
   const router = useRouter()
@@ -179,6 +234,10 @@ export default function TeacherDetailPage() {
   const [groups, setGroups] = useState<TeacherGroup[]>([])
   const [earnings, setEarnings] = useState<TeacherEarningRow[]>([])
   const [earningsSummary, setEarningsSummary] = useState<TeacherEarningsSummary | null>(null)
+  const [attendanceRows, setAttendanceRows] = useState<TeacherAttendanceRow[]>([])
+  const [attendanceLoading, setAttendanceLoading] = useState(false)
+  const [attendanceMonth, setAttendanceMonth] = useState(() => new Date().toISOString().slice(0, 7))
+  const [attendanceGroupId, setAttendanceGroupId] = useState<string>('all')
   const [earningsMonth, setEarningsMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [earningsStatus, setEarningsStatus] = useState<EarningsStatusFilter>('all')
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
@@ -252,6 +311,66 @@ export default function TeacherDetailPage() {
     void loadTeacherInsights()
   }, [loadTeacherInsights])
 
+  const loadAttendanceInsights = useCallback(async () => {
+    if (!Number.isFinite(teacherId) || groups.length === 0) {
+      setAttendanceRows([])
+      return
+    }
+
+    const selectedGroupIds =
+      attendanceGroupId === 'all'
+        ? groups.map((group) => group.id)
+        : groups.filter((group) => String(group.id) === attendanceGroupId).map((group) => group.id)
+
+    if (selectedGroupIds.length === 0) {
+      setAttendanceRows([])
+      return
+    }
+
+    const dateRange = getMonthDateRange(attendanceMonth)
+    setAttendanceLoading(true)
+
+    try {
+      const attendancePages = await Promise.all(
+        selectedGroupIds.map((groupId) =>
+          fetchAllPages<TeacherAttendanceRow>((page) =>
+            apiService.getAttendance({
+              page,
+              limit: 200,
+              group: groupId,
+              date_from: dateRange.from,
+              date_to: dateRange.to,
+            }),
+          ),
+        ),
+      )
+
+      const merged = attendancePages.flat()
+      merged.sort((left, right) => {
+        const leftDate = left.date || ''
+        const rightDate = right.date || ''
+        return rightDate.localeCompare(leftDate)
+      })
+      setAttendanceRows(merged)
+    } catch (error: any) {
+      console.error('Failed to load teacher attendance insights:', error)
+      const message = error?.response?.data?.detail || 'Failed to load attendance insights'
+      toast.error(message)
+    } finally {
+      setAttendanceLoading(false)
+    }
+  }, [attendanceGroupId, attendanceMonth, fetchAllPages, groups, teacherId])
+
+  useEffect(() => {
+    void loadAttendanceInsights()
+  }, [loadAttendanceInsights])
+
+  useEffect(() => {
+    if (attendanceGroupId === 'all') return
+    if (groups.some((group) => String(group.id) === attendanceGroupId)) return
+    setAttendanceGroupId('all')
+  }, [attendanceGroupId, groups])
+
   const teacherName = useMemo(() => {
     if (!teacher) return 'Teacher'
     const fullName = `${teacher.first_name || ''} ${teacher.last_name || ''}`.trim()
@@ -267,6 +386,102 @@ export default function TeacherDetailPage() {
     () => groups.reduce((sum, group) => sum + getStudentCount(group), 0),
     [groups],
   )
+
+  const attendanceMonthRange = useMemo(
+    () => getMonthDateRange(attendanceMonth),
+    [attendanceMonth],
+  )
+
+  const attendanceDateMap = useMemo(() => {
+    const map = new Map<string, { present: number; absence: number; absent: number; total: number }>()
+
+    attendanceRows.forEach((row) => {
+      if (!row.date) return
+      const dateKey = row.date.slice(0, 10)
+      const current = map.get(dateKey) || { present: 0, absence: 0, absent: 0, total: 0 }
+      const status = resolveAttendanceStatus(row)
+      current[status] += 1
+      current.total += 1
+      map.set(dateKey, current)
+    })
+
+    return map
+  }, [attendanceRows])
+
+  const attendanceSummary = useMemo(() => {
+    let present = 0
+    let absence = 0
+    let absent = 0
+    let total = 0
+    const students = new Set<number>()
+    const activeDates = new Set<string>()
+
+    attendanceRows.forEach((row) => {
+      const status = resolveAttendanceStatus(row)
+      if (status === 'present') present += 1
+      if (status === 'absence') absence += 1
+      if (status === 'absent') absent += 1
+      total += 1
+      if (row.date) activeDates.add(row.date.slice(0, 10))
+
+      const studentId = readRelatedUserId(row.student)
+      if (studentId !== null) {
+        students.add(studentId)
+      }
+    })
+
+    return {
+      present,
+      absence,
+      absent,
+      total,
+      uniqueStudents: students.size,
+      lessonDays: activeDates.size,
+      presenceRate: total > 0 ? Math.round((present / total) * 100) : 0,
+    }
+  }, [attendanceRows])
+
+  const attendanceTimeline = useMemo(() => {
+    const rows = Array.from(attendanceDateMap.entries()).map(([date, counts]) => ({
+      date,
+      ...counts,
+    }))
+    rows.sort((left, right) => right.date.localeCompare(left.date))
+    return rows
+  }, [attendanceDateMap])
+
+  const attendanceCalendar = useMemo(() => {
+    const [yearRaw, monthRaw] = attendanceMonthRange.monthLabel.split('-')
+    const year = Number(yearRaw)
+    const month = Number(monthRaw)
+    const firstWeekday = new Date(year, month - 1, 1).getDay()
+    const daysInMonth = attendanceMonthRange.daysInMonth
+    const items: Array<{
+      date: string
+      day: number
+      total: number
+      present: number
+      absence: number
+      absent: number
+      presenceRate: number
+    }> = []
+
+    for (let day = 1; day <= daysInMonth; day += 1) {
+      const date = `${attendanceMonthRange.monthLabel}-${String(day).padStart(2, '0')}`
+      const counts = attendanceDateMap.get(date) || { present: 0, absence: 0, absent: 0, total: 0 }
+      items.push({
+        date,
+        day,
+        total: counts.total,
+        present: counts.present,
+        absence: counts.absence,
+        absent: counts.absent,
+        presenceRate: counts.total > 0 ? Math.round((counts.present / counts.total) * 100) : 0,
+      })
+    }
+
+    return { firstWeekday, items }
+  }, [attendanceDateMap, attendanceMonthRange.daysInMonth, attendanceMonthRange.monthLabel])
 
   const summaryTotalEarningsTiyin = useMemo(() => {
     const fromSummary = toMoneyTiyin(earningsSummary?.total_amount)
@@ -539,6 +754,7 @@ export default function TeacherDetailPage() {
           {([
             ['overview', 'Overview'],
             ['groups', 'Groups'],
+            ['attendance', 'Attendance'],
             ['earnings', 'Earnings'],
           ] as Array<[DetailTab, string]>).map(([tabId, label]) => (
             <button
@@ -721,6 +937,150 @@ export default function TeacherDetailPage() {
               <div className="col-span-full bg-surface border border-border rounded-2xl p-10 text-center text-text-secondary">
                 No assigned groups found for this teacher.
               </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'attendance' && (
+          <div className="space-y-6">
+            <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="flex flex-wrap items-center gap-3">
+                <input
+                  type="month"
+                  value={attendanceMonth}
+                  onChange={(event) => setAttendanceMonth(event.target.value)}
+                  className="px-3 py-2 rounded-xl border border-border bg-background text-sm"
+                />
+                <select
+                  value={attendanceGroupId}
+                  onChange={(event) => setAttendanceGroupId(event.target.value)}
+                  className="px-3 py-2 rounded-xl border border-border bg-background text-sm min-w-56"
+                >
+                  <option value="all">All teacher groups</option>
+                  {groups.map((group) => (
+                    <option key={group.id} value={String(group.id)}>
+                      {group.name}
+                    </option>
+                  ))}
+                </select>
+                <button
+                  onClick={() => void loadAttendanceInsights()}
+                  className="px-4 py-2 rounded-xl border border-primary/30 bg-primary/10 text-primary text-sm font-semibold hover:bg-primary/20"
+                >
+                  Refresh
+                </button>
+                <span className="text-sm text-text-secondary">
+                  {formatMonthTitle(attendanceMonthRange.monthLabel)}
+                </span>
+              </div>
+            </div>
+
+            {attendanceLoading ? (
+              <div className="bg-surface border border-border rounded-2xl p-10">
+                <LoadingScreen message="Loading attendance insights..." fullHeight={false} />
+              </div>
+            ) : (
+              <>
+                <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
+                  <div className="bg-surface border border-border rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Attendance Rows</p>
+                    <p className="text-2xl font-bold">{attendanceSummary.total}</p>
+                  </div>
+                  <div className="bg-surface border border-border rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Present</p>
+                    <p className="text-2xl font-bold text-success">{attendanceSummary.present}</p>
+                  </div>
+                  <div className="bg-surface border border-border rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Excused</p>
+                    <p className="text-2xl font-bold text-warning">{attendanceSummary.absence}</p>
+                  </div>
+                  <div className="bg-surface border border-border rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Unexcused</p>
+                    <p className="text-2xl font-bold text-error">{attendanceSummary.absent}</p>
+                  </div>
+                  <div className="bg-surface border border-border rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Students Marked</p>
+                    <p className="text-2xl font-bold">{attendanceSummary.uniqueStudents}</p>
+                  </div>
+                  <div className="bg-surface border border-border rounded-2xl p-4">
+                    <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Presence Rate</p>
+                    <p className="text-2xl font-bold">{attendanceSummary.presenceRate}%</p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+                  <div className="xl:col-span-2 bg-surface border border-border rounded-2xl p-5">
+                    <div className="flex items-center justify-between mb-4">
+                      <h2 className="text-lg font-bold">Daily Attendance Heatmap</h2>
+                      <span className="text-sm text-text-secondary">
+                        {attendanceSummary.lessonDays} lesson days marked
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-2 text-xs text-text-secondary mb-2">
+                      {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((weekday) => (
+                        <div key={weekday} className="text-center py-1">
+                          {weekday}
+                        </div>
+                      ))}
+                    </div>
+
+                    <div className="grid grid-cols-7 gap-2">
+                      {Array.from({ length: attendanceCalendar.firstWeekday }).map((_, index) => (
+                        <div key={`blank-${index}`} className="h-16 rounded-xl border border-transparent" />
+                      ))}
+
+                      {attendanceCalendar.items.map((item) => {
+                        const tone =
+                          item.total === 0
+                            ? 'bg-background border-border text-text-secondary'
+                            : item.presenceRate >= 80
+                              ? 'bg-success/10 border-success/30 text-success'
+                              : item.presenceRate >= 50
+                                ? 'bg-warning/10 border-warning/30 text-warning'
+                                : 'bg-error/10 border-error/30 text-error'
+
+                        return (
+                          <div
+                            key={item.date}
+                            className={`h-16 rounded-xl border p-2 flex flex-col justify-between ${tone}`}
+                            title={`${item.date}: ${item.present} present, ${item.absence} excused, ${item.absent} absent`}
+                          >
+                            <span className="text-xs font-semibold">{item.day}</span>
+                            <span className="text-[11px]">
+                              {item.total > 0 ? `${item.present}/${item.total}` : '-'}
+                            </span>
+                          </div>
+                        )
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="bg-surface border border-border rounded-2xl p-5">
+                    <h2 className="text-lg font-bold mb-4">Latest Marked Days</h2>
+                    <div className="space-y-2">
+                      {attendanceTimeline.slice(0, 10).map((row) => (
+                        <div key={row.date} className="rounded-xl border border-border bg-background/40 p-3">
+                          <div className="flex items-center justify-between mb-2">
+                            <p className="text-sm font-semibold">{new Date(row.date).toLocaleDateString()}</p>
+                            <span className="text-xs text-text-secondary">{row.total} rows</span>
+                          </div>
+                          <div className="grid grid-cols-3 gap-2 text-xs">
+                            <span className="text-success">{row.present} P</span>
+                            <span className="text-warning">{row.absence} E</span>
+                            <span className="text-error">{row.absent} A</span>
+                          </div>
+                        </div>
+                      ))}
+                      {attendanceTimeline.length === 0 && (
+                        <div className="py-10 text-center text-text-secondary">
+                          No attendance records for selected filters.
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </>
             )}
           </div>
         )}
