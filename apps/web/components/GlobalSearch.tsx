@@ -968,7 +968,10 @@ export default function GlobalSearch() {
 
       {isOpen && (
         <div className="fixed inset-0 z-[90] flex items-start justify-center pt-12 px-4">
-          <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeSearch} />
+          <div
+            className="absolute inset-0 bg-black/35 backdrop-blur-md backdrop-saturate-150"
+            onClick={closeSearch}
+          />
 
           <div className="glass-panel-strong relative w-full max-w-3xl border border-border/70 rounded-2xl shadow-2xl overflow-hidden">
             <form
