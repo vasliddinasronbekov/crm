@@ -108,11 +108,6 @@ export default function StudentsPage() {
   const students: Student[] = studentsData?.results || []
   const studentIdsParam: string = students.map((student: Student) => student.id).join(',')
 
-  const baseStudents = recentOnly
-    ? students.filter((student: Student) => isJoinedWithinDays(student, 7))
-    : students
-
-  const displayStudents = baseStudents.filter((student: Student) => matchesStudentFocus(student, studentFocus))
   const totalStudents = studentsData?.count || 0
   const totalPages = Math.ceil(totalStudents / limit)
 
@@ -467,6 +462,12 @@ export default function StudentsPage() {
         return true
     }
   }
+
+  const baseStudents = recentOnly
+    ? students.filter((student: Student) => isJoinedWithinDays(student, 7))
+    : students
+
+  const displayStudents = baseStudents.filter((student: Student) => matchesStudentFocus(student, studentFocus))
 
   const toggleSelectStudent = (id: number) => {
     setSelectedIds((prev) =>
