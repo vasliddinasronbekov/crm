@@ -149,6 +149,11 @@ const ATTENDANCE_WEEKDAY_ORDER: Array<{ key: WeekdayKey; label: string }> = [
 ]
 
 const TIYIN_PER_UZS = 100
+const GROUP_DETAIL_TAB_STORAGE_KEY = 'dashboard.groups.detail.active_tab'
+const GROUP_ATTENDANCE_MONTH_STORAGE_KEY = 'dashboard.groups.detail.attendance_month'
+const GROUP_ATTENDANCE_VIEW_STORAGE_KEY = 'dashboard.groups.detail.attendance_view'
+const GROUP_ATTENDANCE_DATE_STORAGE_KEY = 'dashboard.groups.detail.attendance_date'
+const GROUP_STUDENT_SEARCH_STORAGE_KEY = 'dashboard.groups.detail.student_search'
 
 const parseListPayload = <T,>(payload: any): T[] => {
   if (Array.isArray(payload)) return payload
@@ -393,6 +398,7 @@ export default function GroupDetailPage() {
   const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0])
   const [attendanceMonth, setAttendanceMonth] = useState(new Date().toISOString().slice(0, 7))
   const [attendanceView, setAttendanceView] = useState<AttendanceView>('register')
+  const [hasLoadedGroupViewPrefs, setHasLoadedGroupViewPrefs] = useState(false)
   const [markingAttendance, setMarkingAttendance] = useState<string | null>(null)
 
   const [isConfigMode, setIsConfigMode] = useState(false)
@@ -402,6 +408,65 @@ export default function GroupDetailPage() {
 
   const [newPayment, setNewPayment] = useState<PaymentForm>(emptyPaymentForm)
   const [isCreatingPayment, setIsCreatingPayment] = useState(false)
+
+  useEffect(() => {
+    if (!Number.isFinite(groupIdNumber)) return
+
+    setHasLoadedGroupViewPrefs(false)
+
+    try {
+      const tabValue = localStorage.getItem(`${GROUP_DETAIL_TAB_STORAGE_KEY}:${groupIdNumber}`)
+      if (tabValue && ['students', 'schedule', 'payments', 'attendance'].includes(tabValue)) {
+        setActiveTab(tabValue as Tab)
+      }
+
+      const attendanceMonthValue = localStorage.getItem(`${GROUP_ATTENDANCE_MONTH_STORAGE_KEY}:${groupIdNumber}`)
+      if (attendanceMonthValue) {
+        setAttendanceMonth(attendanceMonthValue)
+      }
+
+      const attendanceViewValue = localStorage.getItem(`${GROUP_ATTENDANCE_VIEW_STORAGE_KEY}:${groupIdNumber}`)
+      if (attendanceViewValue && ['register', 'weekday'].includes(attendanceViewValue)) {
+        setAttendanceView(attendanceViewValue as AttendanceView)
+      }
+
+      const attendanceDateValue = localStorage.getItem(`${GROUP_ATTENDANCE_DATE_STORAGE_KEY}:${groupIdNumber}`)
+      if (attendanceDateValue) {
+        setSelectedDate(attendanceDateValue)
+      }
+
+      const studentSearchValue = localStorage.getItem(`${GROUP_STUDENT_SEARCH_STORAGE_KEY}:${groupIdNumber}`)
+      if (studentSearchValue) {
+        setStudentSearchQuery(studentSearchValue)
+      }
+    } catch {
+      // Ignore storage access failures.
+    } finally {
+      setHasLoadedGroupViewPrefs(true)
+    }
+  }, [groupIdNumber])
+
+  useEffect(() => {
+    if (!Number.isFinite(groupIdNumber) || !hasLoadedGroupViewPrefs) return
+
+    try {
+      localStorage.setItem(`${GROUP_DETAIL_TAB_STORAGE_KEY}:${groupIdNumber}`, activeTab)
+      localStorage.setItem(`${GROUP_ATTENDANCE_MONTH_STORAGE_KEY}:${groupIdNumber}`, attendanceMonth)
+      localStorage.setItem(`${GROUP_ATTENDANCE_VIEW_STORAGE_KEY}:${groupIdNumber}`, attendanceView)
+      localStorage.setItem(`${GROUP_ATTENDANCE_DATE_STORAGE_KEY}:${groupIdNumber}`, selectedDate)
+      localStorage.setItem(`${GROUP_STUDENT_SEARCH_STORAGE_KEY}:${groupIdNumber}`, studentSearchQuery)
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [
+    activeTab,
+    attendanceMonth,
+    attendanceView,
+    groupIdNumber,
+    hasLoadedGroupViewPrefs,
+    selectedDate,
+    studentSearchQuery,
+  ])
 
   const selectedCurrencyAmountToTiyin = useCallback(
     (amountInSelectedCurrency: number): number => Math.round(fromSelectedCurrency(amountInSelectedCurrency) * TIYIN_PER_UZS),

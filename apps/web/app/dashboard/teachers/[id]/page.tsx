@@ -31,6 +31,12 @@ import { useTeacher, useUpdateTeacher, type Teacher } from '@/lib/hooks/useTeach
 type DetailTab = 'overview' | 'groups' | 'attendance' | 'earnings'
 type EarningsStatusFilter = 'all' | 'paid' | 'unpaid'
 
+const TEACHER_DETAIL_TAB_STORAGE_KEY = 'dashboard.teachers.detail.active_tab'
+const TEACHER_ATTENDANCE_MONTH_STORAGE_KEY = 'dashboard.teachers.detail.attendance_month'
+const TEACHER_ATTENDANCE_GROUP_STORAGE_KEY = 'dashboard.teachers.detail.attendance_group'
+const TEACHER_EARNINGS_MONTH_STORAGE_KEY = 'dashboard.teachers.detail.earnings_month'
+const TEACHER_EARNINGS_STATUS_STORAGE_KEY = 'dashboard.teachers.detail.earnings_status'
+
 interface TeacherGroup {
   id: number
   name: string
@@ -242,6 +248,7 @@ export default function TeacherDetailPage() {
   const [attendanceGroupId, setAttendanceGroupId] = useState<string>('all')
   const [earningsMonth, setEarningsMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [earningsStatus, setEarningsStatus] = useState<EarningsStatusFilter>('all')
+  const [hasLoadedDetailPrefs, setHasLoadedDetailPrefs] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState<TeacherEditForm>({
     first_name: '',
@@ -312,6 +319,65 @@ export default function TeacherDetailPage() {
   useEffect(() => {
     void loadTeacherInsights()
   }, [loadTeacherInsights])
+
+  useEffect(() => {
+    if (!Number.isFinite(teacherId)) return
+
+    setHasLoadedDetailPrefs(false)
+
+    try {
+      const tabValue = localStorage.getItem(`${TEACHER_DETAIL_TAB_STORAGE_KEY}:${teacherId}`)
+      if (tabValue && ['overview', 'groups', 'attendance', 'earnings'].includes(tabValue)) {
+        setActiveTab(tabValue as DetailTab)
+      }
+
+      const attendanceMonthValue = localStorage.getItem(`${TEACHER_ATTENDANCE_MONTH_STORAGE_KEY}:${teacherId}`)
+      if (attendanceMonthValue) {
+        setAttendanceMonth(attendanceMonthValue)
+      }
+
+      const attendanceGroupValue = localStorage.getItem(`${TEACHER_ATTENDANCE_GROUP_STORAGE_KEY}:${teacherId}`)
+      if (attendanceGroupValue) {
+        setAttendanceGroupId(attendanceGroupValue)
+      }
+
+      const earningsMonthValue = localStorage.getItem(`${TEACHER_EARNINGS_MONTH_STORAGE_KEY}:${teacherId}`)
+      if (earningsMonthValue) {
+        setEarningsMonth(earningsMonthValue)
+      }
+
+      const earningsStatusValue = localStorage.getItem(`${TEACHER_EARNINGS_STATUS_STORAGE_KEY}:${teacherId}`)
+      if (earningsStatusValue && ['all', 'paid', 'unpaid'].includes(earningsStatusValue)) {
+        setEarningsStatus(earningsStatusValue as EarningsStatusFilter)
+      }
+    } catch {
+      // Ignore storage access failures.
+    } finally {
+      setHasLoadedDetailPrefs(true)
+    }
+  }, [teacherId])
+
+  useEffect(() => {
+    if (!Number.isFinite(teacherId) || !hasLoadedDetailPrefs) return
+
+    try {
+      localStorage.setItem(`${TEACHER_DETAIL_TAB_STORAGE_KEY}:${teacherId}`, activeTab)
+      localStorage.setItem(`${TEACHER_ATTENDANCE_MONTH_STORAGE_KEY}:${teacherId}`, attendanceMonth)
+      localStorage.setItem(`${TEACHER_ATTENDANCE_GROUP_STORAGE_KEY}:${teacherId}`, attendanceGroupId)
+      localStorage.setItem(`${TEACHER_EARNINGS_MONTH_STORAGE_KEY}:${teacherId}`, earningsMonth)
+      localStorage.setItem(`${TEACHER_EARNINGS_STATUS_STORAGE_KEY}:${teacherId}`, earningsStatus)
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [
+    activeTab,
+    attendanceGroupId,
+    attendanceMonth,
+    earningsMonth,
+    earningsStatus,
+    hasLoadedDetailPrefs,
+    teacherId,
+  ])
 
   const loadAttendanceInsights = useCallback(async () => {
     if (!Number.isFinite(teacherId) || groups.length === 0) {

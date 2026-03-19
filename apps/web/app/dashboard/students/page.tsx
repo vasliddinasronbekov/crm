@@ -27,6 +27,12 @@ type ViewMode = 'grid' | 'table'
 type StudentAccountStatus = 'active' | 'frozen' | 'deactivated'
 type StudentFocus = 'all' | 'needs_contact' | 'new_this_week' | 'account_risk' | 'incomplete_profiles'
 
+const STUDENT_FOCUS_STORAGE_KEY = 'dashboard.students.focus'
+const STUDENT_VIEW_MODE_STORAGE_KEY = 'dashboard.students.view_mode'
+const STUDENT_FILTER_STATUS_STORAGE_KEY = 'dashboard.students.filter_status'
+const STUDENT_RECENT_ONLY_STORAGE_KEY = 'dashboard.students.recent_only'
+const STUDENT_PAGE_LIMIT_STORAGE_KEY = 'dashboard.students.page_limit'
+
 interface StudentAccountStatusEntry {
   accountId?: number
   status: StudentAccountStatus
@@ -54,6 +60,9 @@ export default function StudentsPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300)
   const [studentFocus, setStudentFocus] = useState<StudentFocus>('all')
+  const [hasLoadedStudentFocusPref, setHasLoadedStudentFocusPref] = useState(false)
+  const [hasLoadedStudentViewModePref, setHasLoadedStudentViewModePref] = useState(false)
+  const [hasLoadedStudentListPrefs, setHasLoadedStudentListPrefs] = useState(false)
   const [filterStatus, setFilterStatus] = useState<
     'all' | 'with_email' | 'missing_email' | 'with_phone' | 'missing_phone'
   >('all')
@@ -110,6 +119,90 @@ export default function StudentsPage() {
   useEffect(() => {
     setSelectedIds([])
   }, [page, limit, filterStatus, debouncedSearchQuery, recentOnly, studentFocus])
+
+  useEffect(() => {
+    try {
+      const storedFocus = localStorage.getItem(STUDENT_FOCUS_STORAGE_KEY)
+      if (
+        storedFocus &&
+        ['all', 'needs_contact', 'new_this_week', 'account_risk', 'incomplete_profiles'].includes(storedFocus)
+      ) {
+        setStudentFocus(storedFocus as StudentFocus)
+      }
+    } catch {
+      // Ignore storage access failures.
+    } finally {
+      setHasLoadedStudentFocusPref(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedStudentFocusPref) return
+    try {
+      localStorage.setItem(STUDENT_FOCUS_STORAGE_KEY, studentFocus)
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [studentFocus, hasLoadedStudentFocusPref])
+
+  useEffect(() => {
+    try {
+      const storedViewMode = localStorage.getItem(STUDENT_VIEW_MODE_STORAGE_KEY)
+      if (storedViewMode && ['grid', 'table'].includes(storedViewMode)) {
+        setViewMode(storedViewMode as ViewMode)
+      }
+    } catch {
+      // Ignore storage access failures.
+    } finally {
+      setHasLoadedStudentViewModePref(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedStudentViewModePref) return
+    try {
+      localStorage.setItem(STUDENT_VIEW_MODE_STORAGE_KEY, viewMode)
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [viewMode, hasLoadedStudentViewModePref])
+
+  useEffect(() => {
+    try {
+      const storedFilter = localStorage.getItem(STUDENT_FILTER_STATUS_STORAGE_KEY)
+      if (
+        storedFilter &&
+        ['all', 'with_email', 'missing_email', 'with_phone', 'missing_phone'].includes(storedFilter)
+      ) {
+        setFilterStatus(storedFilter as 'all' | 'with_email' | 'missing_email' | 'with_phone' | 'missing_phone')
+      }
+
+      const storedRecent = localStorage.getItem(STUDENT_RECENT_ONLY_STORAGE_KEY)
+      if (storedRecent === 'true') {
+        setRecentOnly(true)
+      }
+
+      const storedLimit = Number(localStorage.getItem(STUDENT_PAGE_LIMIT_STORAGE_KEY))
+      if (Number.isFinite(storedLimit) && storedLimit > 0 && storedLimit <= 100) {
+        setLimit(Math.round(storedLimit))
+      }
+    } catch {
+      // Ignore storage access failures.
+    } finally {
+      setHasLoadedStudentListPrefs(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedStudentListPrefs) return
+    try {
+      localStorage.setItem(STUDENT_FILTER_STATUS_STORAGE_KEY, filterStatus)
+      localStorage.setItem(STUDENT_RECENT_ONLY_STORAGE_KEY, String(recentOnly))
+      localStorage.setItem(STUDENT_PAGE_LIMIT_STORAGE_KEY, String(limit))
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [filterStatus, recentOnly, limit, hasLoadedStudentListPrefs])
 
   useEffect(() => {
     let cancelled = false

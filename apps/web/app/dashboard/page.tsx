@@ -46,6 +46,9 @@ interface FocusFilter {
   description: string
 }
 
+const DASHBOARD_FOCUS_STORAGE_KEY = 'dashboard.home.quick_access_focus'
+const DASHBOARD_MODULE_SEARCH_STORAGE_KEY = 'dashboard.home.quick_access_search'
+
 export default function DashboardPage() {
   const { user } = useAuth()
   const permissions = usePermissions(user)
@@ -66,6 +69,7 @@ export default function DashboardPage() {
   const [isLoading, setIsLoading] = useState(true)
   const [selectedFocus, setSelectedFocus] = useState<DashboardFocus>('all')
   const [moduleSearch, setModuleSearch] = useState('')
+  const [hasLoadedQuickAccessPrefs, setHasLoadedQuickAccessPrefs] = useState(false)
   const realtimeRefetchRef = useRef(refetchRealtimeDashboard)
   const canViewFinanceOverview = permissions.hasAnyPermission(['payments.view'])
   const ongoingGroups = ongoingGroupsData?.results || []
@@ -78,6 +82,34 @@ export default function DashboardPage() {
   useEffect(() => {
     loadDashboardData()
   }, [])
+
+  useEffect(() => {
+    try {
+      const storedFocus = localStorage.getItem(DASHBOARD_FOCUS_STORAGE_KEY)
+      if (storedFocus && ['all', 'operations', 'finance', 'learning', 'growth'].includes(storedFocus)) {
+        setSelectedFocus(storedFocus as DashboardFocus)
+      }
+
+      const storedSearch = localStorage.getItem(DASHBOARD_MODULE_SEARCH_STORAGE_KEY)
+      if (storedSearch) {
+        setModuleSearch(storedSearch)
+      }
+    } catch {
+      // Ignore storage access failures.
+    } finally {
+      setHasLoadedQuickAccessPrefs(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedQuickAccessPrefs) return
+    try {
+      localStorage.setItem(DASHBOARD_FOCUS_STORAGE_KEY, selectedFocus)
+      localStorage.setItem(DASHBOARD_MODULE_SEARCH_STORAGE_KEY, moduleSearch)
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [selectedFocus, moduleSearch, hasLoadedQuickAccessPrefs])
 
   useEffect(() => {
     if (typeof window === 'undefined') return

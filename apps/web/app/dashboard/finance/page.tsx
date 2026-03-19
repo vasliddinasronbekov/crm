@@ -1,6 +1,6 @@
 'use client'
 
-import { useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
   Activity,
@@ -49,6 +49,10 @@ import { usePermissions } from '@/lib/permissions'
 type FinanceTab = 'overview' | 'receivables' | 'operations'
 type FinanceQuickFocus = 'all' | 'cashflow' | 'risk' | 'payroll'
 type PaymentStatus = 'paid' | 'pending' | 'failed'
+
+const FINANCE_QUICK_FOCUS_STORAGE_KEY = 'dashboard.finance.quick_focus'
+const FINANCE_QUICK_SEARCH_STORAGE_KEY = 'dashboard.finance.quick_search'
+const FINANCE_ACTIVE_TAB_STORAGE_KEY = 'dashboard.finance.active_tab'
 
 type PaymentStatusMetric = {
   status: PaymentStatus
@@ -196,6 +200,7 @@ export default function FinanceDashboard() {
   const [activeTab, setActiveTab] = useState<FinanceTab>('overview')
   const [quickFocus, setQuickFocus] = useState<FinanceQuickFocus>('all')
   const [quickSearch, setQuickSearch] = useState('')
+  const [hasLoadedQuickPrefs, setHasLoadedQuickPrefs] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
@@ -285,6 +290,40 @@ export default function FinanceDashboard() {
     balancesLoading ||
     teacherEarningsLoading ||
     finesLoading
+
+  useEffect(() => {
+    try {
+      const storedTab = localStorage.getItem(FINANCE_ACTIVE_TAB_STORAGE_KEY)
+      if (storedTab && ['overview', 'receivables', 'operations'].includes(storedTab)) {
+        setActiveTab(storedTab as FinanceTab)
+      }
+
+      const storedFocus = localStorage.getItem(FINANCE_QUICK_FOCUS_STORAGE_KEY)
+      if (storedFocus && ['all', 'cashflow', 'risk', 'payroll'].includes(storedFocus)) {
+        setQuickFocus(storedFocus as FinanceQuickFocus)
+      }
+
+      const storedSearch = localStorage.getItem(FINANCE_QUICK_SEARCH_STORAGE_KEY)
+      if (storedSearch) {
+        setQuickSearch(storedSearch)
+      }
+    } catch {
+      // Ignore storage access failures.
+    } finally {
+      setHasLoadedQuickPrefs(true)
+    }
+  }, [])
+
+  useEffect(() => {
+    if (!hasLoadedQuickPrefs) return
+    try {
+      localStorage.setItem(FINANCE_ACTIVE_TAB_STORAGE_KEY, activeTab)
+      localStorage.setItem(FINANCE_QUICK_FOCUS_STORAGE_KEY, quickFocus)
+      localStorage.setItem(FINANCE_QUICK_SEARCH_STORAGE_KEY, quickSearch)
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [activeTab, quickFocus, quickSearch, hasLoadedQuickPrefs])
 
   const dashboard = useMemo(() => {
     const latestSummary = financialSummaries[0]
