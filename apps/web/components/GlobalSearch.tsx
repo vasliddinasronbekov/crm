@@ -957,20 +957,20 @@ export default function GlobalSearch() {
     <>
       <button
         onClick={openSearch}
-        className="flex items-center gap-2 px-4 py-2 bg-surface border border-border rounded-xl hover:border-primary/50 transition-colors"
+        className="glass-chip group flex items-center gap-2 px-4 py-2 rounded-xl border border-border/70 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200"
       >
-        <Search className="h-5 w-5 text-text-secondary" />
-        <span className="text-sm text-text-secondary">{translateText('Search...')}</span>
+        <Search className="h-5 w-5 text-text-secondary group-hover:text-primary transition-colors" />
+        <span className="text-sm text-text-secondary group-hover:text-text-primary transition-colors">{translateText('Search...')}</span>
         <kbd className="hidden md:inline-flex items-center gap-1 px-2 py-1 bg-background border border-border rounded text-xs font-mono">
           Ctrl/⌘ K
         </kbd>
       </button>
 
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-start justify-center pt-12 px-4">
+        <div className="fixed inset-0 z-[90] flex items-start justify-center pt-12 px-4">
           <div className="absolute inset-0 bg-black/50 backdrop-blur-sm" onClick={closeSearch} />
 
-          <div className="relative w-full max-w-3xl bg-surface border border-border rounded-2xl shadow-2xl overflow-hidden">
+          <div className="glass-panel-strong relative w-full max-w-3xl border border-border/70 rounded-2xl shadow-2xl overflow-hidden">
             <form
               onSubmit={(event) => {
                 event.preventDefault()

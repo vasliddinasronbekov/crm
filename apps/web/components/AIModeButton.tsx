@@ -39,11 +39,11 @@ export default function AIModeButton({ onToggle }: AIModeButtonProps) {
     <button
       onClick={toggleAIMode}
       className={`
-        relative flex items-center gap-2 px-4 py-2 rounded-lg font-medium
+        group relative inline-flex h-10 items-center gap-2 px-3 rounded-xl border font-medium
         transition-all duration-300 ease-in-out
         ${aiModeEnabled
-          ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-lg shadow-blue-500/50'
-          : 'bg-surface-elevated text-text-secondary hover:bg-surface-hover border border-border'
+          ? 'border-primary/40 bg-gradient-to-r from-blue-500/90 to-purple-600/90 text-white shadow-lg shadow-blue-500/30'
+          : 'border-border/70 bg-background/40 text-text-secondary hover:text-text-primary hover:bg-primary/5 hover:border-primary/40'
         }
         ${isAnimating ? 'scale-95' : 'scale-100'}
         hover:scale-105 active:scale-95
@@ -73,7 +73,7 @@ export default function AIModeButton({ onToggle }: AIModeButtonProps) {
 
       {/* Glow effect when enabled */}
       {aiModeEnabled && (
-        <div className="absolute inset-0 rounded-lg bg-gradient-to-r from-blue-400 to-purple-600 opacity-0 group-hover:opacity-20 transition-opacity blur-xl"></div>
+        <div className="pointer-events-none absolute inset-0 rounded-xl bg-gradient-to-r from-blue-400 to-purple-600 opacity-0 group-hover:opacity-20 transition-opacity blur-xl"></div>
       )}
     </button>
   )

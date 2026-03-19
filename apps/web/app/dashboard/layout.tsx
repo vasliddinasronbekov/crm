@@ -142,7 +142,7 @@ export default function DashboardLayout({
         }`}
       >
         {/* Top Bar with Search, Inbox, AI Mode, and Date Calendar */}
-        <div className="glass-panel-strong h-16 border-b border-border flex items-center justify-between px-4 md:px-6 gap-4">
+        <div className="glass-panel-strong sticky top-0 z-[60] h-16 border-b border-border/70 shadow-[0_10px_30px_rgba(0,0,0,0.08)] supports-[backdrop-filter]:bg-background/55 flex items-center justify-between px-4 md:px-6 gap-4">
           {/* Left: Global Search */}
           <div className="flex flex-1 items-center gap-3">
             {showSidebar && (
@@ -170,7 +170,7 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        <main className="relative z-10 flex-1 overflow-y-auto bg-background/60">
+        <main className="relative z-0 flex-1 overflow-y-auto bg-background/60">
           {content}
         </main>
       </div>

@@ -48,12 +48,12 @@ export default function InboxNotificationButton() {
   return (
     <button
       onClick={handleClick}
-      className="relative p-2 rounded-lg hover:bg-surface-hover transition-colors"
+      className="glass-chip relative inline-flex h-10 w-10 items-center justify-center rounded-xl border border-border/70 bg-background/40 hover:bg-primary/5 hover:border-primary/40 transition-all duration-200"
       title="Inbox"
     >
       {/* Bell Icon */}
       <svg
-        className="w-6 h-6 text-text-primary"
+        className="w-5 h-5 text-text-primary"
         fill="none"
         stroke="currentColor"
         viewBox="0 0 24 24"

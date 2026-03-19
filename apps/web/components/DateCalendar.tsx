@@ -266,7 +266,7 @@ export default function DateCalendar({ onDateSelect, onDateRangeSelect, mode: in
       {/* Date Display Button */}
       <button
         onClick={() => setIsOpen(!isOpen)}
-        className="flex items-center gap-2 px-4 py-2 rounded-xl bg-surface border border-border hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10 group"
+        className="glass-chip group flex items-center gap-2 px-4 py-2 rounded-xl border border-border/70 hover:border-primary/50 hover:bg-primary/5 transition-all duration-200"
       >
         <Calendar className="h-4 w-4 text-text-secondary group-hover:text-primary transition-colors" />
         <span className="text-sm text-text-secondary group-hover:text-foreground transition-colors">
@@ -276,8 +276,8 @@ export default function DateCalendar({ onDateSelect, onDateRangeSelect, mode: in
 
       {/* Calendar Popup */}
       {isOpen && (
-        <div className="absolute top-full right-0 mt-2 z-50 animate-in fade-in slide-in-from-top-2 duration-200">
-          <div className="bg-surface border border-border rounded-2xl shadow-2xl p-6 w-80">
+        <div className="absolute top-full right-0 mt-2 z-[85] animate-in fade-in slide-in-from-top-2 duration-200">
+          <div className="glass-panel-strong border border-border/70 rounded-2xl shadow-2xl p-6 w-80">
             {/* Header */}
             <div className="flex items-center justify-between mb-6">
               <div>

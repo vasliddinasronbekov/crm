@@ -122,11 +122,16 @@ export function Sidebar({
 
   return (
     <div
-      className={`glass-panel-strong fixed inset-y-0 left-0 z-40 w-72 border-r border-border flex flex-col overflow-hidden transition-all duration-300 ${
+      className={`glass-panel-strong fixed inset-y-0 left-0 z-50 w-72 border-r border-border/70 shadow-[12px_0_30px_rgba(0,0,0,0.12)] flex flex-col overflow-hidden transition-all duration-300 ${
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
       } ${collapsed ? 'lg:w-20' : 'lg:w-72'} lg:translate-x-0`}
     >
-      <div className={`flex h-16 items-center border-b border-border ${collapsed ? 'px-3 lg:px-2' : 'px-6'}`}>
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-10 -left-8 h-40 w-40 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute bottom-16 -right-10 h-36 w-36 rounded-full bg-success/10 blur-3xl" />
+      </div>
+
+      <div className={`relative flex h-16 items-center border-b border-border/70 ${collapsed ? 'px-3 lg:px-2' : 'px-6'}`}>
         <div className={`flex items-center gap-2 ${collapsed ? 'lg:w-full lg:justify-center' : ''}`}>
           <h1 className="text-2xl font-bold text-primary">{collapsed ? 'EO' : 'EDUOS'}</h1>
           <span className={`text-xs rounded-md bg-primary/10 px-2 py-1 font-medium text-primary ${collapsed ? 'lg:hidden' : ''}`}>
@@ -153,7 +158,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
+      <nav className="relative min-h-0 flex-1 overflow-y-auto px-3 py-4 pr-2">
         {Object.entries(sectionLabels).map(([sectionKey, label]) => {
           const sectionItems = visibleNavigation.filter((item) => item.section === sectionKey)
           if (!sectionItems.length) {
@@ -176,8 +181,8 @@ export function Sidebar({
                       href={item.href}
                       className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                         isActive
-                          ? 'bg-primary/10 text-primary border border-primary/30 shadow-sm shadow-primary/20'
-                          : 'text-text-secondary hover:bg-background/70 hover:text-text-primary'
+                          ? 'bg-primary/12 text-primary border border-primary/35 shadow-[0_6px_20px_rgba(59,130,246,0.20)]'
+                          : 'text-text-secondary border border-transparent hover:bg-background/60 hover:border-border/60 hover:text-text-primary'
                       } ${collapsed ? 'lg:justify-center lg:gap-0 lg:px-2' : ''}`}
                       title={collapsed ? translateText(item.name) : undefined}
                     >
@@ -192,8 +197,8 @@ export function Sidebar({
         })}
       </nav>
 
-      <div className="border-t border-border p-4">
-        <div className={`glass-chip rounded-xl ${collapsed ? 'p-2 lg:p-2' : 'p-4'}`}>
+      <div className="relative border-t border-border/70 p-4">
+        <div className={`glass-chip rounded-xl border border-border/70 ${collapsed ? 'p-2 lg:p-2' : 'p-4'}`}>
           <div className={`mb-3 flex items-center gap-3 ${collapsed ? 'lg:mb-2 lg:justify-center lg:gap-0' : ''}`}>
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-background font-bold">
               {getInitials()}
