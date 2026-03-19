@@ -15,6 +15,7 @@ from .activity_serializers import (
     PipelineSerializer, PipelineStageSerializer,
     DealSerializer, DealCreateSerializer, DealMoveStageSerializer
 )
+from users.branch_scope import apply_branch_scope, ensure_user_can_access_branch
 
 
 class ActivityViewSet(viewsets.ModelViewSet):
@@ -36,12 +37,22 @@ class ActivityViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Activity.objects.select_related('lead', 'created_by', 'assigned_to').all()
+        return apply_branch_scope(
+            Activity.objects.select_related('lead', 'created_by', 'assigned_to').all(),
+            self.request,
+            self.request.user,
+            field_name='lead__branch',
+        )
 
     def get_serializer_class(self):
         if self.action == 'create':
             return ActivityCreateSerializer
         return ActivitySerializer
+
+    def perform_create(self, serializer):
+        lead = serializer.validated_data.get('lead')
+        ensure_user_can_access_branch(self.request.user, getattr(lead, 'branch_id', None))
+        serializer.save(created_by=self.request.user)
 
     @action(detail=True, methods=['post'])
     def complete(self, request, pk=None):
@@ -106,7 +117,12 @@ class DealViewSet(viewsets.ModelViewSet):
     ordering = ['-created_at']
 
     def get_queryset(self):
-        return Deal.objects.select_related('lead', 'pipeline', 'stage').all()
+        return apply_branch_scope(
+            Deal.objects.select_related('lead', 'pipeline', 'stage').all(),
+            self.request,
+            self.request.user,
+            field_name='lead__branch',
+        )
 
     def get_serializer_class(self):
         if self.action == 'create':
@@ -114,6 +130,11 @@ class DealViewSet(viewsets.ModelViewSet):
         elif self.action == 'move_stage':
             return DealMoveStageSerializer
         return DealSerializer
+
+    def perform_create(self, serializer):
+        lead = serializer.validated_data.get('lead')
+        ensure_user_can_access_branch(self.request.user, getattr(lead, 'branch_id', None))
+        serializer.save()
 
     @action(detail=True, methods=['patch'])
     def move_stage(self, request, pk=None):

@@ -8,11 +8,19 @@ import datetime
 
 from .models import TeacherSalary, Salary
 from .serializers import TeacherSalarySerializer, TeacherSalaryCreateSerializer, CalculateSalarySerializer, SalarySerializer, SalaryCreateSerializer
+from users.branch_scope import apply_branch_scope, ensure_user_can_access_branch
 
 class SalaryViewSet(viewsets.ModelViewSet):
-    queryset = Salary.objects.all()
     serializer_class = SalarySerializer
     permission_classes = [permissions.IsAdminUser]
+
+    def get_queryset(self):
+        return apply_branch_scope(
+            Salary.objects.select_related('mentor', 'group').all(),
+            self.request,
+            self.request.user,
+            field_name='group__branch',
+        )
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -23,9 +31,16 @@ from users.models import User
 from student_profile.models import Payment
 
 class TeacherSalaryViewSet(viewsets.ModelViewSet):
-    queryset = TeacherSalary.objects.all()
     serializer_class = TeacherSalarySerializer
     permission_classes = [permissions.IsAdminUser]
+
+    def get_queryset(self):
+        return apply_branch_scope(
+            TeacherSalary.objects.select_related('teacher', 'calculated_by').all(),
+            self.request,
+            self.request.user,
+            field_name='teacher__branch',
+        )
 
     def get_serializer_class(self):
         if self.action in ['create', 'update', 'partial_update']:
@@ -51,11 +66,23 @@ class TeacherSalaryViewSet(viewsets.ModelViewSet):
             end_date = next_month - datetime.timedelta(days=next_month.day)
         except (User.DoesNotExist, ValueError):
             return Response({"detail": "Noto'g'ri o'qituvchi ID'si yoki oy formati."}, status=status.HTTP_400_BAD_REQUEST)
-        
-        students_in_groups = User.objects.filter(student_groups__main_teacher=teacher).distinct()
+
+        ensure_user_can_access_branch(request.user, teacher.branch_id)
+
+        teacher_groups = apply_branch_scope(
+            teacher.main_teacher_groups.all(),
+            request,
+            request.user,
+            field_name='branch',
+        )
+        students_in_groups = User.objects.filter(
+            student_groups__in=teacher_groups,
+            is_teacher=False,
+        ).distinct()
         
         total_payments = Payment.objects.filter(
             by_user__in=students_in_groups,
+            group__in=teacher_groups,
             date__gte=start_date,
             date__lte=end_date
         ).aggregate(total=Sum('amount'))['total'] or 0

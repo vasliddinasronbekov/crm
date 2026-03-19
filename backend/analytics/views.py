@@ -12,7 +12,7 @@ from drf_spectacular.utils import extend_schema
 from datetime import datetime, timedelta
 from django.http import HttpResponse
 from django.utils import timezone
-from django.db.models import Sum, Avg, Count, Q, OuterRef, Subquery, Value, IntegerField, FloatField
+from django.db.models import Sum, Avg, Count, Q, OuterRef, Subquery, Value, IntegerField, FloatField, F
 from django.db.models.functions import Coalesce, TruncMonth
 from django.core.cache import cache # Django'ning kesh tizimini import qilamiz
 
@@ -35,6 +35,7 @@ from student_profile.content_models import StudentProgress
 from crm.models import Lead
 from gamification.models import UserLevel, UserBadge, UserAchievement
 from users.permissions import HasRoleCapability
+from users.branch_scope import apply_branch_scope, get_effective_branch_id
 from .models import Report
 from .serializers import (
     LeaderboardSerializer,
@@ -65,8 +66,10 @@ class AnalyticsView(APIView):
         return dt.replace(year=year, month=month, day=1, hour=0, minute=0, second=0, microsecond=0)
 
     def get(self, request, *args, **kwargs):
-        cache_key = 'full_analytics_data_v2'
-        
+        active_branch_id = get_effective_branch_id(request, request.user)
+        branch_cache_suffix = active_branch_id if active_branch_id is not None else 'all'
+        cache_key = f'full_analytics_data_v2:branch:{branch_cache_suffix}'
+
         cached_data = cache.get(cache_key)
         if cached_data:
             return Response(cached_data)
@@ -77,61 +80,134 @@ class AnalyticsView(APIView):
         start_30d = today - timedelta(days=30)
         first_trend_month = self._shift_month(start_of_month, -5)
 
-        active_students_qs = User.objects.filter(
-            is_teacher=False,
-            is_staff=False,
-            is_superuser=False,
-            is_active=True,
+        active_students_qs = apply_branch_scope(
+            User.objects.filter(
+                is_teacher=False,
+                is_staff=False,
+                is_superuser=False,
+                is_active=True,
+            ),
+            request,
+            request.user,
+            field_name='branch',
         )
-        active_teachers_qs = User.objects.filter(is_teacher=True, is_active=True)
+        active_teachers_qs = apply_branch_scope(
+            User.objects.filter(is_teacher=True, is_active=True),
+            request,
+            request.user,
+            field_name='branch',
+        )
+        groups_qs = apply_branch_scope(
+            Group.objects.all(),
+            request,
+            request.user,
+            field_name='branch',
+        )
+        leads_qs = apply_branch_scope(
+            Lead.objects.all(),
+            request,
+            request.user,
+            field_name='branch',
+        )
+        payments_qs = apply_branch_scope(
+            Payment.objects.all(),
+            request,
+            request.user,
+            field_name='group__branch',
+        )
+        expenses_qs = apply_branch_scope(
+            Expense.objects.all(),
+            request,
+            request.user,
+            field_name='created_by__branch',
+        )
+        attendance_qs = apply_branch_scope(
+            Attendance.objects.all(),
+            request,
+            request.user,
+            field_name='group__branch',
+        )
+        exam_scores_qs = apply_branch_scope(
+            ExamScore.objects.all(),
+            request,
+            request.user,
+            field_name='group__branch',
+        )
+        balances_qs = apply_branch_scope(
+            StudentBalance.objects.all(),
+            request,
+            request.user,
+            field_name='group__branch',
+        )
+        teacher_earnings_qs = apply_branch_scope(
+            TeacherEarnings.objects.all(),
+            request,
+            request.user,
+            field_name='group__branch',
+        )
+        progress_qs = apply_branch_scope(
+            StudentProgress.objects.all(),
+            request,
+            request.user,
+            field_name='student__branch',
+        )
+        tickets_qs = apply_branch_scope(
+            Ticket.objects.all(),
+            request,
+            request.user,
+            field_name='student__branch',
+        )
 
         # --- Core totals ---
         total_students = active_students_qs.count()
         total_teachers = active_teachers_qs.count()
-        total_groups = Group.objects.count()
-        total_courses = Course.objects.count()
-        total_branches = Branch.objects.count()
+        total_groups = groups_qs.count()
+        total_courses = Course.objects.filter(groups__in=groups_qs).distinct().count()
+        if request.user.is_superuser and active_branch_id is None:
+            total_branches = Branch.objects.count()
+        else:
+            total_branches = 1 if active_branch_id is not None else 0
 
         # --- This month growth ---
         new_students_this_month = active_students_qs.filter(date_joined__gte=start_of_month).count()
-        active_leads = Lead.objects.filter(status='in_progress').count()
-        new_leads_this_month = Lead.objects.filter(created_at__gte=start_of_month).count()
-        converted_leads_this_month = Lead.objects.filter(
+        active_leads = leads_qs.filter(status='in_progress').count()
+        new_leads_this_month = leads_qs.filter(created_at__gte=start_of_month).count()
+        converted_leads_this_month = leads_qs.filter(
             created_at__gte=start_of_month,
             status='converted',
         ).count()
         lead_conversion_rate_this_month = self._pct(converted_leads_this_month, new_leads_this_month)
 
         # --- Financial ---
-        monthly_income_agg = Payment.objects.filter(
+        monthly_income_agg = payments_qs.filter(
             date__gte=start_of_month,
             status=Payment.PaymentStatus.PAID,
         ).aggregate(total=Sum('amount'))
         monthly_income = monthly_income_agg.get('total') or 0
 
-        monthly_expense_agg = Expense.objects.filter(
+        monthly_expense_agg = expenses_qs.filter(
             date__gte=start_of_month,
         ).aggregate(total=Sum('amount'))
         monthly_expense = monthly_expense_agg.get('total') or 0
 
         net_profit_this_month = monthly_income - monthly_expense
-        pending_payment_amount = Payment.objects.filter(
+        pending_payment_amount = payments_qs.filter(
             status=Payment.PaymentStatus.PENDING
         ).aggregate(total=Sum('amount')).get('total') or 0
-        failed_payment_amount = Payment.objects.filter(
+        failed_payment_amount = payments_qs.filter(
             status=Payment.PaymentStatus.FAILED
         ).aggregate(total=Sum('amount')).get('total') or 0
-        pending_payment_count = Payment.objects.filter(status=Payment.PaymentStatus.PENDING).count()
-        failed_payment_count = Payment.objects.filter(status=Payment.PaymentStatus.FAILED).count()
-        paid_payment_count = Payment.objects.filter(status=Payment.PaymentStatus.PAID).count()
+        pending_payment_count = payments_qs.filter(status=Payment.PaymentStatus.PENDING).count()
+        failed_payment_count = payments_qs.filter(status=Payment.PaymentStatus.FAILED).count()
+        paid_payment_count = payments_qs.filter(status=Payment.PaymentStatus.PAID).count()
 
         # Prefer accounting balances for receivables if available.
-        outstanding_balance = StudentBalance.objects.filter(balance__gt=0).aggregate(
+        outstanding_balance = balances_qs.filter(balance__gt=0).aggregate(
             total=Sum('balance')
         ).get('total') or pending_payment_amount
 
         # --- Learning quality ---
-        attendance_30d = Attendance.objects.filter(date__gte=start_30d)
+        attendance_30d = attendance_qs.filter(date__gte=start_30d)
         attendance_total_30d = attendance_30d.count()
         attendance_present_30d = attendance_30d.filter(attendance_status=Attendance.STATUS_PRESENT).count()
         attendance_excused_30d = attendance_30d.filter(attendance_status=Attendance.STATUS_ABSENCE_EXCUSED).count()
@@ -143,7 +219,7 @@ class AnalyticsView(APIView):
         excused_rate_30d = self._pct(attendance_excused_30d, attendance_total_30d)
         unexcused_rate_30d = self._pct(attendance_unexcused_30d, attendance_total_30d)
 
-        exam_30d = ExamScore.objects.filter(date__gte=start_30d)
+        exam_30d = exam_scores_qs.filter(date__gte=start_30d)
         avg_exam_score_30d = round(float(exam_30d.aggregate(avg=Avg('score')).get('avg') or 0), 2)
         pass_rate_30d = self._pct(exam_30d.filter(score__gte=60).count(), exam_30d.count())
 
@@ -153,23 +229,20 @@ class AnalyticsView(APIView):
             | Q(made_payments__date__gte=start_30d)
         ).distinct().count()
 
-        at_risk_students_30d = Attendance.objects.filter(
-            date__gte=start_30d,
+        at_risk_students_30d = attendance_30d.filter(
             attendance_status=Attendance.STATUS_ABSENT_UNEXCUSED,
         ).values('student_id').annotate(missed=Count('id')).filter(missed__gte=3).count()
 
-        lms_started_records = StudentProgress.objects.filter(is_started=True).count()
-        lms_completed_records = StudentProgress.objects.filter(is_completed=True).count()
+        lms_started_records = progress_qs.filter(is_started=True).count()
+        lms_completed_records = progress_qs.filter(is_completed=True).count()
         lms_completion_rate = self._pct(lms_completed_records, lms_started_records)
         avg_watch_minutes = round(
-            float(
-                StudentProgress.objects.aggregate(avg=Avg('total_watch_time_seconds')).get('avg') or 0
-            ) / 60,
+            float(progress_qs.aggregate(avg=Avg('total_watch_time_seconds')).get('avg') or 0) / 60,
             1,
         )
 
         # --- Workforce and operational ---
-        avg_group_size = Group.objects.annotate(student_count=Count('students', distinct=True)).aggregate(
+        avg_group_size = groups_qs.annotate(student_count=Count('students', distinct=True)).aggregate(
             avg=Avg('student_count')
         ).get('avg') or 0
 
@@ -177,26 +250,26 @@ class AnalyticsView(APIView):
         groups_per_teacher = round(total_groups / total_teachers, 2) if total_teachers else 0
         arpu_minor = int(monthly_income / total_students) if total_students else 0
 
-        unpaid_teacher_count = TeacherEarnings.objects.filter(
+        unpaid_teacher_count = teacher_earnings_qs.filter(
             is_paid_to_teacher=False
         ).values('teacher_id').distinct().count()
-        unpaid_teacher_amount = TeacherEarnings.objects.filter(
+        unpaid_teacher_amount = teacher_earnings_qs.filter(
             is_paid_to_teacher=False
         ).aggregate(total=Sum('amount')).get('total') or 0
 
-        today_attendance = Attendance.objects.filter(date=today)
+        today_attendance = attendance_qs.filter(date=today)
         today_present = today_attendance.filter(attendance_status=Attendance.STATUS_PRESENT).count()
         today_excused = today_attendance.filter(attendance_status=Attendance.STATUS_ABSENCE_EXCUSED).count()
         today_unexcused = today_attendance.filter(
             attendance_status=Attendance.STATUS_ABSENT_UNEXCUSED
         ).count()
 
-        active_group_sessions_today = Group.objects.filter(
+        active_group_sessions_today = groups_qs.filter(
             start_day__lte=today,
             end_day__gte=today,
         ).count()
-        open_tickets = Ticket.objects.filter(status=TicketStatusEnum.ACTIVE).count()
-        overdue_pending_payments = Payment.objects.filter(
+        open_tickets = tickets_qs.filter(status=TicketStatusEnum.ACTIVE).count()
+        overdue_pending_payments = payments_qs.filter(
             status=Payment.PaymentStatus.PENDING,
             date__lt=today - timedelta(days=30),
         ).count()
@@ -229,7 +302,7 @@ class AnalyticsView(APIView):
 
         trend_start_date = first_trend_month.date()
 
-        income_series = Payment.objects.filter(
+        income_series = payments_qs.filter(
             date__gte=trend_start_date,
             status=Payment.PaymentStatus.PAID,
         ).annotate(month=TruncMonth('date')).values('month').annotate(total=Sum('amount'))
@@ -238,7 +311,7 @@ class AnalyticsView(APIView):
             if key in trend_index:
                 trend_index[key]['income'] = int(row['total'] or 0)
 
-        expense_series = Expense.objects.filter(
+        expense_series = expenses_qs.filter(
             date__gte=trend_start_date
         ).annotate(month=TruncMonth('date')).values('month').annotate(total=Sum('amount'))
         for row in expense_series:
@@ -246,7 +319,7 @@ class AnalyticsView(APIView):
             if key in trend_index:
                 trend_index[key]['expense'] = int(row['total'] or 0)
 
-        leads_series = Lead.objects.filter(created_at__gte=first_trend_month).annotate(
+        leads_series = leads_qs.filter(created_at__gte=first_trend_month).annotate(
             month=TruncMonth('created_at')
         ).values('month').annotate(
             new_leads=Count('id'),
@@ -258,7 +331,7 @@ class AnalyticsView(APIView):
                 trend_index[key]['new_leads'] = int(row['new_leads'] or 0)
                 trend_index[key]['converted_leads'] = int(row['converted'] or 0)
 
-        attendance_series = Attendance.objects.filter(date__gte=trend_start_date).annotate(
+        attendance_series = attendance_qs.filter(date__gte=trend_start_date).annotate(
             month=TruncMonth('date')
         ).values('month').annotate(
             total=Count('id'),
@@ -269,7 +342,7 @@ class AnalyticsView(APIView):
             if key in trend_index:
                 trend_index[key]['attendance_rate'] = self._pct(row['present'] or 0, row['total'] or 0)
 
-        exam_series = ExamScore.objects.filter(date__gte=trend_start_date).annotate(
+        exam_series = exam_scores_qs.filter(date__gte=trend_start_date).annotate(
             month=TruncMonth('date')
         ).values('month').annotate(avg=Avg('score'))
         for row in exam_series:
@@ -292,7 +365,7 @@ class AnalyticsView(APIView):
                 'label': lead_status_labels.get(row['status'], row['status']),
                 'count': row['count'],
             }
-            for row in Lead.objects.values('status').annotate(count=Count('id')).order_by('-count')
+            for row in leads_qs.values('status').annotate(count=Count('id')).order_by('-count')
         ]
 
         payment_status_labels = dict(Payment.PaymentStatus.choices)
@@ -303,7 +376,7 @@ class AnalyticsView(APIView):
                 'count': row['count'],
                 'amount': int(row['amount'] or 0),
             }
-            for row in Payment.objects.values('status').annotate(
+            for row in payments_qs.values('status').annotate(
                 count=Count('id'),
                 amount=Sum('amount'),
             ).order_by('-amount')
@@ -314,17 +387,9 @@ class AnalyticsView(APIView):
                 'name': row['name'],
                 'students': row['students'],
             }
-            for row in Branch.objects.annotate(
-                students=Count(
-                    'staff',
-                    filter=Q(
-                        staff__is_teacher=False,
-                        staff__is_staff=False,
-                        staff__is_active=True,
-                    ),
-                    distinct=True,
-                )
-            ).values('name', 'students').order_by('-students')[:8]
+            for row in active_students_qs.values(name=F('branch__name')).annotate(
+                students=Count('id'),
+            ).order_by('-students')[:8]
         ]
 
         gender_labels = dict(User._meta.get_field('gender').choices)
@@ -342,9 +407,9 @@ class AnalyticsView(APIView):
                 'course': row['name'],
                 'students': row['students'],
             }
-            for row in Course.objects.annotate(
-                students=Count('groups__students', distinct=True),
-            ).values('name', 'students').order_by('-students')[:8]
+            for row in groups_qs.values(name=F('course__name')).annotate(
+                students=Count('students', distinct=True),
+            ).order_by('-students')[:8]
         ]
 
         attendance_status_distribution = [
@@ -352,7 +417,7 @@ class AnalyticsView(APIView):
                 'key': row['attendance_status'],
                 'count': row['count'],
             }
-            for row in Attendance.objects.filter(date__gte=start_of_month).values(
+            for row in attendance_qs.filter(date__gte=start_of_month).values(
                 'attendance_status'
             ).annotate(count=Count('id')).order_by('-count')
         ]
@@ -441,25 +506,50 @@ class DashboardStatsView(APIView):
 
     def get(self, request):
         """Get dashboard statistics"""
-        cache_key = 'dashboard_stats'
+        active_branch_id = get_effective_branch_id(request, request.user)
+        branch_cache_suffix = active_branch_id if active_branch_id is not None else 'all'
+        cache_key = f'dashboard_stats:branch:{branch_cache_suffix}'
         cached_data = cache.get(cache_key)
 
         if cached_data:
             return Response(cached_data)
 
         # Count statistics
-        total_students = User.objects.filter(is_teacher=False, is_staff=False, is_active=True).count()
-        total_teachers = User.objects.filter(is_teacher=True, is_active=True).count()
-        total_groups = Group.objects.count()
+        students_qs = apply_branch_scope(
+            User.objects.filter(is_teacher=False, is_staff=False, is_active=True),
+            request,
+            request.user,
+            field_name='branch',
+        )
+        teachers_qs = apply_branch_scope(
+            User.objects.filter(is_teacher=True, is_active=True),
+            request,
+            request.user,
+            field_name='branch',
+        )
+        groups_qs = apply_branch_scope(
+            Group.objects.all(),
+            request,
+            request.user,
+            field_name='branch',
+        )
+        total_students = students_qs.count()
+        total_teachers = teachers_qs.count()
+        total_groups = groups_qs.count()
 
         # Active courses count (assuming courses with groups are active)
         from student_profile.models import Course
-        active_courses = Course.objects.count()
+        active_courses = Course.objects.filter(groups__in=groups_qs).distinct().count()
 
         # Pending tasks (if you have a Task model)
         try:
             from task.models import Task
-            pending_tasks = Task.objects.filter(status='pending').count()
+            pending_tasks = apply_branch_scope(
+                Task.objects.filter(status='pending'),
+                request,
+                request.user,
+                field_name='user__branch',
+            ).count()
         except:
             pending_tasks = 0
 
@@ -541,9 +631,33 @@ class ReportListView(APIView):
     def _build_report_id(self) -> str:
         return f"RPT-{timezone.now().strftime('%Y%m%d-%H%M%S')}-{secrets.randbelow(10000):04d}"
 
+    def _active_branch_id(self) -> int | None:
+        return get_effective_branch_id(self.request, self.request.user)
+
+    def _scope_queryset(self, queryset, *, field_name='branch'):
+        return apply_branch_scope(
+            queryset,
+            self.request,
+            self.request.user,
+            field_name=field_name,
+        )
+
+    def _scope_reports_queryset(self, queryset):
+        """
+        Branch-safe report visibility with legacy fallback for unassigned users.
+        """
+        active_branch_id = self._active_branch_id()
+        if self.request.user.is_superuser:
+            return queryset if active_branch_id is None else queryset.filter(generated_by__branch_id=active_branch_id)
+        if active_branch_id is None:
+            return queryset.filter(generated_by=self.request.user)
+        return queryset.filter(generated_by__branch_id=active_branch_id)
+
     def get(self, request):
         """Get list of generated reports."""
-        queryset = Report.objects.all().select_related('generated_by').order_by('-generated_at')
+        queryset = self._scope_reports_queryset(
+            Report.objects.all().select_related('generated_by').order_by('-generated_at')
+        )
 
         report_type = request.query_params.get('report_type')
         if report_type:
@@ -610,6 +724,9 @@ class ReportListView(APIView):
             return report_response
 
         generated_data = report_response.data or {}
+        generated_summary = generated_data.get('summary') or {}
+        if isinstance(generated_summary, dict):
+            generated_summary.setdefault('branch_id', self._active_branch_id())
         report = Report.objects.create(
             report_id=self._build_report_id(),
             report_type=normalized_type,
@@ -618,7 +735,7 @@ class ReportListView(APIView):
             period=period,
             start_date=start_dt.date(),
             end_date=end_dt.date(),
-            summary=generated_data.get('summary') or {},
+            summary=generated_summary,
             data=generated_data.get('data') or [],
             charts=generated_data.get('charts') or [],
             status='completed',
@@ -633,17 +750,23 @@ class ReportListView(APIView):
         from student_profile.models import ExamScore, Course
 
         # Get all students with exam scores in period
-        students = User.objects.filter(
-            is_teacher=False,
-            is_staff=False,
-            is_active=True
+        students = self._scope_queryset(
+            User.objects.filter(
+                is_teacher=False,
+                is_staff=False,
+                is_active=True
+            ),
+            field_name='branch',
         )
 
         # Get exam scores
-        exam_scores = ExamScore.objects.filter(
-            date__gte=start,
-            date__lte=end
-        ).select_related('student', 'group')
+        exam_scores = self._scope_queryset(
+            ExamScore.objects.filter(
+                date__gte=start,
+                date__lte=end
+            ).select_related('student', 'group'),
+            field_name='group__branch',
+        )
 
         # Calculate statistics
         total_students = students.count()
@@ -664,10 +787,13 @@ class ReportListView(APIView):
         data = []
         for score in exam_scores[:50]:  # Limit to 50 for performance
             # Get attendance rate
-            attendance_records = Attendance.objects.filter(
-                student=score.student,
-                date__gte=start,
-                date__lte=end
+            attendance_records = self._scope_queryset(
+                Attendance.objects.filter(
+                    student=score.student,
+                    date__gte=start,
+                    date__lte=end
+                ),
+                field_name='group__branch',
             )
             total_classes = attendance_records.count()
             attended = attendance_records.filter(is_present=True).count()
@@ -737,12 +863,15 @@ class ReportListView(APIView):
         # Group is already imported at the top of this file
 
         # Get all groups
-        groups = Group.objects.all()
+        groups = self._scope_queryset(Group.objects.all(), field_name='branch')
 
         # Calculate overall statistics
-        all_attendance = Attendance.objects.filter(
-            date__gte=start,
-            date__lte=end
+        all_attendance = self._scope_queryset(
+            Attendance.objects.filter(
+                date__gte=start,
+                date__lte=end
+            ),
+            field_name='group__branch',
         )
         total_classes = all_attendance.count()
         attended = all_attendance.filter(is_present=True).count()
@@ -750,10 +879,13 @@ class ReportListView(APIView):
 
         # Perfect attendance (100%)
         from django.db.models import Count, Q, F
-        students_with_perfect = User.objects.filter(
-            is_teacher=False,
-            is_staff=False,
-            is_active=True
+        students_with_perfect = self._scope_queryset(
+            User.objects.filter(
+                is_teacher=False,
+                is_staff=False,
+                is_active=True
+            ),
+            field_name='branch',
         ).annotate(
             total_att=Count('attendances', filter=Q(attendances__date__gte=start, attendances__date__lte=end)),
             present_att=Count('attendances', filter=Q(attendances__date__gte=start, attendances__date__lte=end, attendances__is_present=True))
@@ -762,10 +894,13 @@ class ReportListView(APIView):
         # Build data table by group
         data = []
         for group in groups:
-            group_attendance = Attendance.objects.filter(
-                date__gte=start,
-                date__lte=end,
-                student__student_groups=group
+            group_attendance = self._scope_queryset(
+                Attendance.objects.filter(
+                    date__gte=start,
+                    date__lte=end,
+                    student__student_groups=group
+                ),
+                field_name='group__branch',
             )
             group_total = group_attendance.count()
             group_attended = group_attendance.filter(is_present=True).count()
@@ -790,7 +925,10 @@ class ReportListView(APIView):
                 'average_attendance': round(average_attendance, 1),
                 'perfect_attendance': students_with_perfect,
                 'change': 0,
-                'total_students': User.objects.filter(is_teacher=False, is_staff=False, is_active=True).count()
+                'total_students': self._scope_queryset(
+                    User.objects.filter(is_teacher=False, is_staff=False, is_active=True),
+                    field_name='branch',
+                ).count()
             },
             'data': data[:20],  # Limit to 20 groups
             'charts': []  # Can add trend chart if needed
@@ -803,14 +941,20 @@ class ReportListView(APIView):
         from student_profile.models import Payment, Expense
 
         # Get payments and expenses
-        payments = Payment.objects.filter(
-            date__gte=start,
-            date__lte=end,
-            status=Payment.PaymentStatus.PAID
+        payments = self._scope_queryset(
+            Payment.objects.filter(
+                date__gte=start,
+                date__lte=end,
+                status=Payment.PaymentStatus.PAID
+            ),
+            field_name='group__branch',
         )
-        expenses = Expense.objects.filter(
-            date__gte=start,
-            date__lte=end
+        expenses = self._scope_queryset(
+            Expense.objects.filter(
+                date__gte=start,
+                date__lte=end
+            ),
+            field_name='created_by__branch',
         )
 
         total_revenue = payments.aggregate(total=Sum('amount'))['total'] or 0
@@ -818,10 +962,13 @@ class ReportListView(APIView):
         net_profit = total_revenue - total_expenses
 
         # Pending payments
-        pending_payments = Payment.objects.filter(
-            date__gte=start,
-            date__lte=end,
-            status=Payment.PaymentStatus.PENDING
+        pending_payments = self._scope_queryset(
+            Payment.objects.filter(
+                date__gte=start,
+                date__lte=end,
+                status=Payment.PaymentStatus.PENDING
+            ),
+            field_name='group__branch',
         ).aggregate(total=Sum('amount'))['total'] or 0
 
         # Build data by category
@@ -905,10 +1052,13 @@ class ReportListView(APIView):
         # Group is already imported at the top of this file
 
         # Get all teachers
-        teachers = User.objects.filter(is_teacher=True, is_active=True)
+        teachers = self._scope_queryset(
+            User.objects.filter(is_teacher=True, is_active=True),
+            field_name='branch',
+        )
 
         total_teachers = teachers.count()
-        total_groups = Group.objects.count()
+        total_groups = self._scope_queryset(Group.objects.all(), field_name='branch').count()
 
         # Build data
         data = []
@@ -917,8 +1067,11 @@ class ReportListView(APIView):
         for teacher in teachers:
             # Get groups where teacher is main_teacher or assistant_teacher
             from django.db.models import Q
-            teacher_groups = Group.objects.filter(
-                Q(main_teacher=teacher) | Q(assistant_teacher=teacher)
+            teacher_groups = self._scope_queryset(
+                Group.objects.filter(
+                    Q(main_teacher=teacher) | Q(assistant_teacher=teacher)
+                ),
+                field_name='branch',
             )
             group_count = teacher_groups.count()
 
@@ -965,7 +1118,9 @@ class ReportListView(APIView):
         from student_profile.models import Course
         from django.db.models import Count
 
-        courses = Course.objects.all()
+        courses = Course.objects.filter(
+            groups__in=self._scope_queryset(Group.objects.all(), field_name='branch')
+        ).distinct()
 
         total_courses = courses.count()
         total_completed = 0
@@ -1025,11 +1180,14 @@ class ReportListView(APIView):
         from student_profile.models import Course
 
         # Get students who joined in the period
-        students = User.objects.filter(
-            is_teacher=False,
-            is_staff=False,
-            date_joined__gte=start,
-            date_joined__lte=end
+        students = self._scope_queryset(
+            User.objects.filter(
+                is_teacher=False,
+                is_staff=False,
+                date_joined__gte=start,
+                date_joined__lte=end
+            ),
+            field_name='branch',
         )
 
         # Group by month
@@ -1053,7 +1211,9 @@ class ReportListView(APIView):
             revenue = enrollments * 500  # Assuming $500 per student
 
             # Get courses count (total courses available, since Course doesn't have created_at)
-            courses = Course.objects.count()
+            courses = Course.objects.filter(
+                groups__in=self._scope_queryset(Group.objects.all(), field_name='branch')
+            ).distinct().count()
 
             data.append({
                 'month': month_name,
@@ -1108,16 +1268,22 @@ class ReportListView(APIView):
         from django.db.models.functions import TruncMonth
 
         # Get payments (revenue)
-        payments = Payment.objects.filter(
-            date__gte=start,
-            date__lte=end,
-            status=Payment.PaymentStatus.PAID
+        payments = self._scope_queryset(
+            Payment.objects.filter(
+                date__gte=start,
+                date__lte=end,
+                status=Payment.PaymentStatus.PAID
+            ),
+            field_name='group__branch',
         )
 
         # Get expenses
-        expenses = Expense.objects.filter(
-            date__gte=start,
-            date__lte=end
+        expenses = self._scope_queryset(
+            Expense.objects.filter(
+                date__gte=start,
+                date__lte=end
+            ),
+            field_name='created_by__branch',
         )
 
         # Calculate totals
@@ -1200,25 +1366,34 @@ class ReportListView(APIView):
         from django.db.models.functions import TruncMonth
 
         # Operating Activities
-        payments_received = Payment.objects.filter(
-            date__gte=start,
-            date__lte=end,
-            status=Payment.PaymentStatus.PAID
+        payments_received = self._scope_queryset(
+            Payment.objects.filter(
+                date__gte=start,
+                date__lte=end,
+                status=Payment.PaymentStatus.PAID
+            ),
+            field_name='group__branch',
         ).aggregate(total=Sum('amount'))['total'] or 0
 
-        operating_expenses = Expense.objects.filter(
-            date__gte=start,
-            date__lte=end
+        operating_expenses = self._scope_queryset(
+            Expense.objects.filter(
+                date__gte=start,
+                date__lte=end
+            ),
+            field_name='created_by__branch',
         ).aggregate(total=Sum('amount'))['total'] or 0
 
         net_operating_cash = payments_received - operating_expenses
 
         # Financing Activities (assuming teacher salaries and major expenses)
         try:
-            financing_outflows = Expense.objects.filter(
-                date__gte=start,
-                date__lte=end,
-                type__name__icontains='salary'
+            financing_outflows = self._scope_queryset(
+                Expense.objects.filter(
+                    date__gte=start,
+                    date__lte=end,
+                    type__name__icontains='salary'
+                ),
+                field_name='created_by__branch',
             ).aggregate(total=Sum('amount'))['total'] or 0
         except:
             financing_outflows = int(operating_expenses * 0.6)  # 60% estimate
@@ -1227,19 +1402,25 @@ class ReportListView(APIView):
         total_cash_flow = net_operating_cash - financing_outflows
 
         # Monthly breakdown
-        monthly_payments = Payment.objects.filter(
-            date__gte=start,
-            date__lte=end,
-            status=Payment.PaymentStatus.PAID
+        monthly_payments = self._scope_queryset(
+            Payment.objects.filter(
+                date__gte=start,
+                date__lte=end,
+                status=Payment.PaymentStatus.PAID
+            ),
+            field_name='group__branch',
         ).annotate(
             month=TruncMonth('date')
         ).values('month').annotate(
             amount=Sum('amount')
         ).order_by('month')
 
-        monthly_expenses = Expense.objects.filter(
-            date__gte=start,
-            date__lte=end
+        monthly_expenses = self._scope_queryset(
+            Expense.objects.filter(
+                date__gte=start,
+                date__lte=end
+            ),
+            field_name='created_by__branch',
         ).annotate(
             month=TruncMonth('date')
         ).values('month').annotate(
@@ -1301,11 +1482,14 @@ class ReportListView(APIView):
         from django.db.models import Sum
 
         # Get all pending payments (only PENDING status exists, no OVERDUE)
-        pending_payments = Payment.objects.filter(
-            date__gte=start,
-            date__lte=end,
-            status=Payment.PaymentStatus.PENDING
-        ).select_related('by_user', 'group')
+        pending_payments = self._scope_queryset(
+            Payment.objects.filter(
+                date__gte=start,
+                date__lte=end,
+                status=Payment.PaymentStatus.PENDING
+            ).select_related('by_user', 'group'),
+            field_name='group__branch',
+        )
 
         # Calculate totals
         total_pending = pending_payments.aggregate(total=Sum('amount'))['total'] or 0
@@ -1346,15 +1530,21 @@ class ReportListView(APIView):
             })
 
         # Collection rate (total paid / total expected)
-        total_expected = Payment.objects.filter(
-            date__gte=start,
-            date__lte=end
+        total_expected = self._scope_queryset(
+            Payment.objects.filter(
+                date__gte=start,
+                date__lte=end
+            ),
+            field_name='group__branch',
         ).aggregate(total=Sum('amount'))['total'] or 1  # Avoid division by zero
 
-        total_collected = Payment.objects.filter(
-            date__gte=start,
-            date__lte=end,
-            status=Payment.PaymentStatus.PAID
+        total_collected = self._scope_queryset(
+            Payment.objects.filter(
+                date__gte=start,
+                date__lte=end,
+                status=Payment.PaymentStatus.PAID
+            ),
+            field_name='group__branch',
         ).aggregate(total=Sum('amount'))['total'] or 0
 
         collection_rate = (total_collected / total_expected * 100) if total_expected > 0 else 0
@@ -1400,13 +1590,19 @@ class ReportListView(APIView):
         from django.db.models import Sum, Count, Q, F
 
         # Get all teachers
-        teachers = User.objects.filter(is_teacher=True, is_active=True)
+        teachers = self._scope_queryset(
+            User.objects.filter(is_teacher=True, is_active=True),
+            field_name='branch',
+        )
 
         # Get teacher earnings in the period (using 'date' field, not 'month')
-        earnings_queryset = TeacherEarnings.objects.filter(
-            date__gte=start,
-            date__lte=end
-        ).select_related('teacher')
+        earnings_queryset = self._scope_queryset(
+            TeacherEarnings.objects.filter(
+                date__gte=start,
+                date__lte=end
+            ).select_related('teacher'),
+            field_name='group__branch',
+        )
 
         # Calculate totals
         total_earned = earnings_queryset.aggregate(total=Sum('amount'))['total'] or 0
@@ -1429,8 +1625,11 @@ class ReportListView(APIView):
             pending = earned - paid
 
             # Get groups count
-            groups_count = Group.objects.filter(
-                Q(main_teacher=teacher) | Q(assistant_teacher=teacher)
+            groups_count = self._scope_queryset(
+                Group.objects.filter(
+                    Q(main_teacher=teacher) | Q(assistant_teacher=teacher)
+                ),
+                field_name='branch',
             ).count()
 
             # Calculate payment status
@@ -1489,7 +1688,16 @@ class ReportDetailView(APIView):
     required_capability = 'reports.view'
 
     def get(self, request, report_id):
-        report = Report.objects.filter(report_id=report_id).select_related('generated_by').first()
+        active_branch_id = get_effective_branch_id(request, request.user)
+        queryset = Report.objects.filter(report_id=report_id).select_related('generated_by')
+        if request.user.is_superuser:
+            if active_branch_id is not None:
+                queryset = queryset.filter(generated_by__branch_id=active_branch_id)
+        elif active_branch_id is None:
+            queryset = queryset.filter(generated_by=request.user)
+        else:
+            queryset = queryset.filter(generated_by__branch_id=active_branch_id)
+        report = queryset.first()
         if report is None:
             return Response({'detail': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
         return Response(ReportDetailSerializer(report).data)
@@ -1501,7 +1709,16 @@ class ReportDownloadView(APIView):
     required_capability = 'reports.export'
 
     def get(self, request, report_id):
-        report = Report.objects.filter(report_id=report_id).first()
+        active_branch_id = get_effective_branch_id(request, request.user)
+        queryset = Report.objects.filter(report_id=report_id)
+        if request.user.is_superuser:
+            if active_branch_id is not None:
+                queryset = queryset.filter(generated_by__branch_id=active_branch_id)
+        elif active_branch_id is None:
+            queryset = queryset.filter(generated_by=request.user)
+        else:
+            queryset = queryset.filter(generated_by__branch_id=active_branch_id)
+        report = queryset.first()
         if report is None:
             return Response({'detail': 'Report not found'}, status=status.HTTP_404_NOT_FOUND)
 
@@ -1553,9 +1770,9 @@ class LeaderboardView(generics.ListAPIView):
     def get(self, request, *args, **kwargs):
         metric = request.query_params.get('metric', 'score')
         course_id = request.query_params.get('course')
-        branch_id = request.query_params.get('branch')
         filter_name = request.query_params.get('filter')
         limit = request.query_params.get('limit')
+        active_branch_id = get_effective_branch_id(request, request.user)
 
         if metric not in {'score', 'xp', 'coins', 'badges', 'completed_courses'}:
             metric = 'score'
@@ -1568,14 +1785,18 @@ class LeaderboardView(generics.ListAPIView):
         score_queryset = ExamScore.objects.filter(student=OuterRef('pk'))
         if course_id:
             score_queryset = score_queryset.filter(group__course_id=course_id)
+        if active_branch_id is not None:
+            score_queryset = score_queryset.filter(group__branch_id=active_branch_id)
 
-        students = User.objects.filter(
-            is_teacher=False,
-            is_staff=False,
-        ).select_related('branch')
-
-        if branch_id:
-            students = students.filter(branch_id=branch_id)
+        students = apply_branch_scope(
+            User.objects.filter(
+                is_teacher=False,
+                is_staff=False,
+            ).select_related('branch'),
+            request,
+            request.user,
+            field_name='branch',
+        )
 
         if course_id:
             students = students.filter(

@@ -2,9 +2,10 @@
 Certificate API Views
 """
 
-from django.db.models import Count, Max
+from django.db.models import Count, Max, Q
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from django.http import FileResponse
@@ -21,10 +22,50 @@ from .services.certificate_generator import issue_certificate_for_student
 from student_profile.models import Course, Attendance, ExamScore
 from student_profile.content_models import StudentProgress, Lesson
 from users.models import User
+from users.branch_scope import (
+    build_user_branch_q,
+    get_effective_branch_id,
+    is_global_branch_user,
+    user_belongs_to_branch,
+)
 
 
 def _is_certificate_manager(user):
     return bool(user and user.is_authenticated and (user.is_staff or user.is_superuser or user.is_teacher))
+
+
+def _scope_certificate_relations_to_active_branch(queryset, request, certificate_field=''):
+    user = request.user
+    active_branch_id = get_effective_branch_id(request, user)
+
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+    elif active_branch_id is None:
+        return queryset.none()
+
+    prefix = f'{certificate_field}__' if certificate_field else ''
+    return queryset.filter(
+        build_user_branch_q(active_branch_id, f'{prefix}student')
+        | build_user_branch_q(active_branch_id, f'{prefix}issued_by')
+        | Q(**{f'{prefix}course__groups__branch_id': active_branch_id})
+    ).distinct()
+
+
+def _ensure_course_and_student_in_active_branch(request, *, student=None, course=None):
+    user = request.user
+    active_branch_id = get_effective_branch_id(request, user)
+    if active_branch_id is None and not is_global_branch_user(user):
+        raise PermissionDenied('No active branch scope available for this user.')
+
+    if active_branch_id is None:
+        return
+
+    if student is not None and not user_belongs_to_branch(student, active_branch_id):
+        raise PermissionDenied('Selected student is outside your active branch scope.')
+
+    if course is not None and not course.groups.filter(branch_id=active_branch_id).exists():
+        raise PermissionDenied('Selected course is outside your active branch scope.')
 
 
 class CertificateViewSet(viewsets.ModelViewSet):
@@ -57,7 +98,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
             return queryset.filter(student=user)
 
         # Staff/admin see all
-        return queryset
+        return _scope_certificate_relations_to_active_branch(queryset, self.request)
 
     def _ensure_management_access(self, request):
         if _is_certificate_manager(request.user):
@@ -78,6 +119,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
         
         student = get_object_or_404(User, id=serializer.validated_data['student_id'])
         course = get_object_or_404(Course, id=serializer.validated_data['course_id'])
+        _ensure_course_and_student_in_active_branch(request, student=student, course=course)
         template_id = serializer.validated_data.get('template_id')
         grade = serializer.validated_data.get('grade', '')
         hours = serializer.validated_data.get('hours_completed', 0)
@@ -141,6 +183,11 @@ class CertificateViewSet(viewsets.ModelViewSet):
             return denied
 
         certificate = self.get_object()
+        _ensure_course_and_student_in_active_branch(
+            request,
+            student=certificate.student,
+            course=certificate.course,
+        )
 
         certificate, _ = issue_certificate_for_student(
             student=certificate.student,
@@ -174,6 +221,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
 
         student = get_object_or_404(User, id=student_id)
         course = get_object_or_404(Course, id=course_id)
+        _ensure_course_and_student_in_active_branch(request, student=student, course=course)
 
         enrolled_groups = student.student_groups.filter(course=course).select_related('branch')
         progress_qs = StudentProgress.objects.filter(student=student, course=course)
@@ -431,4 +479,11 @@ class CertificateVerificationViewSet(viewsets.ReadOnlyModelViewSet):
     
     def get_queryset(self):
         """Filter verifications"""
-        return CertificateVerification.objects.select_related("certificate").all()
+        queryset = CertificateVerification.objects.select_related("certificate").all()
+        if not _is_certificate_manager(self.request.user):
+            return queryset.none()
+        return _scope_certificate_relations_to_active_branch(
+            queryset,
+            self.request,
+            certificate_field='certificate',
+        )

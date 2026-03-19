@@ -3,10 +3,11 @@ REST API views for chat history and conversations.
 """
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from django.db.models import Q, Count, Max
-from django.shortcuts import get_object_or_404
+from django.db.models import Q, Count
+from django.utils import timezone
 
 from .models import Conversation, ChatMessage, UserPresence
 from .chat_serializers import (
@@ -17,6 +18,44 @@ from .chat_serializers import (
     UserPresenceSerializer
 )
 from ai.hybrid_ai_handler import process_user_message
+from users.branch_scope import (
+    build_direct_user_branch_q,
+    build_user_branch_q,
+    get_effective_branch_id,
+    is_global_branch_user,
+)
+from users.models import User
+
+
+def _scope_conversations_to_active_branch(queryset, request, user):
+    active_branch_id = get_effective_branch_id(request, user)
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+    elif active_branch_id is None:
+        return queryset.none()
+
+    scoped_queryset = queryset.filter(
+        build_user_branch_q(active_branch_id, 'user')
+        | build_user_branch_q(active_branch_id, 'participants')
+    ).distinct()
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(participants__in=out_of_scope_users).distinct()
+
+
+def _scope_presence_to_active_branch(queryset, request, user):
+    active_branch_id = get_effective_branch_id(request, user)
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+    elif active_branch_id is None:
+        return queryset.none()
+
+    return queryset.filter(
+        build_user_branch_q(active_branch_id, 'user')
+    ).distinct()
 
 
 class ConversationViewSet(viewsets.ModelViewSet):
@@ -34,9 +73,14 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         """Get conversations for current user."""
-        return Conversation.objects.filter(
+        queryset = Conversation.objects.filter(
             user=self.request.user,
-            is_active=True
+            is_active=True,
+        )
+        return _scope_conversations_to_active_branch(
+            queryset,
+            self.request,
+            self.request.user,
         ).annotate(
             message_count=Count('messages')
         ).order_by('-updated_at')
@@ -49,6 +93,8 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         """Create conversation for current user."""
+        if get_effective_branch_id(self.request, self.request.user) is None and not is_global_branch_user(self.request.user):
+            raise PermissionDenied('No active branch scope available for this user.')
         serializer.save(user=self.request.user)
 
     @action(detail=True, methods=['post'])
@@ -111,7 +157,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
         if before_id:
             try:
-                before_message = ChatMessage.objects.get(message_id=before_id)
+                before_message = conversation.messages.get(message_id=before_id)
                 queryset = queryset.filter(created_at__lt=before_message.created_at)
             except ChatMessage.DoesNotExist:
                 pass
@@ -138,7 +184,7 @@ class ConversationViewSet(viewsets.ModelViewSet):
             read_at__isnull=True
         ).update(
             status='read',
-            read_at=__import__('datetime').datetime.now()
+            read_at=timezone.now()
         )
 
         return Response({
@@ -175,6 +221,11 @@ class ConversationViewSet(viewsets.ModelViewSet):
             Q(user=request.user) &
             Q(is_active=True) &
             (Q(title__icontains=query) | Q(messages__content__icontains=query))
+        )
+        conversations = _scope_conversations_to_active_branch(
+            conversations,
+            request,
+            request.user,
         ).distinct().order_by('-updated_at')[:20]
 
         serializer = ConversationSerializer(conversations, many=True, context={'request': request})
@@ -193,9 +244,16 @@ class ChatMessageViewSet(viewsets.ReadOnlyModelViewSet):
 
     def get_queryset(self):
         """Get messages for user's conversations."""
+        conversations = _scope_conversations_to_active_branch(
+            Conversation.objects.filter(
+                Q(user=self.request.user) | Q(participants=self.request.user),
+                is_active=True,
+            ),
+            self.request,
+            self.request.user,
+        )
         return ChatMessage.objects.filter(
-            conversation__user=self.request.user,
-            conversation__is_active=True
+            conversation__in=conversations,
         ).select_related('conversation', 'sender').order_by('-created_at')
 
     @action(detail=True, methods=['post'])
@@ -205,7 +263,7 @@ class ChatMessageViewSet(viewsets.ReadOnlyModelViewSet):
 
         if message.sender_type == 'ai' and not message.read_at:
             message.status = 'read'
-            message.read_at = __import__('datetime').datetime.now()
+            message.read_at = timezone.now()
             message.save()
 
         return Response({'message': 'Marked as read'})
@@ -218,6 +276,13 @@ class UserPresenceViewSet(viewsets.ReadOnlyModelViewSet):
     permission_classes = [IsAuthenticated]
     serializer_class = UserPresenceSerializer
     queryset = UserPresence.objects.select_related('user').all()
+
+    def get_queryset(self):
+        return _scope_presence_to_active_branch(
+            UserPresence.objects.select_related('user').all(),
+            self.request,
+            self.request.user,
+        ).order_by('-last_seen')
 
     @action(detail=False, methods=['post'])
     def update_status(self, request):
@@ -252,6 +317,11 @@ class UserPresenceViewSet(viewsets.ReadOnlyModelViewSet):
         online_users = UserPresence.objects.filter(
             status='online'
         ).select_related('user')
+        online_users = _scope_presence_to_active_branch(
+            online_users,
+            request,
+            request.user,
+        )
 
         serializer = UserPresenceSerializer(online_users, many=True)
         return Response({'online_users': serializer.data})

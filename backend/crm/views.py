@@ -14,6 +14,11 @@ from .serializers import (
     SubDepartmentSerializer, LeadSerializer, LeadStageTransitionSerializer
 )
 from .permissions import IsAdminOrResponsiblePerson # <-- YANGI RUXSATNOMANI IMPORT QILAMIZ
+from users.branch_scope import (
+    apply_branch_scope,
+    ensure_user_can_access_branch,
+    get_effective_branch_id,
+)
 from users.permissions import HasRoleCapability
 
 
@@ -53,13 +58,16 @@ class LeadViewSet(viewsets.ModelViewSet):
         aks holda faqat o'ziga tegishli lidlarni qaytaradi.
         """
         user = self.request.user
-        queryset = Lead.objects.all()
+        queryset = apply_branch_scope(
+            Lead.objects.all(),
+            self.request,
+            user,
+            field_name='branch',
+        )
 
         # Role-based filtering
-        if user.is_superuser or user.is_staff:
-            queryset = Lead.objects.all()
-        else:
-            queryset = Lead.objects.filter(responsible_person=user)
+        if not (user.is_superuser or user.is_staff):
+            queryset = queryset.filter(responsible_person=user)
 
         # Date filtering - filter by created_at date
         date_param = self.request.query_params.get('date', None)
@@ -73,6 +81,20 @@ class LeadViewSet(viewsets.ModelViewSet):
         Yangi lid yaratilayotganda, unga mas'ul shaxs sifatida
         shu so'rovni yuborayotgan foydalanuvchini avtomatik tayinlaydi.
         """
+        active_branch_id = get_effective_branch_id(self.request, self.request.user)
+        requested_branch = serializer.validated_data.get('branch')
+        if requested_branch is not None:
+            ensure_user_can_access_branch(self.request.user, requested_branch.id)
+            serializer.save(responsible_person=self.request.user)
+            return
+
+        if active_branch_id is not None:
+            serializer.save(
+                responsible_person=self.request.user,
+                branch_id=active_branch_id,
+            )
+            return
+
         serializer.save(responsible_person=self.request.user)
 
     @action(detail=True, methods=['post'], url_path='transition-stage')
@@ -131,9 +153,24 @@ class CRMInsightsView(APIView):
         period_start = now - timedelta(days=period_days)
         overdue_threshold = now - timedelta(days=14)
 
-        leads_qs = Lead.objects.select_related('source', 'responsible_person')
-        deals_qs = Deal.objects.select_related('lead', 'pipeline', 'stage')
-        activities_qs = Activity.objects.select_related('lead', 'created_by')
+        leads_qs = apply_branch_scope(
+            Lead.objects.select_related('source', 'responsible_person'),
+            request,
+            request.user,
+            field_name='branch',
+        )
+        deals_qs = apply_branch_scope(
+            Deal.objects.select_related('lead', 'pipeline', 'stage'),
+            request,
+            request.user,
+            field_name='lead__branch',
+        )
+        activities_qs = apply_branch_scope(
+            Activity.objects.select_related('lead', 'created_by'),
+            request,
+            request.user,
+            field_name='lead__branch',
+        )
 
         # Non-staff users only see their own pipeline data.
         if not (request.user.is_superuser or request.user.is_staff):

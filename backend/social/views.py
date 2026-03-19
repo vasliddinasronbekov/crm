@@ -10,11 +10,14 @@ ViewSets for all social features:
 
 from rest_framework import viewsets, status, filters
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
-from django.db.models import Q, Count, Prefetch
+from rest_framework.permissions import IsAuthenticated
+from django.db.models import Q, Count
 from django.shortcuts import get_object_or_404
 
+from users.models import User
+from student_profile.models import Group
 from .models import (
     ForumCategory, Forum, ForumTopic, ForumPost,
     StudyGroup, StudyGroupMembership, StudyGroupPost, StudyGroupComment,
@@ -32,6 +35,51 @@ from .serializers import (
     ConversationListSerializer, ConversationDetailSerializer, ConversationCreateSerializer,
     MessageSerializer, SocialNotificationSerializer
 )
+from users.branch_scope import (
+    build_direct_user_branch_q,
+    build_user_branch_q,
+    get_effective_branch_id,
+    is_global_branch_user,
+    user_belongs_to_branch,
+)
+
+
+def _scope_forums_to_active_branch(queryset, request):
+    user = request.user
+    if not user.is_authenticated:
+        return queryset
+
+    active_branch_id = get_effective_branch_id(request, user)
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+    elif active_branch_id is None:
+        return queryset.none()
+
+    return queryset.filter(
+        Q(course__groups__branch_id=active_branch_id)
+        | build_user_branch_q(active_branch_id, 'moderators')
+        | build_user_branch_q(active_branch_id, 'topics__author')
+        | build_user_branch_q(active_branch_id, 'topics__posts__author')
+    ).distinct()
+
+
+def _scope_study_groups_to_active_branch(queryset, request):
+    user = request.user
+    active_branch_id = get_effective_branch_id(request, user)
+
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+    elif active_branch_id is None:
+        return queryset.none()
+
+    return queryset.filter(
+        build_user_branch_q(active_branch_id, 'creator')
+        | build_user_branch_q(active_branch_id, 'admins')
+        | build_user_branch_q(active_branch_id, 'members')
+        | Q(course__groups__branch_id=active_branch_id)
+    ).distinct()
 
 
 # ==================== Forums ViewSets ====================
@@ -40,7 +88,20 @@ class ForumCategoryViewSet(viewsets.ReadOnlyModelViewSet):
     """Forum categories (read-only)"""
     queryset = ForumCategory.objects.filter(is_active=True)
     serializer_class = ForumCategorySerializer
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        if not self.request.user.is_authenticated:
+            return ForumCategory.objects.none()
+
+        scoped_forums = _scope_forums_to_active_branch(
+            Forum.objects.filter(is_active=True),
+            self.request,
+        )
+        return ForumCategory.objects.filter(
+            is_active=True,
+            forums__in=scoped_forums,
+        ).distinct()
 
 
 class ForumViewSet(viewsets.ReadOnlyModelViewSet):
@@ -50,7 +111,7 @@ class ForumViewSet(viewsets.ReadOnlyModelViewSet):
     List and retrieve forums
     """
     queryset = Forum.objects.filter(is_active=True).select_related('category', 'course')
-    permission_classes = [AllowAny]
+    permission_classes = [IsAuthenticated]
     filter_backends = [filters.SearchFilter]
     search_fields = ['name', 'description']
 
@@ -60,7 +121,10 @@ class ForumViewSet(viewsets.ReadOnlyModelViewSet):
         return ForumListSerializer
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        if not self.request.user.is_authenticated:
+            return Forum.objects.none()
+
+        queryset = _scope_forums_to_active_branch(super().get_queryset(), self.request)
 
         # Filter by category
         category_id = self.request.query_params.get('category')
@@ -99,6 +163,12 @@ class ForumTopicViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        queryset = queryset.filter(
+            forum__in=_scope_forums_to_active_branch(
+                Forum.objects.filter(is_active=True),
+                self.request,
+            )
+        ).distinct()
 
         # Filter by forum
         forum_id = self.request.query_params.get('forum')
@@ -116,6 +186,15 @@ class ForumTopicViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_resolved=is_resolved.lower() == 'true')
 
         return queryset
+
+    def perform_create(self, serializer):
+        forum = serializer.validated_data['forum']
+        if not _scope_forums_to_active_branch(
+            Forum.objects.filter(id=forum.id, is_active=True),
+            self.request,
+        ).exists():
+            raise PermissionDenied('You do not have access to this forum.')
+        serializer.save(author=self.request.user)
 
     def retrieve(self, request, *args, **kwargs):
         instance = self.get_object()
@@ -174,7 +253,12 @@ class ForumPostViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().filter(
+            topic__forum__in=_scope_forums_to_active_branch(
+                Forum.objects.filter(is_active=True),
+                self.request,
+            )
+        ).distinct()
 
         # Filter by topic
         topic_id = self.request.query_params.get('topic')
@@ -184,6 +268,12 @@ class ForumPostViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
+        topic = serializer.validated_data['topic']
+        if not _scope_forums_to_active_branch(
+            Forum.objects.filter(id=topic.forum_id, is_active=True),
+            self.request,
+        ).exists():
+            raise PermissionDenied('You do not have access to this topic.')
         serializer.save(author=self.request.user)
 
     @action(detail=True, methods=['post'])
@@ -243,7 +333,10 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
         return StudyGroupListSerializer
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = _scope_study_groups_to_active_branch(
+            super().get_queryset(),
+            self.request,
+        )
         user = self.request.user
 
         # Filter by visibility
@@ -266,11 +359,24 @@ class StudyGroupViewSet(viewsets.ModelViewSet):
 
         return queryset
 
+    def perform_create(self, serializer):
+        course = serializer.validated_data.get('course')
+        if not is_global_branch_user(self.request.user):
+            active_branch_id = get_effective_branch_id(self.request, self.request.user)
+            if active_branch_id is None:
+                raise PermissionDenied('No active branch scope available for this user.')
+            if course is not None and not Group.objects.filter(course=course, branch_id=active_branch_id).exists():
+                raise PermissionDenied('Selected course is outside your active branch scope.')
+        serializer.save(creator=self.request.user)
+
     @action(detail=True, methods=['post'])
     def join(self, request, pk=None):
         """Join a study group"""
         group = self.get_object()
         user = request.user
+        active_branch_id = get_effective_branch_id(request, user)
+        if active_branch_id is not None and not user_belongs_to_branch(user, active_branch_id):
+            raise PermissionDenied('User is outside active branch scope.')
 
         # Check if can join
         can_join, message = group.can_join(user)
@@ -344,7 +450,12 @@ class StudyGroupPostViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().filter(
+            group__in=_scope_study_groups_to_active_branch(
+                StudyGroup.objects.filter(is_active=True),
+                self.request,
+            )
+        ).distinct()
 
         # Filter by group
         group_id = self.request.query_params.get('group')
@@ -354,6 +465,12 @@ class StudyGroupPostViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
+        group = serializer.validated_data['group']
+        if not _scope_study_groups_to_active_branch(
+            StudyGroup.objects.filter(id=group.id, is_active=True),
+            self.request,
+        ).exists():
+            raise PermissionDenied('You do not have access to this study group.')
         serializer.save(author=self.request.user)
 
     @action(detail=True, methods=['post'])
@@ -380,7 +497,12 @@ class StudyGroupCommentViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
 
     def get_queryset(self):
-        queryset = super().get_queryset()
+        queryset = super().get_queryset().filter(
+            post__group__in=_scope_study_groups_to_active_branch(
+                StudyGroup.objects.filter(is_active=True),
+                self.request,
+            )
+        ).distinct()
 
         # Filter by post
         post_id = self.request.query_params.get('post')
@@ -390,6 +512,12 @@ class StudyGroupCommentViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
+        post = serializer.validated_data['post']
+        if not _scope_study_groups_to_active_branch(
+            StudyGroup.objects.filter(id=post.group_id, is_active=True),
+            self.request,
+        ).exists():
+            raise PermissionDenied('You do not have access to this study group post.')
         serializer.save(author=self.request.user)
 
 
@@ -409,6 +537,18 @@ class FeedItemViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         queryset = super().get_queryset()
         user = self.request.user
+        active_branch_id = get_effective_branch_id(self.request, user)
+        if is_global_branch_user(user):
+            if active_branch_id is not None:
+                queryset = queryset.filter(
+                    build_user_branch_q(active_branch_id, 'user')
+                ).distinct()
+        elif active_branch_id is None:
+            return queryset.none()
+        else:
+            queryset = queryset.filter(
+                build_user_branch_q(active_branch_id, 'user')
+            ).distinct()
 
         # Filter options
         feed_type = self.request.query_params.get('type', 'all')
@@ -455,6 +595,18 @@ class FeedCommentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = super().get_queryset()
+        active_branch_id = get_effective_branch_id(self.request, self.request.user)
+        if is_global_branch_user(self.request.user):
+            if active_branch_id is not None:
+                queryset = queryset.filter(
+                    build_user_branch_q(active_branch_id, 'feed_item__user')
+                ).distinct()
+        elif active_branch_id is None:
+            return queryset.none()
+        else:
+            queryset = queryset.filter(
+                build_user_branch_q(active_branch_id, 'feed_item__user')
+            ).distinct()
 
         # Filter by feed item
         feed_item_id = self.request.query_params.get('feed_item')
@@ -464,6 +616,15 @@ class FeedCommentViewSet(viewsets.ModelViewSet):
         return queryset
 
     def perform_create(self, serializer):
+        feed_item = serializer.validated_data['feed_item']
+        active_branch_id = get_effective_branch_id(self.request, self.request.user)
+        if active_branch_id is None and not is_global_branch_user(self.request.user):
+            raise PermissionDenied('No active branch scope available for this user.')
+        if active_branch_id is not None and not (
+            feed_item.user_id == self.request.user.id
+            or user_belongs_to_branch(feed_item.user, active_branch_id)
+        ):
+            raise PermissionDenied('You do not have access to this feed item.')
         serializer.save(author=self.request.user)
 
 
@@ -488,7 +649,51 @@ class ConversationViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         # Only show conversations user is part of
-        return self.queryset.filter(participants=self.request.user)
+        queryset = self.queryset.filter(participants=self.request.user)
+        active_branch_id = get_effective_branch_id(self.request, self.request.user)
+        if is_global_branch_user(self.request.user):
+            if active_branch_id is None:
+                return queryset.distinct()
+        elif active_branch_id is None:
+            return queryset.none()
+
+        out_of_scope_users = User.objects.exclude(
+            build_direct_user_branch_q(active_branch_id)
+        ).distinct()
+
+        return queryset.filter(
+            build_user_branch_q(active_branch_id, 'participants')
+            | build_user_branch_q(active_branch_id, 'creator')
+        ).exclude(participants__in=out_of_scope_users).distinct()
+
+    def perform_create(self, serializer):
+        active_branch_id = get_effective_branch_id(self.request, self.request.user)
+        if active_branch_id is None and not is_global_branch_user(self.request.user):
+            raise PermissionDenied('No active branch scope available for this user.')
+        participant_ids = serializer.validated_data.get('participant_ids', [])
+        normalized_participant_ids = set()
+        for participant_id in participant_ids:
+            try:
+                normalized_participant_ids.add(int(participant_id))
+            except (TypeError, ValueError):
+                continue
+
+        participants = list(User.objects.filter(id__in=normalized_participant_ids))
+        missing_user_ids = sorted(normalized_participant_ids - {participant.id for participant in participants})
+        if missing_user_ids:
+            raise PermissionDenied(f'Users {missing_user_ids} were not found.')
+
+        if active_branch_id is not None:
+            invalid_user_ids = []
+            for participant in participants:
+                if not user_belongs_to_branch(participant, active_branch_id):
+                    invalid_user_ids.append(participant.id)
+            if invalid_user_ids:
+                raise PermissionDenied(
+                    f'Users {invalid_user_ids} are outside your active branch scope.'
+                )
+
+        serializer.save()
 
     @action(detail=True, methods=['get'])
     def messages(self, request, pk=None):

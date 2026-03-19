@@ -133,3 +133,49 @@ def apply_branch_scope(queryset, request, user, field_name='branch', include_una
         branch_filter |= Q(**{f'{field_name}__isnull': True})
 
     return queryset.filter(branch_filter)
+
+
+def build_direct_user_branch_q(branch_id: int) -> Q:
+    """
+    Build Q filter for direct User querysets.
+    """
+    return (
+        Q(branch_id=branch_id)
+        | Q(
+            branch_memberships__branch_id=branch_id,
+            branch_memberships__is_active=True,
+        )
+    )
+
+
+def build_user_branch_q(branch_id: int, user_field: str) -> Q:
+    """
+    Build Q filter that matches users linked to a branch either via legacy
+    `user.branch` or explicit active `BranchMembership`.
+    """
+    if not user_field:
+        return build_direct_user_branch_q(branch_id)
+
+    return (
+        Q(**{f'{user_field}__branch_id': branch_id})
+        | Q(
+            **{
+                f'{user_field}__branch_memberships__branch_id': branch_id,
+                f'{user_field}__branch_memberships__is_active': True,
+            }
+        )
+    )
+
+
+def user_belongs_to_branch(user, branch_id: Optional[int]) -> bool:
+    """
+    Lightweight guard for write-time branch checks involving user records.
+    """
+    if branch_id is None:
+        return True
+    if getattr(user, 'branch_id', None) == branch_id:
+        return True
+    memberships = getattr(user, 'branch_memberships', None)
+    if memberships is None:
+        return False
+    return memberships.filter(branch_id=branch_id, is_active=True).exists()

@@ -10,15 +10,33 @@ from rest_framework import status
 from drf_spectacular.types import OpenApiTypes
 from drf_spectacular.utils import extend_schema
 from django.views.decorators.csrf import csrf_exempt
-from django.http import HttpResponse
 from django.utils import timezone
 import json
 import logging
+from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 
 from .models import Payment, UserSubscription
 from .payment_services import StripeService, PaymeService, ClickService
 
 logger = logging.getLogger(__name__)
+
+
+def _parse_int(value):
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
+def _parse_decimal(value):
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, TypeError, ValueError):
+        return None
+
+
+def _to_tiyin(amount: Decimal) -> int:
+    return int((amount * Decimal('100')).quantize(Decimal('1'), rounding=ROUND_HALF_UP))
 
 
 # ==================== Stripe Webhooks ====================
@@ -61,7 +79,8 @@ def stripe_webhook(request):
 
             # Find and update payment
             payment = Payment.objects.filter(
-                stripe_payment_intent_id=payment_intent_id
+                stripe_payment_intent_id=payment_intent_id,
+                payment_method__in=['stripe_card', 'stripe_bank'],
             ).first()
 
             if payment:
@@ -79,7 +98,8 @@ def stripe_webhook(request):
             payment_intent_id = payment_intent['id']
 
             payment = Payment.objects.filter(
-                stripe_payment_intent_id=payment_intent_id
+                stripe_payment_intent_id=payment_intent_id,
+                payment_method__in=['stripe_card', 'stripe_bank'],
             ).first()
 
             if payment:
@@ -175,11 +195,18 @@ def payme_webhook(request):
 
         # CheckPerformTransaction
         if method == 'CheckPerformTransaction':
-            order_id = params.get('account', {}).get('order_id')
-            amount = params.get('amount')
+            order_id = _parse_int(params.get('account', {}).get('order_id'))
+            amount = _parse_int(params.get('amount'))
+            if order_id is None:
+                return Response({
+                    'error': {
+                        'code': -31050,
+                        'message': 'Order not found'
+                    }
+                }, status=200)
 
             # Validate order exists and amount matches
-            payment = Payment.objects.filter(id=order_id).first()
+            payment = Payment.objects.filter(id=order_id, payment_method='payme').first()
 
             if not payment:
                 return Response({
@@ -190,8 +217,8 @@ def payme_webhook(request):
                 }, status=200)
 
             # Amount validation (Payme sends in tiyin)
-            expected_amount = int(payment.amount * 100)
-            if amount != expected_amount:
+            expected_amount = _to_tiyin(payment.amount)
+            if amount is None or amount != expected_amount:
                 return Response({
                     'error': {
                         'code': -31001,
@@ -208,16 +235,50 @@ def payme_webhook(request):
         # CreateTransaction
         elif method == 'CreateTransaction':
             transaction_id = params.get('id')
-            order_id = params.get('account', {}).get('order_id')
-            amount = params.get('amount')
+            order_id = _parse_int(params.get('account', {}).get('order_id'))
+            amount = _parse_int(params.get('amount'))
+            if order_id is None:
+                return Response({
+                    'error': {
+                        'code': -31050,
+                        'message': 'Order not found'
+                    }
+                }, status=200)
 
-            payment = Payment.objects.filter(id=order_id).first()
+            payment = Payment.objects.filter(id=order_id, payment_method='payme').first()
 
             if not payment:
                 return Response({
                     'error': {
                         'code': -31050,
                         'message': 'Order not found'
+                    }
+                }, status=200)
+
+            expected_amount = _to_tiyin(payment.amount)
+            if amount is None or amount != expected_amount:
+                return Response({
+                    'error': {
+                        'code': -31001,
+                        'message': 'Invalid amount'
+                    }
+                }, status=200)
+
+            if payment.status == 'succeeded':
+                return Response({
+                    'result': {
+                        'create_time': int(payment.created_at.timestamp() * 1000),
+                        'transaction': str(payment.payme_transaction_id or transaction_id),
+                        'state': 2
+                    }
+                }, status=200)
+
+            if payment.status == 'canceled':
+                return Response({
+                    'result': {
+                        'create_time': int(payment.created_at.timestamp() * 1000),
+                        'transaction': str(payment.payme_transaction_id or transaction_id),
+                        'state': -1
                     }
                 }, status=200)
 
@@ -239,7 +300,8 @@ def payme_webhook(request):
             transaction_id = params.get('id')
 
             payment = Payment.objects.filter(
-                payme_transaction_id=transaction_id
+                payme_transaction_id=transaction_id,
+                payment_method='payme',
             ).first()
 
             if not payment:
@@ -247,6 +309,23 @@ def payme_webhook(request):
                     'error': {
                         'code': -31003,
                         'message': 'Transaction not found'
+                    }
+                }, status=200)
+
+            if payment.status == 'succeeded':
+                return Response({
+                    'result': {
+                        'transaction': str(transaction_id),
+                        'perform_time': int((payment.succeeded_at or timezone.now()).timestamp() * 1000),
+                        'state': 2
+                    }
+                }, status=200)
+
+            if payment.status == 'canceled':
+                return Response({
+                    'error': {
+                        'code': -31008,
+                        'message': 'Transaction canceled'
                     }
                 }, status=200)
 
@@ -268,7 +347,8 @@ def payme_webhook(request):
             reason = params.get('reason')
 
             payment = Payment.objects.filter(
-                payme_transaction_id=transaction_id
+                payme_transaction_id=transaction_id,
+                payment_method='payme',
             ).first()
 
             if not payment:
@@ -276,6 +356,15 @@ def payme_webhook(request):
                     'error': {
                         'code': -31003,
                         'message': 'Transaction not found'
+                    }
+                }, status=200)
+
+            if payment.status == 'canceled':
+                return Response({
+                    'result': {
+                        'transaction': str(transaction_id),
+                        'cancel_time': int(payment.updated_at.timestamp() * 1000),
+                        'state': -1
                     }
                 }, status=200)
 
@@ -296,7 +385,8 @@ def payme_webhook(request):
             transaction_id = params.get('id')
 
             payment = Payment.objects.filter(
-                payme_transaction_id=transaction_id
+                payme_transaction_id=transaction_id,
+                payment_method='payme',
             ).first()
 
             if not payment:
@@ -367,7 +457,7 @@ def click_webhook(request):
 
         click_trans_id = data.get('click_trans_id')
         service_id = data.get('service_id')
-        merchant_trans_id = data.get('merchant_trans_id')  # Our payment ID
+        merchant_trans_id = _parse_int(data.get('merchant_trans_id'))  # Our payment ID
         amount = data.get('amount')
         action = data.get('action')  # 0 = prepare, 1 = complete
         sign_string = data.get('sign_string')
@@ -385,7 +475,12 @@ def click_webhook(request):
 
         # Prepare transaction (action = 0)
         if str(action) == '0':
-            payment = Payment.objects.filter(id=merchant_trans_id).first()
+            if merchant_trans_id is None:
+                return Response({
+                    'error': -5,
+                    'error_note': 'Order not found'
+                }, status=200)
+            payment = Payment.objects.filter(id=merchant_trans_id, payment_method='click').first()
 
             if not payment:
                 return Response({
@@ -394,7 +489,8 @@ def click_webhook(request):
                 }, status=200)
 
             # Validate amount
-            if float(amount) != float(payment.amount):
+            parsed_amount = _parse_decimal(amount)
+            if parsed_amount is None or parsed_amount != payment.amount:
                 return Response({
                     'error': -2,
                     'error_note': 'Invalid amount'
@@ -417,7 +513,12 @@ def click_webhook(request):
 
         # Complete transaction (action = 1)
         elif str(action) == '1':
-            payment = Payment.objects.filter(id=merchant_trans_id).first()
+            if merchant_trans_id is None:
+                return Response({
+                    'error': -5,
+                    'error_note': 'Order not found'
+                }, status=200)
+            payment = Payment.objects.filter(id=merchant_trans_id, payment_method='click').first()
 
             if not payment:
                 return Response({
@@ -426,7 +527,8 @@ def click_webhook(request):
                 }, status=200)
 
             # Validate amount
-            if float(amount) != float(payment.amount):
+            parsed_amount = _parse_decimal(amount)
+            if parsed_amount is None or parsed_amount != payment.amount:
                 return Response({
                     'error': -2,
                     'error_note': 'Invalid amount'

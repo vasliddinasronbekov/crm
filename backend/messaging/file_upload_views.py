@@ -18,6 +18,11 @@ import uuid
 from .models import Conversation, ChatMessage
 from PIL import Image
 from io import BytesIO
+from users.branch_scope import (
+    build_user_branch_q,
+    get_effective_branch_id,
+    is_global_branch_user,
+)
 
 
 # File upload size limits (in MB)
@@ -34,6 +39,22 @@ ALLOWED_DOCUMENT_TYPES = [
     'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
     'text/plain',
 ]
+
+
+def _conversation_with_branch_scope(conversation_id, request):
+    queryset = Conversation.objects.filter(id=conversation_id)
+    active_branch_id = get_effective_branch_id(request, request.user)
+
+    if is_global_branch_user(request.user):
+        if active_branch_id is None:
+            return queryset.first()
+    elif active_branch_id is None:
+        return None
+
+    return queryset.filter(
+        build_user_branch_q(active_branch_id, 'user')
+        | build_user_branch_q(active_branch_id, 'participants')
+    ).distinct().first()
 
 
 @extend_schema(
@@ -78,17 +99,16 @@ def upload_message_attachment(request):
         )
 
     # Verify conversation access
-    try:
-        conversation = Conversation.objects.get(id=conversation_id)
-        if not conversation.participants.filter(id=request.user.id).exists():
-            return Response(
-                {'error': 'Access denied to this conversation'},
-                status=status.HTTP_403_FORBIDDEN
-            )
-    except Conversation.DoesNotExist:
+    conversation = _conversation_with_branch_scope(conversation_id, request)
+    if conversation is None:
         return Response(
             {'error': 'Conversation not found'},
             status=status.HTTP_404_NOT_FOUND
+        )
+    if not conversation.participants.filter(id=request.user.id).exists():
+        return Response(
+            {'error': 'Access denied to this conversation'},
+            status=status.HTTP_403_FORBIDDEN
         )
 
     # Detect file type
@@ -218,7 +238,13 @@ def delete_message_attachment(request, message_id):
     Only the sender can delete their attachments
     """
     try:
-        message = ChatMessage.objects.get(id=message_id, sender=request.user)
+        message = ChatMessage.objects.select_related('conversation').get(id=message_id, sender=request.user)
+        conversation = _conversation_with_branch_scope(message.conversation_id, request)
+        if conversation is None:
+            return Response(
+                {'error': 'Message not found or not owned by you'},
+                status=status.HTTP_404_NOT_FOUND
+            )
 
         if not message.attachment_url:
             return Response(
