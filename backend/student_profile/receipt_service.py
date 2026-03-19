@@ -36,7 +36,7 @@ def _resolve_user_full_name(user) -> str:
 
 
 def _resolve_education_center_name() -> str:
-    return getattr(settings, 'EDUCATION_CENTER_NAME', 'EduVoice Education Center')
+    return getattr(settings, 'EDUCATION_CENTER_NAME', 'EDUOS')
 
 
 def _resolve_education_center_logo_url() -> str:

@@ -1,7 +1,7 @@
 'use client'
 
 import { useEffect, useMemo, useState } from 'react'
-import { useRouter } from 'next/navigation'
+import { useRouter, useSearchParams } from 'next/navigation'
 import {
   Activity,
   AlertTriangle,
@@ -110,6 +110,12 @@ type PaymentGroupOption = {
 
 const TIYIN_PER_UZS = 100
 
+const isFinanceTab = (value: string | null): value is FinanceTab =>
+  value === 'overview' || value === 'receivables' || value === 'operations'
+
+const isFinanceQuickFocus = (value: string | null): value is FinanceQuickFocus =>
+  value === 'all' || value === 'cashflow' || value === 'risk' || value === 'payroll'
+
 const PAYMENT_STATUS_META: Record<
   PaymentStatus,
   { label: string; tone: string; icon: typeof CheckCircle2 }
@@ -191,11 +197,17 @@ const todayDate = new Date().toISOString().split('T')[0]
 
 export default function FinanceDashboard() {
   const router = useRouter()
+  const searchParams = useSearchParams()
   const { currency, formatCurrencyFromMinor, fromSelectedCurrency, toSelectedCurrency } = useSettings()
   const { user } = useAuth()
   const permissionState = usePermissions(user)
   const canCreatePayment = permissionState.hasPermission('payments.record')
   const canCreateExpense = permissionState.hasPermission('expenses.create')
+  const canViewReceivables = permissionState.hasPermission('payments.view')
+  const canViewOperations =
+    permissionState.hasPermission('expenses.view') ||
+    permissionState.hasPermission('hr.view') ||
+    permissionState.hasPermission('salaries.view')
 
   const [activeTab, setActiveTab] = useState<FinanceTab>('overview')
   const [quickFocus, setQuickFocus] = useState<FinanceQuickFocus>('all')
@@ -291,6 +303,16 @@ export default function FinanceDashboard() {
     teacherEarningsLoading ||
     finesLoading
 
+  const availableTabs = useMemo<FinanceTab[]>(() => {
+    const tabs: FinanceTab[] = ['overview']
+    if (canViewReceivables) tabs.push('receivables')
+    if (canViewOperations) tabs.push('operations')
+    return tabs
+  }, [canViewOperations, canViewReceivables])
+
+  const queryTab = searchParams.get('tab')
+  const queryFocus = searchParams.get('focus')
+
   useEffect(() => {
     try {
       const storedTab = localStorage.getItem(FINANCE_ACTIVE_TAB_STORAGE_KEY)
@@ -324,6 +346,24 @@ export default function FinanceDashboard() {
       // Ignore storage write failures.
     }
   }, [activeTab, quickFocus, quickSearch, hasLoadedQuickPrefs])
+
+  useEffect(() => {
+    if (!availableTabs.includes(activeTab)) {
+      setActiveTab(availableTabs[0] || 'overview')
+    }
+  }, [activeTab, availableTabs])
+
+  useEffect(() => {
+    if (!hasLoadedQuickPrefs) return
+
+    if (isFinanceTab(queryTab) && availableTabs.includes(queryTab) && queryTab !== activeTab) {
+      setActiveTab(queryTab)
+    }
+
+    if (isFinanceQuickFocus(queryFocus) && queryFocus !== quickFocus) {
+      setQuickFocus(queryFocus)
+    }
+  }, [activeTab, availableTabs, hasLoadedQuickPrefs, queryFocus, queryTab, quickFocus])
 
   const dashboard = useMemo(() => {
     const latestSummary = financialSummaries[0]
@@ -876,28 +916,32 @@ export default function FinanceDashboard() {
             <BarChart3 className="h-4 w-4 inline mr-2" />
             Overview
           </button>
-          <button
-            onClick={() => setActiveTab('receivables')}
-            className={`px-5 py-3 rounded-xl border transition-colors whitespace-nowrap ${
-              activeTab === 'receivables'
-                ? 'border-primary/40 bg-primary/10 text-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-background/60'
-            }`}
-          >
-            <Target className="h-4 w-4 inline mr-2" />
-            Receivables
-          </button>
-          <button
-            onClick={() => setActiveTab('operations')}
-            className={`px-5 py-3 rounded-xl border transition-colors whitespace-nowrap ${
-              activeTab === 'operations'
-                ? 'border-primary/40 bg-primary/10 text-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-background/60'
-            }`}
-          >
-            <Activity className="h-4 w-4 inline mr-2" />
-            Operations
-          </button>
+          {canViewReceivables && (
+            <button
+              onClick={() => setActiveTab('receivables')}
+              className={`px-5 py-3 rounded-xl border transition-colors whitespace-nowrap ${
+                activeTab === 'receivables'
+                  ? 'border-primary/40 bg-primary/10 text-primary'
+                  : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-background/60'
+              }`}
+            >
+              <Target className="h-4 w-4 inline mr-2" />
+              Receivables
+            </button>
+          )}
+          {canViewOperations && (
+            <button
+              onClick={() => setActiveTab('operations')}
+              className={`px-5 py-3 rounded-xl border transition-colors whitespace-nowrap ${
+                activeTab === 'operations'
+                  ? 'border-primary/40 bg-primary/10 text-primary'
+                  : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-background/60'
+              }`}
+            >
+              <Activity className="h-4 w-4 inline mr-2" />
+              Operations
+            </button>
+          )}
         </div>
 
         {activeTab === 'overview' && (
