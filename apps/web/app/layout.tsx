@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import type { ReactNode } from 'react'
 import './globals.css'
 import { AuthProvider } from '@/contexts/AuthContext'
+import { BranchProvider } from '@/contexts/BranchContext'
 import { SettingsProvider } from '@/contexts/SettingsContext'
 import { QueryProvider } from '@/contexts/QueryProvider'
 import { ToasterProvider } from '@/components/ToasterProvider'
@@ -34,11 +35,13 @@ export default function RootLayout({
         <QueryProvider>
           <SettingsProvider>
             <AuthProvider>
-              <AIProvider>
-                <GlobalLanguageBridge />
-                {content}
-                <ToasterProvider />
-              </AIProvider>
+              <BranchProvider>
+                <AIProvider>
+                  <GlobalLanguageBridge />
+                  {content}
+                  <ToasterProvider />
+                </AIProvider>
+              </BranchProvider>
             </AuthProvider>
           </SettingsProvider>
         </QueryProvider>

@@ -30,6 +30,7 @@ import {
   type LucideIcon,
 } from 'lucide-react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { usePermissions } from '@/lib/permissions'
 
@@ -88,6 +89,7 @@ export function Sidebar({
   const pathname = usePathname()
   const router = useRouter()
   const { user, logout } = useAuth()
+  const { branches, activeBranchId, isGlobalScope } = useBranchContext()
   const { translateText } = useSettings()
   const permissions = usePermissions(user)
 
@@ -115,6 +117,10 @@ export function Sidebar({
     }
     return user?.username || translateText('User')
   }
+
+  const activeBranchName = activeBranchId === null
+    ? (isGlobalScope ? translateText('All branches') : null)
+    : branches.find((branch) => branch.id === activeBranchId)?.name ?? null
 
   if (!user || !permissions.isStaffSideRole) return null
 
@@ -206,6 +212,11 @@ export function Sidebar({
             <div className={`min-w-0 flex-1 ${collapsed ? 'lg:hidden' : ''}`}>
               <p className="text-sm font-medium truncate">{getDisplayName()}</p>
               <p className="text-xs text-text-secondary">{permissions.roleLabel}</p>
+              {activeBranchName && (
+                <p className="mt-1 truncate text-[11px] text-primary/90">
+                  {activeBranchName}
+                </p>
+              )}
             </div>
           </div>
           <button

@@ -1,6 +1,19 @@
 import axios, { AxiosInstance, AxiosError } from "axios";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || "https://api.crmai.uz/api/";
+const ACTIVE_BRANCH_STORAGE_KEY = "dashboard.active_branch_id";
+
+interface BranchContextBranch {
+  id: number;
+  name: string;
+}
+
+interface BranchContextResponse {
+  is_global_scope: boolean;
+  active_branch_id: number | null;
+  accessible_branch_ids: number[];
+  branches: BranchContextBranch[];
+}
 
 interface LoginCredentials {
   username: string;
@@ -24,6 +37,7 @@ class ApiService {
   private api: AxiosInstance;
   private accessToken: string | null = null;
   private refreshToken: string | null = null;
+  private activeBranchId: number | null = null;
 
   constructor() {
     this.api = axios.create({
@@ -39,6 +53,9 @@ class ApiService {
       (config) => {
         if (this.accessToken) {
           config.headers.Authorization = `Bearer ${this.accessToken}`;
+        }
+        if (this.activeBranchId !== null) {
+          config.headers["X-Active-Branch"] = String(this.activeBranchId);
         }
         return config;
       },
@@ -78,6 +95,9 @@ class ApiService {
     if (typeof window !== "undefined") {
       this.accessToken = localStorage.getItem("access_token");
       this.refreshToken = localStorage.getItem("refresh_token");
+      const storedBranchId = localStorage.getItem(ACTIVE_BRANCH_STORAGE_KEY);
+      const parsedBranchId = storedBranchId ? Number.parseInt(storedBranchId, 10) : NaN;
+      this.activeBranchId = Number.isFinite(parsedBranchId) ? parsedBranchId : null;
     }
   }
 
@@ -139,6 +159,36 @@ class ApiService {
         localStorage.removeItem("refresh_token");
       }
     }
+  }
+
+  getActiveBranchId(): number | null {
+    return this.activeBranchId;
+  }
+
+  setActiveBranchId(branchId: number | null) {
+    this.activeBranchId = branchId;
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (branchId === null) {
+      localStorage.removeItem(ACTIVE_BRANCH_STORAGE_KEY);
+      return;
+    }
+    localStorage.setItem(ACTIVE_BRANCH_STORAGE_KEY, String(branchId));
+  }
+
+  async getBranchContext(activeBranchId?: number | null): Promise<BranchContextResponse> {
+    const params =
+      activeBranchId === undefined
+        ? undefined
+        : activeBranchId === null
+          ? { active_branch: "" }
+          : { active_branch: activeBranchId };
+    const response = await this.api.get<BranchContextResponse>("auth/branch-context/", {
+      params,
+    });
+    return response.data;
   }
 
   async refreshAccessToken(): Promise<string | null> {

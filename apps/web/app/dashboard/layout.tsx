@@ -12,6 +12,7 @@ import GlobalSearch from '@/components/GlobalSearch'
 import DateCalendar from '@/components/DateCalendar'
 import AIModeButton from '@/components/AIModeButton'
 import InboxNotificationButton from '@/components/InboxNotificationButton'
+import BranchSwitcher from '@/components/BranchSwitcher'
 import LoadingScreen from '@/components/LoadingScreen'
 import { getDashboardRouteAccess, usePermissions } from '@/lib/permissions'
 
@@ -162,6 +163,9 @@ export default function DashboardLayout({
 
           {/* Right: Inbox Button + AI Mode Button + Date Calendar */}
           <div className="flex items-center gap-3">
+            <div className="hidden md:block">
+              <BranchSwitcher />
+            </div>
             <InboxNotificationButton />
             <AIModeButton onToggle={handleAIModeToggle} />
             <div className="hidden sm:block">
