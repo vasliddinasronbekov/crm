@@ -127,7 +127,7 @@ export function Sidebar({
 
   return (
     <div
-      className={`fixed inset-y-0 left-0 z-40 w-72 border-r border-border bg-surface transition-all duration-300 ${
+      className={`glass-panel-strong fixed inset-y-0 left-0 z-40 w-72 border-r border-border transition-all duration-300 ${
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
       } ${collapsed ? 'lg:w-20' : 'lg:w-72'} lg:translate-x-0`}
     >
@@ -142,7 +142,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onCloseMobile}
-            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-background hover:text-text-primary lg:hidden"
+            className="inline-flex h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-background/70 hover:text-text-primary lg:hidden"
             aria-label="Close menu"
           >
             <X className="h-4 w-4" />
@@ -150,7 +150,7 @@ export function Sidebar({
           <button
             type="button"
             onClick={onToggleCollapse}
-            className="hidden h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-background hover:text-text-primary lg:inline-flex"
+            className="hidden h-8 w-8 items-center justify-center rounded-lg text-text-secondary hover:bg-background/70 hover:text-text-primary lg:inline-flex"
             aria-label={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
           >
             {collapsed ? <ChevronRight className="h-4 w-4" /> : <ChevronLeft className="h-4 w-4" />}
@@ -181,8 +181,8 @@ export function Sidebar({
                       href={item.href}
                       className={`flex items-center gap-3 rounded-xl px-3 py-2.5 text-sm font-medium transition-all ${
                         isActive
-                          ? 'bg-primary/10 text-primary border border-primary/20'
-                          : 'text-text-secondary hover:bg-background hover:text-text-primary'
+                          ? 'bg-primary/10 text-primary border border-primary/30 shadow-sm shadow-primary/20'
+                          : 'text-text-secondary hover:bg-background/70 hover:text-text-primary'
                       } ${collapsed ? 'lg:justify-center lg:gap-0 lg:px-2' : ''}`}
                       title={collapsed ? translateText(item.name) : undefined}
                     >
@@ -198,7 +198,7 @@ export function Sidebar({
       </nav>
 
       <div className="border-t border-border p-4">
-        <div className={`rounded-xl bg-background ${collapsed ? 'p-2 lg:p-2' : 'p-4'}`}>
+        <div className={`glass-chip rounded-xl ${collapsed ? 'p-2 lg:p-2' : 'p-4'}`}>
           <div className={`mb-3 flex items-center gap-3 ${collapsed ? 'lg:mb-2 lg:justify-center lg:gap-0' : ''}`}>
             <div className="h-10 w-10 rounded-full bg-primary flex items-center justify-center text-background font-bold">
               {getInitials()}

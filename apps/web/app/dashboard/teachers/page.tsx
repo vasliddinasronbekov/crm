@@ -1,10 +1,31 @@
 'use client'
 
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
-import { Search, Plus, Edit, Trash2, Users, Shield, Mail, Phone, Eye, Grid, List, TrendingUp, UserCheck, UserRoundX } from 'lucide-react'
+import {
+  Edit,
+  Eye,
+  Grid,
+  List,
+  Mail,
+  Phone,
+  Plus,
+  Search,
+  Shield,
+  Sparkles,
+  Trash2,
+  UserCheck,
+  UserRoundX,
+  Users,
+} from 'lucide-react'
 import toast from '@/lib/toast'
-import { useTeachers, useCreateTeacher, useUpdateTeacher, useDeleteTeacher, Teacher } from '@/lib/hooks/useTeachers'
+import {
+  useCreateTeacher,
+  useDeleteTeacher,
+  useTeachers,
+  useUpdateTeacher,
+  type Teacher,
+} from '@/lib/hooks/useTeachers'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
@@ -14,6 +35,44 @@ import LoadingScreen from '@/components/LoadingScreen'
 type ViewMode = 'grid' | 'table'
 type FilterType = 'all' | 'admin' | 'teacher' | 'withEmail' | 'withPhone' | 'active' | 'inactive'
 
+const FILTER_OPTIONS: Array<{
+  key: FilterType
+  label: string
+  activeClass: string
+}> = [
+  { key: 'all', label: 'All', activeClass: 'bg-primary text-background border-primary/30' },
+  { key: 'admin', label: 'Admins', activeClass: 'bg-warning/20 text-warning border-warning/30' },
+  { key: 'teacher', label: 'Teachers', activeClass: 'bg-success/20 text-success border-success/30' },
+  { key: 'withEmail', label: 'With Email', activeClass: 'bg-cyan-500/20 text-cyan-500 border-cyan-500/30' },
+  { key: 'withPhone', label: 'With Phone', activeClass: 'bg-emerald-500/20 text-emerald-500 border-emerald-500/30' },
+  { key: 'active', label: 'Active', activeClass: 'bg-success/20 text-success border-success/30' },
+  { key: 'inactive', label: 'Inactive', activeClass: 'bg-error/20 text-error border-error/30' },
+]
+
+const EMPTY_TEACHER_FORM = {
+  username: '',
+  password: '',
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+  is_staff: false,
+}
+
+const getInitials = (teacher: Teacher) => {
+  if (teacher.first_name && teacher.last_name) {
+    return `${teacher.first_name[0]}${teacher.last_name[0]}`.toUpperCase()
+  }
+  return teacher.username.substring(0, 2).toUpperCase()
+}
+
+const getFullName = (teacher: Teacher) => {
+  if (teacher.first_name && teacher.last_name) {
+    return `${teacher.first_name} ${teacher.last_name}`
+  }
+  return teacher.username
+}
+
 export default function TeachersPage() {
   const router = useRouter()
   const { user } = useAuth()
@@ -22,9 +81,8 @@ export default function TeachersPage() {
   const canEditTeacher = permissionState.hasPermission('teachers.edit')
   const canDeleteTeacher = permissionState.hasPermission('teachers.delete')
 
-  // React Query hooks
   const [page, setPage] = useState(1)
-  const [limit] = useState(9)
+  const [limit] = useState(12)
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300)
   const [filterType, setFilterType] = useState<FilterType>('all')
@@ -40,64 +98,49 @@ export default function TeachersPage() {
     ...(filterType === 'active' ? { is_active: true } : {}),
     ...(filterType === 'inactive' ? { is_active: false } : {}),
   })
+
   const createTeacher = useCreateTeacher()
   const updateTeacher = useUpdateTeacher()
   const deleteTeacher = useDeleteTeacher()
 
-  // Local UI state
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null)
   const [isAddingTeacher, setIsAddingTeacher] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [newTeacher, setNewTeacher] = useState({
-    username: '',
-    password: '',
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    is_staff: false,
-  })
+  const [newTeacher, setNewTeacher] = useState(EMPTY_TEACHER_FORM)
 
-  const teachers = teachersData?.results || []
-  const totalTeachers = teachersData?.count || 0
-  const totalPages = Math.ceil(totalTeachers / limit)
+  const teachers = useMemo(() => teachersData?.results ?? [], [teachersData?.results])
+  const totalTeachers = teachersData?.count ?? 0
+  const totalPages = Math.max(1, Math.ceil(totalTeachers / limit))
 
-  const getInitials = (teacher: Teacher) => {
-    if (teacher.first_name && teacher.last_name) {
-      return `${teacher.first_name[0]}${teacher.last_name[0]}`.toUpperCase()
+  const stats = useMemo(() => {
+    const visible = teachers.length
+    const admins = teachers.filter((teacher) => teacher.is_staff).length
+    const active = teachers.filter((teacher) => teacher.is_active !== false).length
+    const inactive = teachers.filter((teacher) => teacher.is_active === false).length
+
+    return {
+      total: totalTeachers,
+      visible,
+      admins,
+      active,
+      inactive,
     }
-    return teacher.username.substring(0, 2).toUpperCase()
-  }
-
-  const getFullName = (teacher: Teacher) => {
-    if (teacher.first_name && teacher.last_name) {
-      return `${teacher.first_name} ${teacher.last_name}`
-    }
-    return teacher.username
-  }
-
-  // Statistics
-  const stats = {
-    total: totalTeachers,
-    // The following stats would require dedicated API endpoints for accuracy with pagination
-    admins: teachers.filter((t: Teacher) => t.is_staff).length,
-    active: teachers.filter((t: Teacher) => t.is_active !== false).length,
-    inactive: teachers.filter((t: Teacher) => t.is_active === false).length,
-  }
+  }, [teachers, totalTeachers])
 
   const openTeacherDetail = (teacherId: number) => {
     router.push(`/dashboard/teachers/${teacherId}`)
   }
 
-  const handleDelete = async (teacher: Teacher) => {
+  const handleDelete = (teacher: Teacher) => {
     if (!canDeleteTeacher) {
-      toast.error('You do not have permission to delete teachers')
+      toast.error('You do not have permission to deactivate teachers')
       return
     }
 
-    if (!confirm(`Are you sure you want to delete ${getFullName(teacher)}? Note: Teachers cannot be permanently deleted, only deactivated.`)) {
+    if (!confirm(`Deactivate ${getFullName(teacher)}? They will not be able to login.`)) {
       return
     }
+
     deleteTeacher.mutate(teacher.id)
   }
 
@@ -106,11 +149,10 @@ export default function TeachersPage() {
       toast.error('You do not have permission to edit teachers')
       return
     }
-
     setEditingTeacher(teacher)
   }
 
-  const handleSaveEdit = async () => {
+  const handleSaveEdit = () => {
     if (!canEditTeacher) {
       toast.error('You do not have permission to edit teachers')
       return
@@ -129,61 +171,29 @@ export default function TeachersPage() {
         },
       },
       {
-        onSuccess: () => {
-          setEditingTeacher(null)
-        },
-      }
+        onSuccess: () => setEditingTeacher(null),
+      },
     )
   }
 
-  const handleAddTeacher = async () => {
+  const handleAddTeacher = () => {
     if (!canCreateTeacher) {
       toast.error('You do not have permission to create teachers')
       return
     }
 
     if (!newTeacher.username || !newTeacher.password || !newTeacher.first_name || !newTeacher.last_name) {
-      toast.warning('Please fill in all required fields')
+      toast.warning('Please fill required fields: username, password, first name, last name')
       return
     }
 
     createTeacher.mutate(newTeacher, {
       onSuccess: () => {
         setIsAddingTeacher(false)
-        setNewTeacher({
-          username: '',
-          password: '',
-          first_name: '',
-          last_name: '',
-          email: '',
-          phone: '',
-          is_staff: false,
-        })
+        setNewTeacher(EMPTY_TEACHER_FORM)
       },
     })
   }
-
-  const PaginationControls = () => (
-    <div className="flex justify-center items-center gap-4 mt-8">
-      <button
-        onClick={() => setPage(p => Math.max(p - 1, 1))}
-        disabled={page <= 1}
-        className="btn-secondary"
-      >
-        Previous
-      </button>
-      <span className="text-text-secondary">
-        Page {page} of {totalPages}
-      </span>
-      <button
-        onClick={() => setPage(p => Math.min(p + 1, totalPages))}
-        disabled={page >= totalPages}
-        className="btn-secondary"
-      >
-        Next
-      </button>
-    </div>
-  );
 
   if (isLoading && page === 1) {
     return <LoadingScreen message="Loading teachers..." />
@@ -191,616 +201,526 @@ export default function TeachersPage() {
 
   return (
     <ProtectedRoute>
-      <div className="p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <h1 className="text-4xl font-bold mb-2">
-            <span className="bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent">
-              Teachers Management
-            </span>
-            <span className="text-gray-700">
-              👨‍🏫
-            </span>
-          </h1>
-
-          <p className="text-text-secondary">Manage teacher accounts and permissions</p>
+      <div className="relative min-h-screen p-8">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -top-28 -left-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
+          <div className="absolute top-1/3 -right-16 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-purple-500/15 blur-3xl" />
         </div>
 
-        {/* Statistics Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-          <div className="bg-surface rounded-2xl border border-border p-6 hover:border-primary/50 transition-all hover:shadow-lg hover:shadow-primary/10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center border border-primary/20">
-                <Users className="h-6 w-6 text-primary" />
-              </div>
-              <TrendingUp className="h-5 w-5 text-success" />
-            </div>
-            <p className="text-3xl font-bold mb-1">{stats.total}</p>
-            <p className="text-sm text-text-secondary">Total Teachers</p>
-          </div>
-
-          <div className="bg-surface rounded-2xl border border-border p-6 hover:border-warning/50 transition-all hover:shadow-lg hover:shadow-warning/10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-warning/20 to-warning/5 flex items-center justify-center border border-warning/20">
-                <Shield className="h-6 w-6 text-warning" />
-              </div>
-              <span className="text-xs font-semibold text-text-secondary">
-                On this page
-              </span>
-            </div>
-            <p className="text-3xl font-bold mb-1">{stats.admins}</p>
-            <p className="text-sm text-text-secondary">Administrators</p>
-          </div>
-
-          <div className="bg-surface rounded-2xl border border-border p-6 hover:border-cyan-500/50 transition-all hover:shadow-lg hover:shadow-cyan-500/10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-cyan-500/20 to-cyan-500/5 flex items-center justify-center border border-cyan-500/20">
-                <UserCheck className="h-6 w-6 text-cyan-500" />
-              </div>
-              <span className="text-xs font-semibold text-text-secondary">
-                On this page
-              </span>
-            </div>
-            <p className="text-3xl font-bold mb-1">{stats.active}</p>
-            <p className="text-sm text-text-secondary">Active Accounts</p>
-          </div>
-
-          <div className="bg-surface rounded-2xl border border-border p-6 hover:border-green-500/50 transition-all hover:shadow-lg hover:shadow-green-500/10">
-            <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-gradient-to-br from-green-500/20 to-green-500/5 flex items-center justify-center border border-green-500/20">
-                <UserRoundX className="h-6 w-6 text-green-500" />
-              </div>
-              <span className="text-xs font-semibold text-text-secondary">
-                On this page
-              </span>
-            </div>
-            <p className="text-3xl font-bold mb-1">{stats.inactive}</p>
-            <p className="text-sm text-text-secondary">Inactive Accounts</p>
-          </div>
-        </div>
-
-        {/* Actions Bar */}
-        <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4 mb-6">
-          {/* Search and Filter */}
-          <div className="flex flex-col sm:flex-row items-start sm:items-center gap-3 flex-1 w-full sm:w-auto">
-            <div className="relative flex-1 w-full sm:max-w-md">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-text-secondary" />
-              <input
-                type="text"
-                placeholder="Search teachers (backend)..."
-                value={searchQuery}
-                onChange={(e) => {
-                  setSearchQuery(e.target.value)
-                  setPage(1)
-                }}
-                className="w-full pl-10 pr-4 py-3 bg-surface border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-              />
+        <div className="relative z-10 max-w-7xl mx-auto space-y-6">
+          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+            <div>
+              <h1 className="text-3xl font-bold flex items-center gap-3">
+                <Sparkles className="h-8 w-8 text-primary" />
+                Teachers Control Center
+              </h1>
+              <p className="text-text-secondary mt-1">
+                Advanced teacher accounts, access, and profile operations.
+              </p>
             </div>
 
-            {/* Filter Buttons */}
-            <div className="flex items-center gap-2 overflow-x-auto pb-2 sm:pb-0 w-full sm:w-auto">
-              <button
-                onClick={() => { setFilterType('all'); setPage(1); }}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'all'
-                  ? 'bg-gradient-to-r from-primary to-cyan-500 text-white shadow-lg shadow-primary/20'
-                  : 'bg-surface border border-border hover:border-primary/50'
-                  }`}
-              >
-                All
-              </button>
-              <button
-                onClick={() => { setFilterType('admin'); setPage(1); }}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'admin'
-                  ? 'bg-gradient-to-r from-warning to-orange-500 text-white shadow-lg shadow-warning/20'
-                  : 'bg-surface border border-border hover:border-warning/50'
-                  }`}
-              >
-                Admins
-              </button>
-              <button
-                onClick={() => { setFilterType('teacher'); setPage(1); }}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'teacher'
-                  ? 'bg-gradient-to-r from-success to-green-600 text-white shadow-lg shadow-success/20'
-                  : 'bg-surface border border-border hover:border-success/50'
-                  }`}
-              >
-                Teachers
-              </button>
-              <button
-                onClick={() => { setFilterType('withEmail'); setPage(1); }}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'withEmail'
-                  ? 'bg-gradient-to-r from-cyan-500 to-blue-500 text-white shadow-lg shadow-cyan-500/20'
-                  : 'bg-surface border border-border hover:border-cyan-500/50'
-                  }`}
-              >
-                With Email
-              </button>
-              <button
-                onClick={() => { setFilterType('withPhone'); setPage(1); }}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'withPhone'
-                  ? 'bg-gradient-to-r from-green-500 to-emerald-500 text-white shadow-lg shadow-green-500/20'
-                  : 'bg-surface border border-border hover:border-green-500/50'
-                  }`}
-              >
-                With Phone
-              </button>
-              <button
-                onClick={() => { setFilterType('active'); setPage(1); }}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'active'
-                  ? 'bg-gradient-to-r from-success to-green-600 text-white shadow-lg shadow-success/20'
-                  : 'bg-surface border border-border hover:border-success/50'
-                  }`}
-              >
-                Active
-              </button>
-              <button
-                onClick={() => { setFilterType('inactive'); setPage(1); }}
-                className={`px-4 py-2 rounded-xl text-sm font-semibold whitespace-nowrap transition-all ${filterType === 'inactive'
-                  ? 'bg-gradient-to-r from-error to-red-600 text-white shadow-lg shadow-error/20'
-                  : 'bg-surface border border-border hover:border-error/50'
-                  }`}
-              >
-                Inactive
-              </button>
-            </div>
-          </div>
-
-          {/* View Mode and Add Button */}
-          <div className="flex items-center gap-3 w-full sm:w-auto">
-            {/* View Mode Toggle */}
-            <div className="flex items-center gap-2 bg-surface border border-border rounded-xl p-1">
-              <button
-                onClick={() => setViewMode('grid')}
-                className={`p-2 rounded-lg transition-all ${viewMode === 'grid'
-                  ? 'bg-gradient-to-r from-primary to-cyan-500 text-white shadow-lg'
-                  : 'text-text-secondary hover:bg-background'
-                  }`}
-                title="Grid View"
-              >
-                <Grid className="h-4 w-4" />
-              </button>
-              <button
-                onClick={() => setViewMode('table')}
-                className={`p-2 rounded-lg transition-all ${viewMode === 'table'
-                  ? 'bg-gradient-to-r from-primary to-cyan-500 text-white shadow-lg'
-                  : 'text-text-secondary hover:bg-background'
-                  }`}
-                title="Table View"
-              >
-                <List className="h-4 w-4" />
-              </button>
-            </div>
-
-            {/* Add Button */}
             <button
               onClick={() => setIsAddingTeacher(true)}
               disabled={!canCreateTeacher}
               title={!canCreateTeacher ? 'You do not have permission to create teachers' : undefined}
-              className={`flex items-center gap-2 px-6 py-3 rounded-xl transition-all font-semibold ${
+              className={`px-5 py-3 rounded-xl text-sm font-semibold transition-all border ${
                 canCreateTeacher
-                  ? 'bg-gradient-to-r from-primary to-cyan-500 text-white hover:shadow-xl hover:shadow-primary/30 hover:scale-105'
-                  : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                  ? 'bg-primary text-background border-primary/30 hover:bg-primary/90'
+                  : 'bg-surface/60 text-text-secondary/70 border-white/10 cursor-not-allowed'
               }`}
             >
-              <Plus className="h-5 w-5" />
-              <span className="hidden sm:inline">Add Teacher</span>
-              <span className="sm:hidden">Add</span>
+              <span className="inline-flex items-center gap-2">
+                <Plus className="h-4 w-4" />
+                Add Teacher
+              </span>
             </button>
           </div>
-        </div>
 
-        {/* Grid View */}
-        {viewMode === 'grid' && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {teachers.map((teacher: Teacher) => (
-              <div
-                key={teacher.id}
-                onClick={() => openTeacherDetail(teacher.id)}
-                className="bg-surface border border-border rounded-2xl p-6 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all group cursor-pointer"
-              >
-                {/* Header */}
-                <div className="flex items-start justify-between mb-4">
-                  <div className="flex items-center gap-3">
-                    <div className="h-14 w-14 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold text-lg border-2 border-primary/20">
-                      {getInitials(teacher)}
+          <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Total in System</p>
+              <p className="text-3xl font-bold">{stats.total}</p>
+              <p className="text-xs text-text-secondary mt-1">All pages</p>
+            </div>
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Visible Now</p>
+              <p className="text-3xl font-bold">{stats.visible}</p>
+              <p className="text-xs text-text-secondary mt-1">Current filter</p>
+            </div>
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <p className="text-xs uppercase tracking-wide text-warning mb-2">Admins</p>
+              <p className="text-3xl font-bold">{stats.admins}</p>
+              <p className="text-xs text-text-secondary mt-1">On this page</p>
+            </div>
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <p className="text-xs uppercase tracking-wide text-success mb-2">Active</p>
+              <p className="text-3xl font-bold">{stats.active}</p>
+              <p className="text-xs text-text-secondary mt-1">Can login</p>
+            </div>
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <p className="text-xs uppercase tracking-wide text-error mb-2">Inactive</p>
+              <p className="text-3xl font-bold">{stats.inactive}</p>
+              <p className="text-xs text-text-secondary mt-1">Blocked accounts</p>
+            </div>
+          </div>
+
+          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4 space-y-4">
+            <div className="flex flex-col lg:flex-row lg:items-center gap-3">
+              <div className="relative flex-1">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-text-secondary" />
+                <input
+                  type="text"
+                  placeholder="Search teachers by name, username, email, phone..."
+                  value={searchQuery}
+                  onChange={(event) => {
+                    setSearchQuery(event.target.value)
+                    setPage(1)
+                  }}
+                  className="w-full pl-10 pr-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
+                />
+              </div>
+
+              <div className="inline-flex items-center rounded-xl border border-white/15 bg-background/50 p-1">
+                <button
+                  onClick={() => setViewMode('grid')}
+                  className={`h-9 w-9 rounded-lg flex items-center justify-center transition-colors ${
+                    viewMode === 'grid'
+                      ? 'bg-primary text-background'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-background/70'
+                  }`}
+                  title="Grid view"
+                >
+                  <Grid className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`h-9 w-9 rounded-lg flex items-center justify-center transition-colors ${
+                    viewMode === 'table'
+                      ? 'bg-primary text-background'
+                      : 'text-text-secondary hover:text-text-primary hover:bg-background/70'
+                  }`}
+                  title="Table view"
+                >
+                  <List className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {FILTER_OPTIONS.map((filter) => (
+                <button
+                  key={filter.key}
+                  onClick={() => {
+                    setFilterType(filter.key)
+                    setPage(1)
+                  }}
+                  className={`px-3 py-2 rounded-xl border text-sm whitespace-nowrap transition-colors ${
+                    filterType === filter.key
+                      ? filter.activeClass
+                      : 'bg-background/60 border-white/10 text-text-secondary hover:text-text-primary hover:bg-background/80'
+                  }`}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {viewMode === 'grid' && (
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-5">
+              {teachers.map((teacher) => (
+                <div
+                  key={teacher.id}
+                  onClick={() => openTeacherDetail(teacher.id)}
+                  className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5 hover:border-primary/40 transition-colors cursor-pointer"
+                >
+                  <div className="flex items-start justify-between gap-3 mb-4">
+                    <div className="flex items-center gap-3 min-w-0">
+                      <div className="h-12 w-12 rounded-xl bg-primary/15 border border-primary/20 flex items-center justify-center text-primary font-bold text-sm shrink-0">
+                        {getInitials(teacher)}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="font-semibold truncate">{getFullName(teacher)}</p>
+                        <p className="text-xs text-text-secondary truncate">@{teacher.username}</p>
+                      </div>
                     </div>
-                    <div>
-                      <h3 className="font-bold text-lg">{getFullName(teacher)}</h3>
-                      <p className="text-sm text-text-secondary">@{teacher.username}</p>
+                    <div className="flex flex-col items-end gap-1">
+                      <span className={`px-2.5 py-1 rounded-md text-[11px] border ${teacher.is_staff ? 'bg-warning/10 text-warning border-warning/30' : 'bg-success/10 text-success border-success/30'}`}>
+                        {teacher.is_staff ? 'Admin' : 'Teacher'}
+                      </span>
+                      <span className={`px-2.5 py-1 rounded-md text-[11px] border ${teacher.is_active === false ? 'bg-error/10 text-error border-error/30' : 'bg-primary/10 text-primary border-primary/30'}`}>
+                        {teacher.is_active === false ? 'Inactive' : 'Active'}
+                      </span>
                     </div>
                   </div>
-                  <div className="flex flex-col items-end gap-1">
-                    <span
-                      className={`px-3 py-1 rounded-lg text-xs font-semibold ${teacher.is_staff
-                        ? 'bg-gradient-to-r from-warning/20 to-orange-500/20 text-warning border border-warning/30'
-                        : 'bg-gradient-to-r from-success/20 to-green-500/20 text-success border border-success/30'
-                        }`}
+
+                  <div className="space-y-2 mb-4 text-sm">
+                    <div className="flex items-center gap-2 text-text-secondary">
+                      <Mail className="h-4 w-4" />
+                      <span className="truncate">{teacher.email || 'No email'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-text-secondary">
+                      <Phone className="h-4 w-4" />
+                      <span>{teacher.phone || 'No phone'}</span>
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-3 gap-2 pt-4 border-t border-white/10">
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        openTeacherDetail(teacher.id)
+                      }}
+                      className="px-3 py-2 rounded-lg border border-white/10 bg-background/60 text-xs font-semibold hover:bg-background/80"
                     >
-                      {teacher.is_staff ? '🛡️ Admin' : '👨‍🏫 Teacher'}
-                    </span>
-                    <span
-                      className={`px-3 py-1 rounded-lg text-[11px] font-semibold border ${
-                        teacher.is_active === false
-                          ? 'bg-error/10 text-error border-error/30'
-                          : 'bg-primary/10 text-primary border-primary/30'
+                      <span className="inline-flex items-center justify-center gap-1 w-full">
+                        <Eye className="h-3.5 w-3.5" />
+                        Open
+                      </span>
+                    </button>
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleEdit(teacher)
+                      }}
+                      disabled={!canEditTeacher}
+                      title={!canEditTeacher ? 'You do not have permission to edit teachers' : undefined}
+                      className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
+                        canEditTeacher
+                          ? 'border-primary/30 bg-primary/10 text-primary hover:bg-primary/20'
+                          : 'border-white/10 bg-background/60 text-text-secondary/60 cursor-not-allowed'
                       }`}
                     >
-                      {teacher.is_active === false ? 'Inactive' : 'Active'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Contact Info */}
-                <div className="space-y-2 mb-4">
-                  <div className="flex items-center gap-2 text-sm">
-                    <Mail className="h-4 w-4 text-text-secondary" />
-                    <span className="text-text-secondary truncate">
-                      {teacher.email || 'No email'}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-text-secondary" />
-                    <span className="text-text-secondary">
-                      {teacher.phone || 'No phone'}
-                    </span>
-                  </div>
-                </div>
-
-                {/* Actions */}
-                <div className="flex items-center gap-2 pt-4 border-t border-border">
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      openTeacherDetail(teacher.id)
-                    }}
-                    className="flex-1 px-4 py-2 bg-background hover:bg-primary/10 rounded-xl text-sm font-semibold transition-all hover:border-primary/50 border border-border flex items-center justify-center gap-2"
-                  >
-                    <Eye className="h-4 w-4" />
-                    Open
-                  </button>
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      handleEdit(teacher)
-                    }}
-                    disabled={!canEditTeacher}
-                    title={!canEditTeacher ? 'You do not have permission to edit teachers' : undefined}
-                    className={`px-4 py-2 rounded-xl transition-all ${
-                      canEditTeacher
-                        ? 'bg-primary/10 hover:bg-primary/20'
-                        : 'bg-background border border-border text-text-secondary/60 cursor-not-allowed'
-                    }`}
-                  >
-                    <Edit className={`h-4 w-4 ${canEditTeacher ? 'text-primary' : 'text-text-secondary/60'}`} />
-                  </button>
-                  <button
-                    onClick={(event) => {
-                      event.stopPropagation()
-                      handleDelete(teacher)
-                    }}
-                    disabled={!canDeleteTeacher || deleteTeacher.isPending}
-                    title={!canDeleteTeacher ? 'You do not have permission to delete teachers' : undefined}
-                    className={`px-4 py-2 rounded-xl transition-all ${
-                      canDeleteTeacher
-                        ? 'bg-error/10 hover:bg-error/20'
-                        : 'bg-background border border-border text-text-secondary/60 cursor-not-allowed'
-                    } disabled:opacity-50`}
-                  >
-                    <Trash2 className={`h-4 w-4 ${canDeleteTeacher ? 'text-error' : 'text-text-secondary/60'}`} />
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-
-        {/* Table View */}
-        {viewMode === 'table' && (
-          <div className="bg-surface rounded-2xl border border-border overflow-hidden">
-            <div className="overflow-x-auto">
-              <table className="w-full">
-                <thead>
-                  <tr className="border-b border-border bg-background/50">
-                    <th className="text-left py-4 px-6 text-sm font-semibold">Teacher</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold">Username</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold">Email</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold">Phone</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold">Role</th>
-                    <th className="text-left py-4 px-6 text-sm font-semibold">Status</th>
-                    <th className="text-right py-4 px-6 text-sm font-semibold">Actions</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {teachers.map((teacher: Teacher) => (
-                    <tr
-                      key={teacher.id}
-                      className="border-b border-border hover:bg-background/50 transition-colors"
+                      <span className="inline-flex items-center justify-center gap-1 w-full">
+                        <Edit className="h-3.5 w-3.5" />
+                        Edit
+                      </span>
+                    </button>
+                    <button
+                      onClick={(event) => {
+                        event.stopPropagation()
+                        handleDelete(teacher)
+                      }}
+                      disabled={!canDeleteTeacher || deleteTeacher.isPending}
+                      title={!canDeleteTeacher ? 'You do not have permission to deactivate teachers' : undefined}
+                      className={`px-3 py-2 rounded-lg text-xs font-semibold border ${
+                        canDeleteTeacher
+                          ? 'border-error/30 bg-error/10 text-error hover:bg-error/20'
+                          : 'border-white/10 bg-background/60 text-text-secondary/60 cursor-not-allowed'
+                      } disabled:opacity-50`}
                     >
-                      <td className="py-4 px-6">
-                        <div className="flex items-center gap-3">
-                          <div className="h-10 w-10 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold border border-primary/20">
-                            {getInitials(teacher)}
-                          </div>
-                          <div>
-                            <p className="font-medium">{getFullName(teacher)}</p>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="py-4 px-6 text-text-secondary">@{teacher.username}</td>
-                      <td className="py-4 px-6 text-text-secondary">{teacher.email || '-'}</td>
-                      <td className="py-4 px-6 text-text-secondary">{teacher.phone || '-'}</td>
-                      <td className="py-4 px-6">
-                        <span
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold ${teacher.is_staff
-                            ? 'bg-warning/20 text-warning border border-warning/30'
-                            : 'bg-success/20 text-success border border-success/30'
-                            }`}
-                        >
-                          {teacher.is_staff ? 'Admin' : 'Teacher'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6">
-                        <span
-                          className={`px-3 py-1 rounded-lg text-xs font-semibold ${
-                            teacher.is_active === false
-                              ? 'bg-error/10 text-error border border-error/30'
-                              : 'bg-primary/10 text-primary border border-primary/30'
-                          }`}
-                        >
-                          {teacher.is_active === false ? 'Inactive' : 'Active'}
-                        </span>
-                      </td>
-                      <td className="py-4 px-6">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => openTeacherDetail(teacher.id)}
-                            className="p-2 hover:bg-background rounded-lg transition-colors"
-                          >
-                            <Eye className="h-4 w-4 text-cyan-500" />
-                          </button>
-                          <button
-                            onClick={() => handleEdit(teacher)}
-                            disabled={!canEditTeacher}
-                            title={!canEditTeacher ? 'You do not have permission to edit teachers' : undefined}
-                            className={`p-2 rounded-lg transition-colors ${
-                              canEditTeacher
-                                ? 'hover:bg-background'
-                                : 'text-text-secondary/60 cursor-not-allowed'
-                            }`}
-                          >
-                            <Edit className={`h-4 w-4 ${canEditTeacher ? 'text-primary' : 'text-text-secondary/60'}`} />
-                          </button>
-                          <button
-                            onClick={() => handleDelete(teacher)}
-                            disabled={!canDeleteTeacher || deleteTeacher.isPending}
-                            title={!canDeleteTeacher ? 'You do not have permission to delete teachers' : undefined}
-                            className={`p-2 rounded-lg transition-colors ${
-                              canDeleteTeacher
-                                ? 'hover:bg-background'
-                                : 'text-text-secondary/60 cursor-not-allowed'
-                            } disabled:opacity-50`}
-                          >
-                            <Trash2 className={`h-4 w-4 ${canDeleteTeacher ? 'text-error' : 'text-text-secondary/60'}`} />
-                          </button>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+                      <span className="inline-flex items-center justify-center gap-1 w-full">
+                        <Trash2 className="h-3.5 w-3.5" />
+                        Stop
+                      </span>
+                    </button>
+                  </div>
+                </div>
+              ))}
 
               {teachers.length === 0 && (
-                <div className="text-center py-12">
-                  <div className="h-16 w-16 rounded-full bg-primary/10 flex items-center justify-center mx-auto mb-4">
-                    <Users className="h-8 w-8 text-primary" />
-                  </div>
-                  <p className="text-text-secondary text-lg mb-2 font-semibold">No teachers found</p>
-                  <p className="text-text-secondary text-sm">
-                    {searchQuery
-                      ? 'Try adjusting your search query'
-                      : 'Add your first teacher to get started'}
+                <div className="col-span-full bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl py-14 text-center">
+                  <Users className="h-10 w-10 text-text-secondary/60 mx-auto mb-3" />
+                  <p className="font-semibold">No teachers found</p>
+                  <p className="text-sm text-text-secondary mt-1">
+                    {searchQuery ? 'Try a different keyword or filter.' : 'Create your first teacher to start.'}
                   </p>
                 </div>
               )}
             </div>
-          </div>
-        )}
+          )}
 
-        {totalPages > 1 && <PaginationControls />}
+          {viewMode === 'table' && (
+            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl overflow-hidden">
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-white/10 bg-background/40 text-xs uppercase tracking-wide text-text-secondary">
+                      <th className="text-left py-3 px-4">Teacher</th>
+                      <th className="text-left py-3 px-4">Username</th>
+                      <th className="text-left py-3 px-4">Email</th>
+                      <th className="text-left py-3 px-4">Phone</th>
+                      <th className="text-left py-3 px-4">Role</th>
+                      <th className="text-left py-3 px-4">Status</th>
+                      <th className="text-right py-3 px-4">Actions</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teachers.map((teacher) => (
+                      <tr key={teacher.id} className="border-b border-white/10 hover:bg-background/30 transition-colors">
+                        <td className="py-3 px-4">
+                          <div className="flex items-center gap-3">
+                            <div className="h-9 w-9 rounded-lg bg-primary/10 border border-primary/20 flex items-center justify-center text-primary text-xs font-bold">
+                              {getInitials(teacher)}
+                            </div>
+                            <span className="font-medium">{getFullName(teacher)}</span>
+                          </div>
+                        </td>
+                        <td className="py-3 px-4 text-text-secondary">@{teacher.username}</td>
+                        <td className="py-3 px-4 text-text-secondary">{teacher.email || '-'}</td>
+                        <td className="py-3 px-4 text-text-secondary">{teacher.phone || '-'}</td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-md text-[11px] border ${teacher.is_staff ? 'bg-warning/10 text-warning border-warning/30' : 'bg-success/10 text-success border-success/30'}`}>
+                            {teacher.is_staff ? 'Admin' : 'Teacher'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <span className={`px-2.5 py-1 rounded-md text-[11px] border ${teacher.is_active === false ? 'bg-error/10 text-error border-error/30' : 'bg-primary/10 text-primary border-primary/30'}`}>
+                            {teacher.is_active === false ? 'Inactive' : 'Active'}
+                          </span>
+                        </td>
+                        <td className="py-3 px-4">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => openTeacherDetail(teacher.id)}
+                              className="h-8 w-8 rounded-lg border border-white/10 bg-background/50 hover:bg-background/80 flex items-center justify-center"
+                              title="Open"
+                            >
+                              <Eye className="h-4 w-4 text-primary" />
+                            </button>
+                            <button
+                              onClick={() => handleEdit(teacher)}
+                              disabled={!canEditTeacher}
+                              title={!canEditTeacher ? 'You do not have permission to edit teachers' : 'Edit'}
+                              className={`h-8 w-8 rounded-lg border flex items-center justify-center ${
+                                canEditTeacher
+                                  ? 'border-primary/20 bg-primary/10 hover:bg-primary/20 text-primary'
+                                  : 'border-white/10 bg-background/50 text-text-secondary/60 cursor-not-allowed'
+                              }`}
+                            >
+                              <Edit className="h-4 w-4" />
+                            </button>
+                            <button
+                              onClick={() => handleDelete(teacher)}
+                              disabled={!canDeleteTeacher || deleteTeacher.isPending}
+                              title={!canDeleteTeacher ? 'You do not have permission to deactivate teachers' : 'Deactivate'}
+                              className={`h-8 w-8 rounded-lg border flex items-center justify-center ${
+                                canDeleteTeacher
+                                  ? 'border-error/20 bg-error/10 hover:bg-error/20 text-error'
+                                  : 'border-white/10 bg-background/50 text-text-secondary/60 cursor-not-allowed'
+                              } disabled:opacity-50`}
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
 
-        {/* Add Teacher Modal */}
-        {isAddingTeacher && canCreateTeacher && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-surface rounded-2xl p-6 max-w-md w-full border border-border shadow-2xl">
-              <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent">
-                Add New Teacher
-              </h2>
-              <div className="space-y-4">
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Username *</label>
-                  <input
-                    type="text"
-                    value={newTeacher.username}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, username: e.target.value })}
-                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                    placeholder="teacher_username"
-                  />
+              {teachers.length === 0 && (
+                <div className="text-center py-14 text-text-secondary">
+                  No teachers match your current search/filter.
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Password *</label>
-                  <input
-                    type="password"
-                    value={newTeacher.password}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, password: e.target.value })}
-                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                    placeholder="********"
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
+              )}
+            </div>
+          )}
+
+          {totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3">
+              <button
+                onClick={() => setPage((current) => Math.max(current - 1, 1))}
+                disabled={page <= 1}
+                className="px-4 py-2 rounded-xl border border-white/15 bg-surface/70 backdrop-blur-xl disabled:opacity-40"
+              >
+                Previous
+              </button>
+              <span className="text-sm text-text-secondary">
+                Page {page} / {totalPages}
+              </span>
+              <button
+                onClick={() => setPage((current) => Math.min(current + 1, totalPages))}
+                disabled={page >= totalPages}
+                className="px-4 py-2 rounded-xl border border-white/15 bg-surface/70 backdrop-blur-xl disabled:opacity-40"
+              >
+                Next
+              </button>
+            </div>
+          )}
+
+          {isAddingTeacher && canCreateTeacher && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-lg bg-surface/80 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
+                <h2 className="text-xl font-bold mb-5">Create Teacher Account</h2>
+                <div className="space-y-4">
                   <div>
-                    <label className="block text-sm font-semibold mb-2">First Name *</label>
+                    <label className="block text-sm font-medium mb-2">Username *</label>
                     <input
                       type="text"
-                      value={newTeacher.first_name}
-                      onChange={(e) => setNewTeacher({ ...newTeacher, first_name: e.target.value })}
-                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                      value={newTeacher.username}
+                      onChange={(event) => setNewTeacher({ ...newTeacher, username: event.target.value })}
+                      className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      placeholder="teacher_username"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Last Name *</label>
+                    <label className="block text-sm font-medium mb-2">Password *</label>
                     <input
-                      type="text"
-                      value={newTeacher.last_name}
-                      onChange={(e) => setNewTeacher({ ...newTeacher, last_name: e.target.value })}
-                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                      type="password"
+                      value={newTeacher.password}
+                      onChange={(event) => setNewTeacher({ ...newTeacher, password: event.target.value })}
+                      className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      placeholder="********"
                     />
                   </div>
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={newTeacher.email}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, email: e.target.value })}
-                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                    placeholder="teacher@example.com"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Phone</label>
-                  <input
-                    type="tel"
-                    value={newTeacher.phone}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, phone: e.target.value })}
-                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                    placeholder="+998901234567"
-                  />
-                </div>
-                <label className="flex items-center gap-3 p-3 bg-background border border-border rounded-xl cursor-pointer">
-                  <input
-                    type="checkbox"
-                    checked={newTeacher.is_staff}
-                    onChange={(e) => setNewTeacher({ ...newTeacher, is_staff: e.target.checked })}
-                    className="h-4 w-4"
-                  />
-                  <div>
-                    <p className="text-sm font-semibold">Grant staff/admin access</p>
-                    <p className="text-xs text-text-secondary">Enable this only if this teacher should manage admin pages.</p>
+
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">First Name *</label>
+                      <input
+                        type="text"
+                        value={newTeacher.first_name}
+                        onChange={(event) => setNewTeacher({ ...newTeacher, first_name: event.target.value })}
+                        className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Last Name *</label>
+                      <input
+                        type="text"
+                        value={newTeacher.last_name}
+                        onChange={(event) => setNewTeacher({ ...newTeacher, last_name: event.target.value })}
+                        className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
                   </div>
-                </label>
-                <div className="flex gap-3 pt-4">
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Email</label>
+                    <input
+                      type="email"
+                      value={newTeacher.email}
+                      onChange={(event) => setNewTeacher({ ...newTeacher, email: event.target.value })}
+                      className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      placeholder="teacher@example.com"
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Phone</label>
+                    <input
+                      type="tel"
+                      value={newTeacher.phone}
+                      onChange={(event) => setNewTeacher({ ...newTeacher, phone: event.target.value })}
+                      className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      placeholder="+998901234567"
+                    />
+                  </div>
+
+                  <label className="flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-background/50">
+                    <input
+                      type="checkbox"
+                      checked={newTeacher.is_staff}
+                      onChange={(event) => setNewTeacher({ ...newTeacher, is_staff: event.target.checked })}
+                    />
+                    <div>
+                      <p className="text-sm font-medium">Grant staff/admin access</p>
+                      <p className="text-xs text-text-secondary">Enable only if this user should access admin modules.</p>
+                    </div>
+                  </label>
+                </div>
+
+                <div className="grid grid-cols-2 gap-3 mt-6">
                   <button
                     onClick={handleAddTeacher}
                     disabled={!canCreateTeacher || createTeacher.isPending}
-                    className={`flex-1 px-6 py-3 rounded-xl transition-all font-semibold ${
-                      canCreateTeacher && !createTeacher.isPending
-                        ? 'bg-gradient-to-r from-primary to-cyan-500 text-white hover:shadow-xl hover:shadow-primary/30'
-                        : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
-                    }`}
+                    className="px-4 py-3 rounded-xl bg-primary text-background font-semibold disabled:opacity-50"
                   >
                     {createTeacher.isPending ? 'Creating...' : 'Create Teacher'}
                   </button>
                   <button
                     onClick={() => {
                       setIsAddingTeacher(false)
-                      setNewTeacher({
-                        username: '',
-                        password: '',
-                        first_name: '',
-                        last_name: '',
-                        email: '',
-                        phone: '',
-                        is_staff: false,
-                      })
+                      setNewTeacher(EMPTY_TEACHER_FORM)
                     }}
-                    className="flex-1 px-6 py-3 bg-background border border-border rounded-xl hover:bg-border transition-all font-semibold"
+                    className="px-4 py-3 rounded-xl border border-white/15 bg-background/60 font-semibold"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {/* Edit Modal */}
-        {editingTeacher && canEditTeacher && (
-          <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-surface rounded-2xl p-6 max-w-md w-full border border-border shadow-2xl">
-              <h2 className="text-2xl font-bold mb-6 bg-gradient-to-r from-primary to-cyan-500 bg-clip-text text-transparent">
-                Edit Teacher
-              </h2>
-              <div className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
+          {editingTeacher && canEditTeacher && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-lg bg-surface/80 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
+                <h2 className="text-xl font-bold mb-5">Edit Teacher</h2>
+
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="block text-sm font-medium mb-2">First Name</label>
+                      <input
+                        type="text"
+                        value={editingTeacher.first_name}
+                        onChange={(event) =>
+                          setEditingTeacher({ ...editingTeacher, first_name: event.target.value })
+                        }
+                        className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-2">Last Name</label>
+                      <input
+                        type="text"
+                        value={editingTeacher.last_name}
+                        onChange={(event) =>
+                          setEditingTeacher({ ...editingTeacher, last_name: event.target.value })
+                        }
+                        className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
+                      />
+                    </div>
+                  </div>
+
                   <div>
-                    <label className="block text-sm font-semibold mb-2">First Name</label>
+                    <label className="block text-sm font-medium mb-2">Email</label>
                     <input
-                      type="text"
-                      value={editingTeacher.first_name}
-                      onChange={(e) =>
-                        setEditingTeacher({ ...editingTeacher, first_name: e.target.value })
+                      type="email"
+                      value={editingTeacher.email}
+                      onChange={(event) =>
+                        setEditingTeacher({ ...editingTeacher, email: event.target.value })
                       }
-                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                      className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                   </div>
+
                   <div>
-                    <label className="block text-sm font-semibold mb-2">Last Name</label>
+                    <label className="block text-sm font-medium mb-2">Phone</label>
                     <input
-                      type="text"
-                      value={editingTeacher.last_name}
-                      onChange={(e) =>
-                        setEditingTeacher({ ...editingTeacher, last_name: e.target.value })
+                      type="tel"
+                      value={editingTeacher.phone || ''}
+                      onChange={(event) =>
+                        setEditingTeacher({ ...editingTeacher, phone: event.target.value })
                       }
-                      className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
+                      className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
                   </div>
                 </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Email</label>
-                  <input
-                    type="email"
-                    value={editingTeacher.email}
-                    onChange={(e) =>
-                      setEditingTeacher({ ...editingTeacher, email: e.target.value })
-                    }
-                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                  />
-                </div>
-                <div>
-                  <label className="block text-sm font-semibold mb-2">Phone</label>
-                  <input
-                    type="tel"
-                    value={editingTeacher.phone || ''}
-                    onChange={(e) =>
-                      setEditingTeacher({ ...editingTeacher, phone: e.target.value })
-                    }
-                    className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/50 focus:border-primary transition-all"
-                  />
-                </div>
-                <div className="flex gap-3 pt-4">
+
+                <div className="grid grid-cols-2 gap-3 mt-6">
                   <button
                     onClick={handleSaveEdit}
                     disabled={!canEditTeacher || updateTeacher.isPending}
-                    className={`flex-1 px-6 py-3 rounded-xl transition-all font-semibold ${
-                      canEditTeacher && !updateTeacher.isPending
-                        ? 'bg-gradient-to-r from-primary to-cyan-500 text-white hover:shadow-xl hover:shadow-primary/30'
-                        : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
-                    }`}
+                    className="px-4 py-3 rounded-xl bg-primary text-background font-semibold disabled:opacity-50"
                   >
                     {updateTeacher.isPending ? 'Saving...' : 'Save Changes'}
                   </button>
                   <button
                     onClick={() => setEditingTeacher(null)}
-                    className="flex-1 px-6 py-3 bg-background border border-border rounded-xl hover:bg-border transition-all font-semibold"
+                    className="px-4 py-3 rounded-xl border border-white/15 bg-background/60 font-semibold"
                   >
                     Cancel
                   </button>
                 </div>
               </div>
             </div>
-          </div>
-        )}
-
+          )}
+        </div>
       </div>
     </ProtectedRoute>
   )

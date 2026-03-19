@@ -116,6 +116,10 @@ export default function DashboardLayout({
 
   return (
     <div className="relative flex h-screen overflow-hidden" key={`${theme}-${language}-${currency}`}>
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-20 left-8 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute right-0 top-1/4 h-72 w-72 rounded-full bg-success/15 blur-3xl" />
+      </div>
       {showSidebar && (
         <Sidebar
           collapsed={isSidebarCollapsed}
@@ -138,7 +142,7 @@ export default function DashboardLayout({
         }`}
       >
         {/* Top Bar with Search, Inbox, AI Mode, and Date Calendar */}
-        <div className="h-16 border-b border-border bg-surface flex items-center justify-between px-4 md:px-6 gap-4">
+        <div className="glass-panel-strong h-16 border-b border-border flex items-center justify-between px-4 md:px-6 gap-4">
           {/* Left: Global Search */}
           <div className="flex flex-1 items-center gap-3">
             {showSidebar && (
@@ -166,7 +170,7 @@ export default function DashboardLayout({
           </div>
         </div>
 
-        <main className="flex-1 overflow-y-auto bg-background">
+        <main className="relative z-10 flex-1 overflow-y-auto bg-background/60">
           {content}
         </main>
       </div>

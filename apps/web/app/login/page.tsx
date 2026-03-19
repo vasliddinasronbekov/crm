@@ -38,30 +38,32 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-background">
-      <div className="w-full max-w-md p-8">
-        {/* Logo and Title */}
-        <div className="text-center mb-8">
-          <div className="flex justify-center items-center gap-2 mb-4">
-            <span className="text-4xl">✨</span>
-            <h1 className="text-3xl font-bold text-primary">EDUOS</h1>
-          </div>
-          <p className="text-text-secondary">
-            Sign in to your administrator account
-          </p>
-        </div>
+    <div className="relative flex min-h-screen items-center justify-center overflow-hidden px-4 py-10">
+      <div className="pointer-events-none absolute inset-0">
+        <div className="absolute -top-16 -left-16 h-72 w-72 rounded-full bg-primary/30 blur-3xl" />
+        <div className="absolute right-0 top-1/4 h-72 w-72 rounded-full bg-success/20 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-warning/20 blur-3xl" />
+      </div>
 
-        {/* Login Form */}
-        <div className="card">
+      <div className="relative z-10 w-full max-w-md">
+        <div className="glass-panel-strong rounded-3xl p-8 sm:p-10">
+          <div className="mb-8 text-center">
+            <div className="mb-4 flex items-center justify-center gap-2">
+              <span className="text-4xl">✨</span>
+              <h1 className="text-3xl font-bold text-primary">EDUOS</h1>
+            </div>
+            <p className="text-text-secondary">Sign in to your administrator account</p>
+          </div>
+
           <form onSubmit={handleSubmit} className="space-y-6">
             {error && (
-              <div className="bg-error/10 border border-error/20 text-error px-4 py-3 rounded-xl text-sm">
+              <div className="rounded-xl border border-error/30 bg-error/10 px-4 py-3 text-sm text-error">
                 {error}
               </div>
             )}
 
             <div>
-              <label htmlFor="username" className="block text-sm font-medium mb-2">
+              <label htmlFor="username" className="mb-2 block text-sm font-medium">
                 Username
               </label>
               <input
@@ -70,7 +72,7 @@ export default function LoginPage() {
                 autoComplete="username"
                 value={username}
                 onChange={(e) => setUsername(e.target.value)}
-                className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors"
+                className="glass-input w-full rounded-xl px-4 py-3 focus:outline-none"
                 placeholder="Enter your username"
                 required
                 disabled={isLoading}
@@ -78,7 +80,7 @@ export default function LoginPage() {
             </div>
 
             <div>
-              <label htmlFor="password" className="block text-sm font-medium mb-2">
+              <label htmlFor="password" className="mb-2 block text-sm font-medium">
                 Password
               </label>
               <input
@@ -87,7 +89,7 @@ export default function LoginPage() {
                 autoComplete="current-password"
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                className="w-full px-4 py-3 bg-background border border-border rounded-xl focus:outline-none focus:border-primary transition-colors"
+                className="glass-input w-full rounded-xl px-4 py-3 focus:outline-none"
                 placeholder="Enter your password"
                 required
                 disabled={isLoading}
@@ -97,11 +99,11 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={isLoading}
-              className="btn-primary w-full disabled:opacity-50 disabled:cursor-not-allowed"
+              className="btn-primary w-full disabled:cursor-not-allowed disabled:opacity-50"
             >
               {isLoading ? (
                 <div className="flex items-center justify-center gap-2">
-                  <div className="w-5 h-5 border-2 border-background border-t-transparent rounded-full animate-spin" />
+                  <div className="h-5 w-5 animate-spin rounded-full border-2 border-background border-t-transparent" />
                   <span>Signing in...</span>
                 </div>
               ) : (
@@ -113,14 +115,13 @@ export default function LoginPage() {
           <div className="mt-6 text-center">
             <p className="text-sm text-text-secondary">
               Forgot your password?{' '}
-              <button className="text-primary hover:underline">
+              <button className="font-medium text-primary hover:underline">
                 Contact administrator
               </button>
             </p>
           </div>
         </div>
 
-        {/* Footer */}
         <div className="mt-8 text-center text-sm text-text-secondary">
           <p>EduVoice Platform © 2025</p>
           <p className="mt-2">Version 1.0.0</p>
