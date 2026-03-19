@@ -7,6 +7,7 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
+  Building2,
   CheckCircle2,
   Clock3,
   CreditCard,
@@ -24,6 +25,7 @@ import {
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import {
   useCreateExpense,
   useCreatePayment,
@@ -53,6 +55,16 @@ type PaymentStatus = 'paid' | 'pending' | 'failed'
 const FINANCE_QUICK_FOCUS_STORAGE_KEY = 'dashboard.finance.quick_focus'
 const FINANCE_QUICK_SEARCH_STORAGE_KEY = 'dashboard.finance.quick_search'
 const FINANCE_ACTIVE_TAB_STORAGE_KEY = 'dashboard.finance.active_tab'
+
+const getScopedStorageKey = (
+  baseKey: string,
+  userId: number | null | undefined,
+  branchId: number | null,
+): string => {
+  const userScope = userId ?? 'anonymous'
+  const branchScope = branchId ?? 'all'
+  return `${baseKey}:u${userScope}:b${branchScope}`
+}
 
 type PaymentStatusMetric = {
   status: PaymentStatus
@@ -200,6 +212,7 @@ export default function FinanceDashboard() {
   const searchParams = useSearchParams()
   const { currency, formatCurrencyFromMinor, fromSelectedCurrency, toSelectedCurrency } = useSettings()
   const { user } = useAuth()
+  const { branches, activeBranchId, isGlobalScope } = useBranchContext()
   const permissionState = usePermissions(user)
   const canCreatePayment = permissionState.hasPermission('payments.record')
   const canCreateExpense = permissionState.hasPermission('expenses.create')
@@ -216,6 +229,29 @@ export default function FinanceDashboard() {
   const [refreshing, setRefreshing] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
+
+  const scopedStorageKeys = useMemo(
+    () => ({
+      activeTab: getScopedStorageKey(FINANCE_ACTIVE_TAB_STORAGE_KEY, user?.id, activeBranchId),
+      quickFocus: getScopedStorageKey(FINANCE_QUICK_FOCUS_STORAGE_KEY, user?.id, activeBranchId),
+      quickSearch: getScopedStorageKey(FINANCE_QUICK_SEARCH_STORAGE_KEY, user?.id, activeBranchId),
+    }),
+    [activeBranchId, user?.id],
+  )
+
+  const activeBranchName = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'All branches' : 'Your branch scope'
+    }
+    return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+  }, [activeBranchId, branches, isGlobalScope])
+
+  const branchScopeDescription = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'Cross-branch dataset' : 'Current branch scope'
+    }
+    return activeBranchName
+  }, [activeBranchId, activeBranchName, isGlobalScope])
 
   const [paymentForm, setPaymentForm] = useState({
     by_user: '',
@@ -314,18 +350,23 @@ export default function FinanceDashboard() {
   const queryFocus = searchParams.get('focus')
 
   useEffect(() => {
+    setHasLoadedQuickPrefs(false)
     try {
-      const storedTab = localStorage.getItem(FINANCE_ACTIVE_TAB_STORAGE_KEY)
+      setActiveTab('overview')
+      setQuickFocus('all')
+      setQuickSearch('')
+
+      const storedTab = localStorage.getItem(scopedStorageKeys.activeTab)
       if (storedTab && ['overview', 'receivables', 'operations'].includes(storedTab)) {
         setActiveTab(storedTab as FinanceTab)
       }
 
-      const storedFocus = localStorage.getItem(FINANCE_QUICK_FOCUS_STORAGE_KEY)
+      const storedFocus = localStorage.getItem(scopedStorageKeys.quickFocus)
       if (storedFocus && ['all', 'cashflow', 'risk', 'payroll'].includes(storedFocus)) {
         setQuickFocus(storedFocus as FinanceQuickFocus)
       }
 
-      const storedSearch = localStorage.getItem(FINANCE_QUICK_SEARCH_STORAGE_KEY)
+      const storedSearch = localStorage.getItem(scopedStorageKeys.quickSearch)
       if (storedSearch) {
         setQuickSearch(storedSearch)
       }
@@ -334,18 +375,30 @@ export default function FinanceDashboard() {
     } finally {
       setHasLoadedQuickPrefs(true)
     }
-  }, [])
+  }, [
+    scopedStorageKeys.activeTab,
+    scopedStorageKeys.quickFocus,
+    scopedStorageKeys.quickSearch,
+  ])
 
   useEffect(() => {
     if (!hasLoadedQuickPrefs) return
     try {
-      localStorage.setItem(FINANCE_ACTIVE_TAB_STORAGE_KEY, activeTab)
-      localStorage.setItem(FINANCE_QUICK_FOCUS_STORAGE_KEY, quickFocus)
-      localStorage.setItem(FINANCE_QUICK_SEARCH_STORAGE_KEY, quickSearch)
+      localStorage.setItem(scopedStorageKeys.activeTab, activeTab)
+      localStorage.setItem(scopedStorageKeys.quickFocus, quickFocus)
+      localStorage.setItem(scopedStorageKeys.quickSearch, quickSearch)
     } catch {
       // Ignore storage write failures.
     }
-  }, [activeTab, quickFocus, quickSearch, hasLoadedQuickPrefs])
+  }, [
+    activeTab,
+    hasLoadedQuickPrefs,
+    quickFocus,
+    quickSearch,
+    scopedStorageKeys.activeTab,
+    scopedStorageKeys.quickFocus,
+    scopedStorageKeys.quickSearch,
+  ])
 
   useEffect(() => {
     if (!availableTabs.includes(activeTab)) {
@@ -802,6 +855,13 @@ export default function FinanceDashboard() {
     })
   }, [operationCards, permissionState, quickFocus, quickSearch])
 
+  const financeScopeText = branchScopeDescription.toLowerCase()
+  const trendEmptyMessage = `No financial summary history is available in ${financeScopeText} yet.`
+  const operationToolsEmptyMessage = `No tools match this focus in ${financeScopeText}.`
+  const receivablesEmptyMessage = `No outstanding receivables right now in ${financeScopeText}.`
+  const payrollEmptyMessage = `No pending payroll payouts in ${financeScopeText}.`
+  const paymentActivityEmptyMessage = `No payment activity yet in ${financeScopeText}.`
+
   return (
     <ProtectedRoute>
       {loading ? (
@@ -824,6 +884,20 @@ export default function FinanceDashboard() {
             <p className="text-text-secondary mt-1">
               Real revenue, receivables, payroll, and risk signals for production operations.
             </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                <Building2 className="h-3.5 w-3.5" />
+                Branch scope
+              </span>
+              <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
+                {branchScopeDescription}
+              </span>
+              {activeBranchId === null && isGlobalScope && (
+                <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
+                  Cross-branch view
+                </span>
+              )}
+            </div>
             {dashboard.latestSummary?.date && (
               <p className="text-xs text-text-secondary mt-2">
                 Latest accounting summary: {formatShortDate(dashboard.latestSummary.date)}
@@ -1054,7 +1128,7 @@ export default function FinanceDashboard() {
                   </div>
                 ) : (
                   <div className="h-64 flex items-center justify-center text-text-secondary">
-                    No financial summary history yet.
+                    {trendEmptyMessage}
                   </div>
                 )}
               </div>
@@ -1174,7 +1248,7 @@ export default function FinanceDashboard() {
               {filteredOperationCards.length === 0 && (
                 <div className="glass-chip rounded-xl p-6 mt-3 text-center">
                   <p className="font-semibold mb-1">No tools found</p>
-                  <p className="text-sm text-text-secondary mb-3">Try another focus or clear search.</p>
+                  <p className="text-sm text-text-secondary mb-3">{operationToolsEmptyMessage}</p>
                   <button
                     onClick={() => {
                       setQuickFocus('all')
@@ -1288,7 +1362,7 @@ export default function FinanceDashboard() {
                     ))
                   ) : (
                     <div className="py-10 text-center text-text-secondary">
-                      No outstanding receivables right now.
+                      {receivablesEmptyMessage}
                     </div>
                   )}
                 </div>
@@ -1341,7 +1415,7 @@ export default function FinanceDashboard() {
                     ))
                   ) : (
                     <div className="py-10 text-center text-text-secondary">
-                      No pending payroll payouts.
+                      {payrollEmptyMessage}
                     </div>
                   )}
                 </div>
@@ -1390,7 +1464,7 @@ export default function FinanceDashboard() {
                       )
                     })
                   ) : (
-                    <div className="py-10 text-center text-text-secondary">No payment activity yet.</div>
+                    <div className="py-10 text-center text-text-secondary">{paymentActivityEmptyMessage}</div>
                   )}
                 </div>
               </div>

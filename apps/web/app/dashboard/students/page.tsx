@@ -6,10 +6,11 @@ import { toast } from 'react-hot-toast'
 import {
   Users, Plus, Edit, Trash2, X, Search, Mail, Phone,
   Calendar, Download, Upload, Eye, MoreVertical, Activity, CheckCircle, AlertTriangle, Sparkles,
-  UserCheck, PauseCircle, UserX
+  UserCheck, PauseCircle, UserX, Building2
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import apiService from '@/lib/api'
 import {
@@ -33,6 +34,16 @@ const STUDENT_FILTER_STATUS_STORAGE_KEY = 'dashboard.students.filter_status'
 const STUDENT_RECENT_ONLY_STORAGE_KEY = 'dashboard.students.recent_only'
 const STUDENT_PAGE_LIMIT_STORAGE_KEY = 'dashboard.students.page_limit'
 
+const getScopedStorageKey = (
+  baseKey: string,
+  userId: number | null | undefined,
+  branchId: number | null,
+): string => {
+  const userScope = userId ?? 'anonymous'
+  const branchScope = branchId ?? 'all'
+  return `${baseKey}:u${userScope}:b${branchScope}`
+}
+
 interface StudentAccountStatusEntry {
   accountId?: number
   status: StudentAccountStatus
@@ -48,6 +59,7 @@ const normalizeStudentAccountStatus = (value: unknown): StudentAccountStatus => 
 export default function StudentsPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const { branches, activeBranchId, isGlobalScope } = useBranchContext()
   const permissionState = usePermissions(user)
   const canCreateStudent = permissionState.hasPermission('students.create')
   const canEditStudent = permissionState.hasPermission('students.edit')
@@ -70,6 +82,31 @@ export default function StudentsPage() {
   const [selectedIds, setSelectedIds] = useState<number[]>([])
   const [accountStatusByStudentId, setAccountStatusByStudentId] = useState<Record<number, StudentAccountStatusEntry>>({})
   const [statusActionStudentId, setStatusActionStudentId] = useState<number | null>(null)
+
+  const scopedStorageKeys = useMemo(
+    () => ({
+      focus: getScopedStorageKey(STUDENT_FOCUS_STORAGE_KEY, user?.id, activeBranchId),
+      viewMode: getScopedStorageKey(STUDENT_VIEW_MODE_STORAGE_KEY, user?.id, activeBranchId),
+      filterStatus: getScopedStorageKey(STUDENT_FILTER_STATUS_STORAGE_KEY, user?.id, activeBranchId),
+      recentOnly: getScopedStorageKey(STUDENT_RECENT_ONLY_STORAGE_KEY, user?.id, activeBranchId),
+      pageLimit: getScopedStorageKey(STUDENT_PAGE_LIMIT_STORAGE_KEY, user?.id, activeBranchId),
+    }),
+    [activeBranchId, user?.id],
+  )
+
+  const activeBranchName = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'All branches' : 'Your branch scope'
+    }
+    return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+  }, [activeBranchId, branches, isGlobalScope])
+
+  const branchScopeDescription = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'Cross-branch dataset' : 'Current branch scope'
+    }
+    return activeBranchName
+  }, [activeBranchId, activeBranchName, isGlobalScope])
 
   const { data: studentsData, isLoading, isFetching } = useStudents({
     page,
@@ -116,55 +153,65 @@ export default function StudentsPage() {
   }, [page, limit, filterStatus, debouncedSearchQuery, recentOnly, studentFocus])
 
   useEffect(() => {
+    setHasLoadedStudentFocusPref(false)
     try {
-      const storedFocus = localStorage.getItem(STUDENT_FOCUS_STORAGE_KEY)
+      const storedFocus = localStorage.getItem(scopedStorageKeys.focus)
       if (
         storedFocus &&
         ['all', 'needs_contact', 'new_this_week', 'account_risk', 'incomplete_profiles'].includes(storedFocus)
       ) {
         setStudentFocus(storedFocus as StudentFocus)
+      } else {
+        setStudentFocus('all')
       }
     } catch {
       // Ignore storage access failures.
     } finally {
       setHasLoadedStudentFocusPref(true)
     }
-  }, [])
+  }, [scopedStorageKeys.focus])
 
   useEffect(() => {
     if (!hasLoadedStudentFocusPref) return
     try {
-      localStorage.setItem(STUDENT_FOCUS_STORAGE_KEY, studentFocus)
+      localStorage.setItem(scopedStorageKeys.focus, studentFocus)
     } catch {
       // Ignore storage write failures.
     }
-  }, [studentFocus, hasLoadedStudentFocusPref])
+  }, [studentFocus, hasLoadedStudentFocusPref, scopedStorageKeys.focus])
 
   useEffect(() => {
+    setHasLoadedStudentViewModePref(false)
     try {
-      const storedViewMode = localStorage.getItem(STUDENT_VIEW_MODE_STORAGE_KEY)
+      const storedViewMode = localStorage.getItem(scopedStorageKeys.viewMode)
       if (storedViewMode && ['grid', 'table'].includes(storedViewMode)) {
         setViewMode(storedViewMode as ViewMode)
+      } else {
+        setViewMode('grid')
       }
     } catch {
       // Ignore storage access failures.
     } finally {
       setHasLoadedStudentViewModePref(true)
     }
-  }, [])
+  }, [scopedStorageKeys.viewMode])
 
   useEffect(() => {
     if (!hasLoadedStudentViewModePref) return
     try {
-      localStorage.setItem(STUDENT_VIEW_MODE_STORAGE_KEY, viewMode)
+      localStorage.setItem(scopedStorageKeys.viewMode, viewMode)
     } catch {
       // Ignore storage write failures.
     }
-  }, [viewMode, hasLoadedStudentViewModePref])
+  }, [viewMode, hasLoadedStudentViewModePref, scopedStorageKeys.viewMode])
 
   useEffect(() => {
+    setHasLoadedStudentListPrefs(false)
     try {
-      const storedFilter = localStorage.getItem(STUDENT_FILTER_STATUS_STORAGE_KEY)
+      setFilterStatus('all')
+      setRecentOnly(false)
+      setLimit(9)
+      const storedFilter = localStorage.getItem(scopedStorageKeys.filterStatus)
       if (
         storedFilter &&
         ['all', 'with_email', 'missing_email', 'with_phone', 'missing_phone'].includes(storedFilter)
@@ -172,12 +219,14 @@ export default function StudentsPage() {
         setFilterStatus(storedFilter as 'all' | 'with_email' | 'missing_email' | 'with_phone' | 'missing_phone')
       }
 
-      const storedRecent = localStorage.getItem(STUDENT_RECENT_ONLY_STORAGE_KEY)
+      const storedRecent = localStorage.getItem(scopedStorageKeys.recentOnly)
       if (storedRecent === 'true') {
         setRecentOnly(true)
+      } else {
+        setRecentOnly(false)
       }
 
-      const storedLimit = Number(localStorage.getItem(STUDENT_PAGE_LIMIT_STORAGE_KEY))
+      const storedLimit = Number(localStorage.getItem(scopedStorageKeys.pageLimit))
       if (Number.isFinite(storedLimit) && storedLimit > 0 && storedLimit <= 100) {
         setLimit(Math.round(storedLimit))
       }
@@ -186,18 +235,30 @@ export default function StudentsPage() {
     } finally {
       setHasLoadedStudentListPrefs(true)
     }
-  }, [])
+  }, [
+    scopedStorageKeys.filterStatus,
+    scopedStorageKeys.pageLimit,
+    scopedStorageKeys.recentOnly,
+  ])
 
   useEffect(() => {
     if (!hasLoadedStudentListPrefs) return
     try {
-      localStorage.setItem(STUDENT_FILTER_STATUS_STORAGE_KEY, filterStatus)
-      localStorage.setItem(STUDENT_RECENT_ONLY_STORAGE_KEY, String(recentOnly))
-      localStorage.setItem(STUDENT_PAGE_LIMIT_STORAGE_KEY, String(limit))
+      localStorage.setItem(scopedStorageKeys.filterStatus, filterStatus)
+      localStorage.setItem(scopedStorageKeys.recentOnly, String(recentOnly))
+      localStorage.setItem(scopedStorageKeys.pageLimit, String(limit))
     } catch {
       // Ignore storage write failures.
     }
-  }, [filterStatus, recentOnly, limit, hasLoadedStudentListPrefs])
+  }, [
+    filterStatus,
+    recentOnly,
+    limit,
+    hasLoadedStudentListPrefs,
+    scopedStorageKeys.filterStatus,
+    scopedStorageKeys.pageLimit,
+    scopedStorageKeys.recentOnly,
+  ])
 
   useEffect(() => {
     let cancelled = false
@@ -587,6 +648,13 @@ export default function StudentsPage() {
     [canCreateStudent, canViewFinance, router]
   )
 
+  const hasStudentFiltersApplied =
+    Boolean(searchQuery.trim()) || filterStatus !== 'all' || recentOnly || studentFocus !== 'all'
+  const studentEmptyStateTitle = hasStudentFiltersApplied ? 'No students match this branch view' : 'No students found'
+  const studentEmptyStateDescription = hasStudentFiltersApplied
+    ? `Try adjusting search or filters. Current scope: ${branchScopeDescription}.`
+    : `No student records are available in ${branchScopeDescription.toLowerCase()} yet.`
+
   const PaginationControls = () => (
     <div className="flex justify-center items-center gap-4 mt-8">
       <button
@@ -633,6 +701,20 @@ export default function StudentsPage() {
             <p className="text-text-secondary">
               Centralized student operations, data quality, and engagement signals.
             </p>
+            <div className="mt-3 flex flex-wrap items-center gap-2">
+              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                <Building2 className="h-3.5 w-3.5" />
+                Branch scope
+              </span>
+              <span className="glass-chip rounded-full px-3 py-1 text-xs text-text-secondary">
+                {branchScopeDescription}
+              </span>
+              {activeBranchId === null && isGlobalScope && (
+                <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
+                  Cross-branch view
+                </span>
+              )}
+            </div>
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
@@ -1245,7 +1327,8 @@ export default function StudentsPage() {
             {displayStudents.length === 0 && (
               <div className="text-center py-12">
                 <Users className="h-16 w-16 text-text-secondary/50 mx-auto mb-4" />
-                <p className="text-text-secondary">No students found</p>
+                <p className="text-text-secondary text-lg mb-2">{studentEmptyStateTitle}</p>
+                <p className="text-sm text-text-secondary">{studentEmptyStateDescription}</p>
               </div>
             )}
           </div>
@@ -1255,10 +1338,8 @@ export default function StudentsPage() {
         {viewMode === 'grid' && displayStudents.length === 0 && (
           <div className="text-center py-12">
             <Users className="h-16 w-16 text-text-secondary/50 mx-auto mb-4" />
-            <p className="text-text-secondary text-lg mb-2">No students found</p>
-            <p className="text-sm text-text-secondary">
-              {searchQuery ? 'Try adjusting your search' : 'Add your first student to get started'}
-            </p>
+            <p className="text-text-secondary text-lg mb-2">{studentEmptyStateTitle}</p>
+            <p className="text-sm text-text-secondary">{studentEmptyStateDescription}</p>
           </div>
         )}
 

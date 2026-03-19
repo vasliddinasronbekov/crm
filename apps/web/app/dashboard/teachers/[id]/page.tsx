@@ -21,6 +21,7 @@ import {
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import LoadingScreen from '@/components/LoadingScreen'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { usePermissions } from '@/lib/permissions'
 import apiService from '@/lib/api'
@@ -36,6 +37,17 @@ const TEACHER_ATTENDANCE_MONTH_STORAGE_KEY = 'dashboard.teachers.detail.attendan
 const TEACHER_ATTENDANCE_GROUP_STORAGE_KEY = 'dashboard.teachers.detail.attendance_group'
 const TEACHER_EARNINGS_MONTH_STORAGE_KEY = 'dashboard.teachers.detail.earnings_month'
 const TEACHER_EARNINGS_STATUS_STORAGE_KEY = 'dashboard.teachers.detail.earnings_status'
+
+const getScopedTeacherDetailStorageKey = (
+  baseKey: string,
+  teacherId: number,
+  userId: number | null | undefined,
+  branchId: number | null,
+): string => {
+  const userScope = userId ?? 'anonymous'
+  const branchScope = branchId ?? 'all'
+  return `${baseKey}:t${teacherId}:u${userScope}:b${branchScope}`
+}
 
 interface TeacherGroup {
   id: number
@@ -226,6 +238,7 @@ export default function TeacherDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
+  const { activeBranchId } = useBranchContext()
   const permissionState = usePermissions(user)
   const { formatCurrencyFromMinor } = useSettings()
 
@@ -258,6 +271,50 @@ export default function TeacherDetailPage() {
     is_staff: false,
     is_active: true,
   })
+
+  const persistedUserId = useMemo(() => {
+    const parsed = Number(user?.id)
+    return Number.isFinite(parsed) ? parsed : null
+  }, [user?.id])
+
+  const detailStorageKeys = useMemo(() => {
+    if (!Number.isFinite(teacherId) || persistedUserId === null) {
+      return null
+    }
+
+    return {
+      activeTab: getScopedTeacherDetailStorageKey(
+        TEACHER_DETAIL_TAB_STORAGE_KEY,
+        teacherId,
+        persistedUserId,
+        activeBranchId,
+      ),
+      attendanceMonth: getScopedTeacherDetailStorageKey(
+        TEACHER_ATTENDANCE_MONTH_STORAGE_KEY,
+        teacherId,
+        persistedUserId,
+        activeBranchId,
+      ),
+      attendanceGroup: getScopedTeacherDetailStorageKey(
+        TEACHER_ATTENDANCE_GROUP_STORAGE_KEY,
+        teacherId,
+        persistedUserId,
+        activeBranchId,
+      ),
+      earningsMonth: getScopedTeacherDetailStorageKey(
+        TEACHER_EARNINGS_MONTH_STORAGE_KEY,
+        teacherId,
+        persistedUserId,
+        activeBranchId,
+      ),
+      earningsStatus: getScopedTeacherDetailStorageKey(
+        TEACHER_EARNINGS_STATUS_STORAGE_KEY,
+        teacherId,
+        persistedUserId,
+        activeBranchId,
+      ),
+    }
+  }, [activeBranchId, teacherId, persistedUserId])
 
   const fetchAllPages = useCallback(async <T,>(fetchPage: (page: number) => Promise<any>): Promise<T[]> => {
     const rows: T[] = []
@@ -321,32 +378,38 @@ export default function TeacherDetailPage() {
   }, [loadTeacherInsights])
 
   useEffect(() => {
-    if (!Number.isFinite(teacherId)) return
+    if (!Number.isFinite(teacherId) || !detailStorageKeys) return
 
     setHasLoadedDetailPrefs(false)
 
     try {
-      const tabValue = localStorage.getItem(`${TEACHER_DETAIL_TAB_STORAGE_KEY}:${teacherId}`)
+      setActiveTab('overview')
+      setAttendanceMonth(new Date().toISOString().slice(0, 7))
+      setAttendanceGroupId('all')
+      setEarningsMonth(new Date().toISOString().slice(0, 7))
+      setEarningsStatus('all')
+
+      const tabValue = localStorage.getItem(detailStorageKeys.activeTab)
       if (tabValue && ['overview', 'groups', 'attendance', 'earnings'].includes(tabValue)) {
         setActiveTab(tabValue as DetailTab)
       }
 
-      const attendanceMonthValue = localStorage.getItem(`${TEACHER_ATTENDANCE_MONTH_STORAGE_KEY}:${teacherId}`)
+      const attendanceMonthValue = localStorage.getItem(detailStorageKeys.attendanceMonth)
       if (attendanceMonthValue) {
         setAttendanceMonth(attendanceMonthValue)
       }
 
-      const attendanceGroupValue = localStorage.getItem(`${TEACHER_ATTENDANCE_GROUP_STORAGE_KEY}:${teacherId}`)
+      const attendanceGroupValue = localStorage.getItem(detailStorageKeys.attendanceGroup)
       if (attendanceGroupValue) {
         setAttendanceGroupId(attendanceGroupValue)
       }
 
-      const earningsMonthValue = localStorage.getItem(`${TEACHER_EARNINGS_MONTH_STORAGE_KEY}:${teacherId}`)
+      const earningsMonthValue = localStorage.getItem(detailStorageKeys.earningsMonth)
       if (earningsMonthValue) {
         setEarningsMonth(earningsMonthValue)
       }
 
-      const earningsStatusValue = localStorage.getItem(`${TEACHER_EARNINGS_STATUS_STORAGE_KEY}:${teacherId}`)
+      const earningsStatusValue = localStorage.getItem(detailStorageKeys.earningsStatus)
       if (earningsStatusValue && ['all', 'paid', 'unpaid'].includes(earningsStatusValue)) {
         setEarningsStatus(earningsStatusValue as EarningsStatusFilter)
       }
@@ -355,17 +418,17 @@ export default function TeacherDetailPage() {
     } finally {
       setHasLoadedDetailPrefs(true)
     }
-  }, [teacherId])
+  }, [detailStorageKeys, teacherId])
 
   useEffect(() => {
-    if (!Number.isFinite(teacherId) || !hasLoadedDetailPrefs) return
+    if (!Number.isFinite(teacherId) || !detailStorageKeys || !hasLoadedDetailPrefs) return
 
     try {
-      localStorage.setItem(`${TEACHER_DETAIL_TAB_STORAGE_KEY}:${teacherId}`, activeTab)
-      localStorage.setItem(`${TEACHER_ATTENDANCE_MONTH_STORAGE_KEY}:${teacherId}`, attendanceMonth)
-      localStorage.setItem(`${TEACHER_ATTENDANCE_GROUP_STORAGE_KEY}:${teacherId}`, attendanceGroupId)
-      localStorage.setItem(`${TEACHER_EARNINGS_MONTH_STORAGE_KEY}:${teacherId}`, earningsMonth)
-      localStorage.setItem(`${TEACHER_EARNINGS_STATUS_STORAGE_KEY}:${teacherId}`, earningsStatus)
+      localStorage.setItem(detailStorageKeys.activeTab, activeTab)
+      localStorage.setItem(detailStorageKeys.attendanceMonth, attendanceMonth)
+      localStorage.setItem(detailStorageKeys.attendanceGroup, attendanceGroupId)
+      localStorage.setItem(detailStorageKeys.earningsMonth, earningsMonth)
+      localStorage.setItem(detailStorageKeys.earningsStatus, earningsStatus)
     } catch {
       // Ignore storage write failures.
     }
@@ -373,6 +436,7 @@ export default function TeacherDetailPage() {
     activeTab,
     attendanceGroupId,
     attendanceMonth,
+    detailStorageKeys,
     earningsMonth,
     earningsStatus,
     hasLoadedDetailPrefs,

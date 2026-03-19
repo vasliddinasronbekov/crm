@@ -29,6 +29,7 @@ import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { usePermissions } from '@/lib/permissions'
 import { useOngoingGroups } from '@/lib/hooks/useGroups'
 import { WEEK_DAYS } from '@/lib/utils/schedule'
@@ -154,6 +155,17 @@ const GROUP_ATTENDANCE_MONTH_STORAGE_KEY = 'dashboard.groups.detail.attendance_m
 const GROUP_ATTENDANCE_VIEW_STORAGE_KEY = 'dashboard.groups.detail.attendance_view'
 const GROUP_ATTENDANCE_DATE_STORAGE_KEY = 'dashboard.groups.detail.attendance_date'
 const GROUP_STUDENT_SEARCH_STORAGE_KEY = 'dashboard.groups.detail.student_search'
+
+const getScopedGroupDetailStorageKey = (
+  baseKey: string,
+  groupId: number,
+  userId: number | null | undefined,
+  branchId: number | null,
+): string => {
+  const userScope = userId ?? 'anonymous'
+  const branchScope = branchId ?? 'all'
+  return `${baseKey}:g${groupId}:u${userScope}:b${branchScope}`
+}
 
 const parseListPayload = <T,>(payload: any): T[] => {
   if (Array.isArray(payload)) return payload
@@ -372,6 +384,7 @@ export default function GroupDetailPage() {
 
   const { formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency, currency } = useSettings()
   const { user } = useAuth()
+  const { activeBranchId } = useBranchContext()
   const permissionState = usePermissions(user)
   const canConfigureGroup = permissionState.hasPermission('groups.edit')
   const canRecordPayment = permissionState.hasPermission('payments.record')
@@ -409,33 +422,83 @@ export default function GroupDetailPage() {
   const [newPayment, setNewPayment] = useState<PaymentForm>(emptyPaymentForm)
   const [isCreatingPayment, setIsCreatingPayment] = useState(false)
 
+  const persistedUserId = useMemo(() => {
+    const parsed = Number(user?.id)
+    return Number.isFinite(parsed) ? parsed : null
+  }, [user?.id])
+
+  const detailStorageKeys = useMemo(() => {
+    if (!Number.isFinite(groupIdNumber) || persistedUserId === null) {
+      return null
+    }
+
+    return {
+      activeTab: getScopedGroupDetailStorageKey(
+        GROUP_DETAIL_TAB_STORAGE_KEY,
+        groupIdNumber,
+        persistedUserId,
+        activeBranchId,
+      ),
+      attendanceMonth: getScopedGroupDetailStorageKey(
+        GROUP_ATTENDANCE_MONTH_STORAGE_KEY,
+        groupIdNumber,
+        persistedUserId,
+        activeBranchId,
+      ),
+      attendanceView: getScopedGroupDetailStorageKey(
+        GROUP_ATTENDANCE_VIEW_STORAGE_KEY,
+        groupIdNumber,
+        persistedUserId,
+        activeBranchId,
+      ),
+      attendanceDate: getScopedGroupDetailStorageKey(
+        GROUP_ATTENDANCE_DATE_STORAGE_KEY,
+        groupIdNumber,
+        persistedUserId,
+        activeBranchId,
+      ),
+      studentSearch: getScopedGroupDetailStorageKey(
+        GROUP_STUDENT_SEARCH_STORAGE_KEY,
+        groupIdNumber,
+        persistedUserId,
+        activeBranchId,
+      ),
+    }
+  }, [activeBranchId, groupIdNumber, persistedUserId])
+
   useEffect(() => {
-    if (!Number.isFinite(groupIdNumber)) return
+    if (!Number.isFinite(groupIdNumber) || !detailStorageKeys) return
 
     setHasLoadedGroupViewPrefs(false)
 
     try {
-      const tabValue = localStorage.getItem(`${GROUP_DETAIL_TAB_STORAGE_KEY}:${groupIdNumber}`)
+      setActiveTab('students')
+      setAttendanceMonth(new Date().toISOString().slice(0, 7))
+      setAttendanceView('register')
+      setSelectedDate(new Date().toISOString().split('T')[0])
+      setStudentSearchQuery('')
+
+      const tabValue = localStorage.getItem(detailStorageKeys.activeTab)
       if (tabValue && ['students', 'schedule', 'payments', 'attendance'].includes(tabValue)) {
         setActiveTab(tabValue as Tab)
       }
 
-      const attendanceMonthValue = localStorage.getItem(`${GROUP_ATTENDANCE_MONTH_STORAGE_KEY}:${groupIdNumber}`)
+      const attendanceMonthValue = localStorage.getItem(detailStorageKeys.attendanceMonth)
       if (attendanceMonthValue) {
         setAttendanceMonth(attendanceMonthValue)
       }
 
-      const attendanceViewValue = localStorage.getItem(`${GROUP_ATTENDANCE_VIEW_STORAGE_KEY}:${groupIdNumber}`)
+      const attendanceViewValue = localStorage.getItem(detailStorageKeys.attendanceView)
       if (attendanceViewValue && ['register', 'weekday'].includes(attendanceViewValue)) {
         setAttendanceView(attendanceViewValue as AttendanceView)
       }
 
-      const attendanceDateValue = localStorage.getItem(`${GROUP_ATTENDANCE_DATE_STORAGE_KEY}:${groupIdNumber}`)
+      const attendanceDateValue = localStorage.getItem(detailStorageKeys.attendanceDate)
       if (attendanceDateValue) {
         setSelectedDate(attendanceDateValue)
       }
 
-      const studentSearchValue = localStorage.getItem(`${GROUP_STUDENT_SEARCH_STORAGE_KEY}:${groupIdNumber}`)
+      const studentSearchValue = localStorage.getItem(detailStorageKeys.studentSearch)
       if (studentSearchValue) {
         setStudentSearchQuery(studentSearchValue)
       }
@@ -444,17 +507,17 @@ export default function GroupDetailPage() {
     } finally {
       setHasLoadedGroupViewPrefs(true)
     }
-  }, [groupIdNumber])
+  }, [detailStorageKeys, groupIdNumber])
 
   useEffect(() => {
-    if (!Number.isFinite(groupIdNumber) || !hasLoadedGroupViewPrefs) return
+    if (!Number.isFinite(groupIdNumber) || !detailStorageKeys || !hasLoadedGroupViewPrefs) return
 
     try {
-      localStorage.setItem(`${GROUP_DETAIL_TAB_STORAGE_KEY}:${groupIdNumber}`, activeTab)
-      localStorage.setItem(`${GROUP_ATTENDANCE_MONTH_STORAGE_KEY}:${groupIdNumber}`, attendanceMonth)
-      localStorage.setItem(`${GROUP_ATTENDANCE_VIEW_STORAGE_KEY}:${groupIdNumber}`, attendanceView)
-      localStorage.setItem(`${GROUP_ATTENDANCE_DATE_STORAGE_KEY}:${groupIdNumber}`, selectedDate)
-      localStorage.setItem(`${GROUP_STUDENT_SEARCH_STORAGE_KEY}:${groupIdNumber}`, studentSearchQuery)
+      localStorage.setItem(detailStorageKeys.activeTab, activeTab)
+      localStorage.setItem(detailStorageKeys.attendanceMonth, attendanceMonth)
+      localStorage.setItem(detailStorageKeys.attendanceView, attendanceView)
+      localStorage.setItem(detailStorageKeys.attendanceDate, selectedDate)
+      localStorage.setItem(detailStorageKeys.studentSearch, studentSearchQuery)
     } catch {
       // Ignore storage write failures.
     }
@@ -462,6 +525,7 @@ export default function GroupDetailPage() {
     activeTab,
     attendanceMonth,
     attendanceView,
+    detailStorageKeys,
     groupIdNumber,
     hasLoadedGroupViewPrefs,
     selectedDate,

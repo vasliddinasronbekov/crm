@@ -18,6 +18,7 @@ import {
   Rows3,
   ChevronRight,
   ShieldAlert,
+  Building2,
 } from 'lucide-react'
 import toast from '@/lib/toast'
 import apiService from '@/lib/api'
@@ -28,6 +29,7 @@ import { normalizeDayToken, parseGroupDays, type WeekDay } from '@/lib/utils/sch
 import LoadingScreen from '@/components/LoadingScreen'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { usePermissions } from '@/lib/permissions'
 
 type SearchStatus = 'all' | 'scheduled' | 'unscheduled'
@@ -61,6 +63,20 @@ interface GroupScheduleHealth {
 }
 
 const PAGE_SIZE = 9
+const GROUPS_SEARCH_STORAGE_KEY = 'dashboard.groups.search'
+const GROUPS_SORT_STORAGE_KEY = 'dashboard.groups.sort'
+const GROUPS_FOCUS_STORAGE_KEY = 'dashboard.groups.focus'
+const GROUPS_VIEW_STORAGE_KEY = 'dashboard.groups.view'
+
+const getScopedStorageKey = (
+  baseKey: string,
+  userId: number | null | undefined,
+  branchId: number | null,
+): string => {
+  const userScope = userId ?? 'anonymous'
+  const branchScope = branchId ?? 'all'
+  return `${baseKey}:u${userScope}:b${branchScope}`
+}
 
 const createEmptyGroupForm = () => ({
   name: '',
@@ -133,9 +149,23 @@ const parseStructuredGroupSearch = (rawQuery: string): ParsedGroupSearch => {
   return parsed
 }
 
+const isGroupSortBy = (value: string | null): value is 'name' | 'students_desc' | 'schedule' | 'risk' =>
+  value === 'name' || value === 'students_desc' || value === 'schedule' || value === 'risk'
+
+const isGroupFocusFilter = (value: string | null): value is GroupFocusFilter =>
+  value === 'all' ||
+  value === 'ongoing' ||
+  value === 'capacity' ||
+  value === 'unscheduled' ||
+  value === 'conflicts'
+
+const isGroupsViewMode = (value: string | null): value is GroupsViewMode =>
+  value === 'cards' || value === 'table'
+
 export default function GroupsPage() {
   const router = useRouter()
   const { user } = useAuth()
+  const { branches, activeBranchId, isGlobalScope } = useBranchContext()
   const permissionState = usePermissions(user)
   const canCreateGroup = permissionState.hasPermission('groups.create')
   const canEditGroup = permissionState.hasPermission('groups.edit')
@@ -156,6 +186,31 @@ export default function GroupsPage() {
   const [isCreatingGroup, setIsCreatingGroup] = useState(false)
   const [editingGroup, setEditingGroup] = useState<Group | null>(null)
   const [newGroup, setNewGroup] = useState(createEmptyGroupForm)
+  const [hasLoadedGroupPrefs, setHasLoadedGroupPrefs] = useState(false)
+
+  const scopedStorageKeys = useMemo(
+    () => ({
+      search: getScopedStorageKey(GROUPS_SEARCH_STORAGE_KEY, user?.id, activeBranchId),
+      sort: getScopedStorageKey(GROUPS_SORT_STORAGE_KEY, user?.id, activeBranchId),
+      focus: getScopedStorageKey(GROUPS_FOCUS_STORAGE_KEY, user?.id, activeBranchId),
+      view: getScopedStorageKey(GROUPS_VIEW_STORAGE_KEY, user?.id, activeBranchId),
+    }),
+    [activeBranchId, user?.id],
+  )
+
+  const activeBranchName = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'All branches' : 'Your branch scope'
+    }
+    return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+  }, [activeBranchId, branches, isGlobalScope])
+
+  const branchScopeDescription = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'Cross-branch dataset' : 'Current branch scope'
+    }
+    return activeBranchName
+  }, [activeBranchId, activeBranchName, isGlobalScope])
 
   const hasStructuredFilters = useMemo(
     () =>
@@ -327,6 +382,67 @@ export default function GroupsPage() {
   }, [page, totalPages])
 
   useEffect(() => {
+    setHasLoadedGroupPrefs(false)
+    try {
+      setSearchQuery('')
+      setSortBy('name')
+      setFocusFilter('all')
+      setViewMode('table')
+
+      const storedSearch = localStorage.getItem(scopedStorageKeys.search)
+      if (storedSearch !== null) {
+        setSearchQuery(storedSearch)
+      }
+
+      const storedSort = localStorage.getItem(scopedStorageKeys.sort)
+      if (isGroupSortBy(storedSort)) {
+        setSortBy(storedSort)
+      }
+
+      const storedFocus = localStorage.getItem(scopedStorageKeys.focus)
+      if (isGroupFocusFilter(storedFocus)) {
+        setFocusFilter(storedFocus)
+      }
+
+      const storedView = localStorage.getItem(scopedStorageKeys.view)
+      if (isGroupsViewMode(storedView)) {
+        setViewMode(storedView)
+      }
+    } catch {
+      // Ignore storage access failures.
+    } finally {
+      setHasLoadedGroupPrefs(true)
+    }
+  }, [
+    scopedStorageKeys.focus,
+    scopedStorageKeys.search,
+    scopedStorageKeys.sort,
+    scopedStorageKeys.view,
+  ])
+
+  useEffect(() => {
+    if (!hasLoadedGroupPrefs) return
+    try {
+      localStorage.setItem(scopedStorageKeys.search, searchQuery)
+      localStorage.setItem(scopedStorageKeys.sort, sortBy)
+      localStorage.setItem(scopedStorageKeys.focus, focusFilter)
+      localStorage.setItem(scopedStorageKeys.view, viewMode)
+    } catch {
+      // Ignore storage write failures.
+    }
+  }, [
+    focusFilter,
+    hasLoadedGroupPrefs,
+    scopedStorageKeys.focus,
+    scopedStorageKeys.search,
+    scopedStorageKeys.sort,
+    scopedStorageKeys.view,
+    searchQuery,
+    sortBy,
+    viewMode,
+  ])
+
+  useEffect(() => {
     setPage(1)
   }, [focusFilter])
 
@@ -400,6 +516,11 @@ export default function GroupsPage() {
   const capacityRiskGroups = scheduleHealthData
     ? (scheduleHealthData.capacity_near_full_groups || 0) + (scheduleHealthData.capacity_overflow_groups || 0)
     : capacityRiskCountClient
+  const hasGroupFiltersApplied = Boolean(searchQuery.trim()) || focusFilter !== 'all' || hasStructuredFilters
+  const groupEmptyStateTitle = hasGroupFiltersApplied ? 'No groups match this branch view' : 'No groups found'
+  const groupEmptyStateDescription = hasGroupFiltersApplied
+    ? `Try adjusting search or operational filters. Current scope: ${branchScopeDescription}.`
+    : `No groups are configured in ${branchScopeDescription.toLowerCase()} yet.`
 
   const PaginationControls = () => (
     <div className="flex justify-center items-center gap-4 mt-8">
@@ -444,6 +565,20 @@ export default function GroupsPage() {
               <p className="text-text-secondary mt-1">
                 Create, plan, and operate academic groups with conflict-aware scheduling.
               </p>
+              <div className="mt-3 flex flex-wrap items-center gap-2">
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
+                  <Building2 className="h-3.5 w-3.5" />
+                  Branch scope
+                </span>
+                <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
+                  {branchScopeDescription}
+                </span>
+                {activeBranchId === null && isGlobalScope && (
+                  <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
+                    Cross-branch view
+                  </span>
+                )}
+              </div>
               {!canManageGroups && (
                 <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
                   <AlertTriangle className="h-4 w-4" />
@@ -628,7 +763,7 @@ export default function GroupsPage() {
                   ))
                 ) : (
                   <div className="rounded-xl border border-dashed border-border bg-background px-4 py-8 text-center text-sm text-text-secondary">
-                    No ongoing groups right now.
+                    No ongoing groups right now in {branchScopeDescription.toLowerCase()}.
                   </div>
                 )}
               </div>
@@ -870,12 +1005,8 @@ export default function GroupsPage() {
           {visibleGroups.length === 0 && (
             <div className="bg-surface border border-border rounded-2xl text-center py-12">
               <ShieldAlert className="h-10 w-10 mx-auto mb-3 text-text-secondary" />
-              <p className="text-text-secondary text-lg mb-2">No groups found</p>
-              <p className="text-text-secondary text-sm">
-                {searchQuery || focusFilter !== 'all'
-                  ? 'Try adjusting search or operational filters'
-                  : 'Create your first group to get started'}
-              </p>
+              <p className="text-text-secondary text-lg mb-2">{groupEmptyStateTitle}</p>
+              <p className="text-text-secondary text-sm">{groupEmptyStateDescription}</p>
             </div>
           )}
 
