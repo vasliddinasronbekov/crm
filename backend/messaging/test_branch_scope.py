@@ -6,6 +6,7 @@ from rest_framework_simplejwt.tokens import RefreshToken
 from student_profile.models import Branch
 from users.models import BranchMembership, User, UserRoleEnum
 from .models import Conversation, MessageTemplate
+from .email_models import EmailCampaign, EmailTemplate, EmailLog
 
 
 def _auth_client_for_user(api_client, user):
@@ -314,3 +315,318 @@ def test_attachment_upload_blocks_legacy_cross_branch_conversations(api_client):
         format='multipart',
     )
     assert response.status_code == status.HTTP_404_NOT_FOUND
+
+
+@pytest.mark.django_db
+def test_email_campaign_list_excludes_legacy_cross_branch_custom_recipients(api_client):
+    branch_a = Branch.objects.create(name='Email Campaign Scope Branch A')
+    branch_b = Branch.objects.create(name='Email Campaign Scope Branch B')
+
+    manager = User.objects.create_user(
+        username='email_campaign_scope_manager',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_a,
+        is_staff=True,
+    )
+    BranchMembership.objects.create(
+        user=manager,
+        branch=branch_a,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    recipient_a = User.objects.create_user(
+        username='email_campaign_scope_user_a',
+        password='StrongPass123!',
+        role=UserRoleEnum.STUDENT.value,
+        branch=branch_a,
+    )
+    recipient_b = User.objects.create_user(
+        username='email_campaign_scope_user_b',
+        password='StrongPass123!',
+        role=UserRoleEnum.STUDENT.value,
+        branch=branch_b,
+    )
+
+    template = EmailTemplate.objects.create(
+        name='Scope Template',
+        template_type='custom',
+        subject='Scope Subject',
+        html_content='<p>Hello</p>',
+        text_content='Hello',
+        created_by=manager,
+        is_active=True,
+    )
+
+    in_scope_campaign = EmailCampaign.objects.create(
+        name='Email In Scope',
+        template=template,
+        subject='In Scope',
+        html_content='<p>In Scope</p>',
+        text_content='In Scope',
+        recipient_type='custom_list',
+        created_by=manager,
+        status='draft',
+    )
+    in_scope_campaign.custom_recipients.add(recipient_a)
+
+    mixed_campaign = EmailCampaign.objects.create(
+        name='Email Legacy Cross Branch',
+        template=template,
+        subject='Mixed',
+        html_content='<p>Mixed</p>',
+        text_content='Mixed',
+        recipient_type='custom_list',
+        created_by=manager,
+        status='draft',
+    )
+    mixed_campaign.custom_recipients.add(recipient_a, recipient_b)
+
+    client = _auth_client_for_user(api_client, manager)
+    response = client.get('/api/v1/email/campaigns/')
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.data['results'] if isinstance(response.data, dict) else response.data
+    campaign_ids = {item['id'] for item in payload}
+    assert in_scope_campaign.id in campaign_ids
+    assert mixed_campaign.id not in campaign_ids
+
+
+@pytest.mark.django_db
+def test_email_campaign_create_rejects_out_of_scope_template(api_client):
+    branch_a = Branch.objects.create(name='Email Create Scope Branch A')
+    branch_b = Branch.objects.create(name='Email Create Scope Branch B')
+
+    manager_a = User.objects.create_user(
+        username='email_create_scope_manager_a',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_a,
+        is_staff=True,
+    )
+    BranchMembership.objects.create(
+        user=manager_a,
+        branch=branch_a,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    manager_b = User.objects.create_user(
+        username='email_create_scope_manager_b',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_b,
+        is_staff=True,
+    )
+    BranchMembership.objects.create(
+        user=manager_b,
+        branch=branch_b,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    recipient_a = User.objects.create_user(
+        username='email_create_scope_user_a',
+        password='StrongPass123!',
+        role=UserRoleEnum.STUDENT.value,
+        branch=branch_a,
+    )
+
+    out_of_scope_template = EmailTemplate.objects.create(
+        name='Out Scope Template',
+        template_type='custom',
+        subject='Out Scope',
+        html_content='<p>Out Scope</p>',
+        text_content='Out Scope',
+        created_by=manager_b,
+        is_active=True,
+    )
+
+    client = _auth_client_for_user(api_client, manager_a)
+    response = client.post(
+        '/api/v1/email/campaigns/',
+        {
+            'name': 'Blocked Campaign',
+            'template': out_of_scope_template.id,
+            'subject': 'Blocked',
+            'html_content': '<p>Blocked</p>',
+            'text_content': 'Blocked',
+            'recipient_type': 'custom_list',
+            'custom_recipients': [recipient_a.id],
+        },
+        format='json',
+    )
+    assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.django_db
+def test_email_logs_exclude_cross_branch_recipients_for_scoped_staff(api_client):
+    branch_a = Branch.objects.create(name='Email Logs Scope Branch A')
+    branch_b = Branch.objects.create(name='Email Logs Scope Branch B')
+
+    manager = User.objects.create_user(
+        username='email_logs_scope_manager',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_a,
+        is_staff=True,
+    )
+    BranchMembership.objects.create(
+        user=manager,
+        branch=branch_a,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    recipient_a = User.objects.create_user(
+        username='email_logs_scope_user_a',
+        password='StrongPass123!',
+        role=UserRoleEnum.STUDENT.value,
+        branch=branch_a,
+    )
+    recipient_b = User.objects.create_user(
+        username='email_logs_scope_user_b',
+        password='StrongPass123!',
+        role=UserRoleEnum.STUDENT.value,
+        branch=branch_b,
+    )
+
+    template = EmailTemplate.objects.create(
+        name='Email Logs Scope Template',
+        template_type='custom',
+        subject='Email Logs Scope',
+        html_content='<p>Scope</p>',
+        text_content='Scope',
+        created_by=manager,
+        is_active=True,
+    )
+
+    campaign = EmailCampaign.objects.create(
+        name='Email Logs Scope Campaign',
+        template=template,
+        subject='Scope Campaign',
+        html_content='<p>Scope campaign</p>',
+        text_content='Scope campaign',
+        recipient_type='custom_list',
+        created_by=manager,
+        status='sent',
+    )
+
+    in_scope_log = EmailLog.objects.create(
+        campaign=campaign,
+        template=template,
+        recipient=recipient_a,
+        recipient_email=recipient_a.email,
+        subject='In Scope',
+        status='sent',
+    )
+    out_scope_log = EmailLog.objects.create(
+        campaign=campaign,
+        template=template,
+        recipient=recipient_b,
+        recipient_email=recipient_b.email,
+        subject='Out Scope',
+        status='sent',
+    )
+
+    client = _auth_client_for_user(api_client, manager)
+    response = client.get('/api/v1/email/logs/')
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.data['results'] if isinstance(response.data, dict) else response.data
+    log_ids = {item['id'] for item in payload}
+    assert in_scope_log.id in log_ids
+    assert out_scope_log.id not in log_ids
+
+
+@pytest.mark.django_db
+def test_superuser_active_branch_filter_scopes_email_campaign_reads(api_client):
+    branch_a = Branch.objects.create(name='Email Super Scope Branch A')
+    branch_b = Branch.objects.create(name='Email Super Scope Branch B')
+
+    manager_a = User.objects.create_user(
+        username='email_super_scope_manager_a',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_a,
+        is_staff=True,
+    )
+    BranchMembership.objects.create(
+        user=manager_a,
+        branch=branch_a,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    manager_b = User.objects.create_user(
+        username='email_super_scope_manager_b',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_b,
+        is_staff=True,
+    )
+    BranchMembership.objects.create(
+        user=manager_b,
+        branch=branch_b,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    template_a = EmailTemplate.objects.create(
+        name='Email Super Scope Template A',
+        template_type='custom',
+        subject='Scope A',
+        html_content='<p>A</p>',
+        text_content='A',
+        created_by=manager_a,
+        is_active=True,
+    )
+    template_b = EmailTemplate.objects.create(
+        name='Email Super Scope Template B',
+        template_type='custom',
+        subject='Scope B',
+        html_content='<p>B</p>',
+        text_content='B',
+        created_by=manager_b,
+        is_active=True,
+    )
+
+    campaign_a = EmailCampaign.objects.create(
+        name='Email Super Scope Campaign A',
+        template=template_a,
+        subject='Campaign A',
+        html_content='<p>Campaign A</p>',
+        text_content='Campaign A',
+        recipient_type='all_students',
+        created_by=manager_a,
+        status='draft',
+    )
+    campaign_b = EmailCampaign.objects.create(
+        name='Email Super Scope Campaign B',
+        template=template_b,
+        subject='Campaign B',
+        html_content='<p>Campaign B</p>',
+        text_content='Campaign B',
+        recipient_type='all_students',
+        created_by=manager_b,
+        status='draft',
+    )
+
+    superuser = User.objects.create_superuser(
+        username='email_super_scope_superuser',
+        password='StrongPass123!',
+        email='email_super_scope_superuser@example.com',
+    )
+
+    client = _auth_client_for_user(api_client, superuser)
+    response = client.get(f'/api/v1/email/campaigns/?active_branch={branch_a.id}')
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.data['results'] if isinstance(response.data, dict) else response.data
+    campaign_ids = {item['id'] for item in payload}
+    assert campaign_a.id in campaign_ids
+    assert campaign_b.id not in campaign_ids

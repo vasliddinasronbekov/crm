@@ -75,6 +75,59 @@ def test_study_groups_and_posts_are_branch_scoped(api_client):
 
 
 @pytest.mark.django_db
+def test_study_group_list_excludes_legacy_cross_branch_members(api_client):
+    branch_a = Branch.objects.create(name='Social Study Legacy Branch A')
+    branch_b = Branch.objects.create(name='Social Study Legacy Branch B')
+
+    manager = User.objects.create_user(
+        username='social_study_legacy_manager',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_a,
+    )
+    BranchMembership.objects.create(
+        user=manager,
+        branch=branch_a,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    foreign_member = User.objects.create_user(
+        username='social_study_legacy_foreign_member',
+        password='StrongPass123!',
+        role=UserRoleEnum.STUDENT.value,
+        branch=branch_b,
+    )
+
+    in_scope_group = StudyGroup.objects.create(
+        name='Study Legacy In Scope',
+        description='In scope',
+        creator=manager,
+        is_public=True,
+        is_active=True,
+    )
+    in_scope_group.members.add(manager)
+
+    legacy_cross_branch_group = StudyGroup.objects.create(
+        name='Study Legacy Cross Branch',
+        description='Cross branch',
+        creator=manager,
+        is_public=True,
+        is_active=True,
+    )
+    legacy_cross_branch_group.members.add(manager, foreign_member)
+
+    client = _auth_client_for_user(api_client, manager)
+    response = client.get('/api/social/study-groups/')
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.data['results'] if isinstance(response.data, dict) else response.data
+    group_ids = {item['id'] for item in payload}
+    assert in_scope_group.id in group_ids
+    assert legacy_cross_branch_group.id not in group_ids
+
+
+@pytest.mark.django_db
 def test_forums_require_auth_and_stay_branch_scoped(api_client):
     unauthenticated_response = api_client.get('/api/social/forums/')
     assert unauthenticated_response.status_code == status.HTTP_401_UNAUTHORIZED
@@ -142,6 +195,71 @@ def test_forums_require_auth_and_stay_branch_scoped(api_client):
     forum_ids = {item['id'] for item in payload}
     assert in_scope_forum.id in forum_ids
     assert out_scope_forum.id not in forum_ids
+
+
+@pytest.mark.django_db
+def test_forum_list_excludes_legacy_cross_branch_moderators(api_client):
+    branch_a = Branch.objects.create(name='Forum Legacy Branch A')
+    branch_b = Branch.objects.create(name='Forum Legacy Branch B')
+
+    manager = User.objects.create_user(
+        username='forum_legacy_scope_manager',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_a,
+    )
+    BranchMembership.objects.create(
+        user=manager,
+        branch=branch_a,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    foreign_moderator = User.objects.create_user(
+        username='forum_legacy_scope_foreign_moderator',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_b,
+    )
+
+    category = ForumCategory.objects.create(name='Legacy General')
+    course = Course.objects.create(name='Legacy Forum Course', price=500_000, duration_months=1)
+    Group.objects.create(
+        name='Legacy Forum Group A',
+        branch=branch_a,
+        course=course,
+        start_day=date(2026, 1, 1),
+        end_day=date(2026, 12, 31),
+        start_time='09:00',
+        end_time='10:00',
+        days='Mon,Wed,Fri',
+    )
+
+    clean_forum = Forum.objects.create(
+        category=category,
+        course=course,
+        name='Forum Legacy In Scope',
+        description='Visible',
+        is_active=True,
+    )
+
+    mixed_forum = Forum.objects.create(
+        category=category,
+        course=course,
+        name='Forum Legacy Cross Branch',
+        description='Should be hidden',
+        is_active=True,
+    )
+    mixed_forum.moderators.add(foreign_moderator)
+
+    client = _auth_client_for_user(api_client, manager)
+    response = client.get('/api/social/forums/')
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.data['results'] if isinstance(response.data, dict) else response.data
+    forum_ids = {item['id'] for item in payload}
+    assert clean_forum.id in forum_ids
+    assert mixed_forum.id not in forum_ids
 
 
 @pytest.mark.django_db

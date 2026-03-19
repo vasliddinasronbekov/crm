@@ -7,6 +7,7 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from users.models import User
 from users.branch_scope import (
+    build_direct_user_branch_q,
     build_user_branch_q,
     get_effective_branch_id,
     is_global_branch_user,
@@ -28,9 +29,17 @@ def _scoped_boards_queryset(request, user):
     elif active_branch_id is None:
         return queryset.none()
 
-    return queryset.filter(
+    scoped_queryset = queryset.filter(
         build_user_branch_q(active_branch_id, 'users')
         | build_user_branch_q(active_branch_id, 'teachers')
+    ).distinct()
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(
+        users__in=out_of_scope_users
+    ).exclude(
+        teachers__in=out_of_scope_users
     ).distinct()
 
 class BoardViewSet(viewsets.ModelViewSet):

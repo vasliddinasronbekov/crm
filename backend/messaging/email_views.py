@@ -42,6 +42,113 @@ def _scope_users_to_active_branch(queryset, request):
     return queryset.filter(build_direct_user_branch_q(active_branch_id)).distinct()
 
 
+def _scope_templates_to_active_branch(queryset, request):
+    user = request.user
+    active_branch_id = get_effective_branch_id(request, user)
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+    elif active_branch_id is None:
+        return queryset.none()
+
+    scoped_queryset = queryset.filter(
+        build_user_branch_q(active_branch_id, 'created_by')
+    ).distinct()
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(created_by__in=out_of_scope_users).distinct()
+
+
+def _scope_campaigns_to_active_branch(queryset, request):
+    user = request.user
+    active_branch_id = get_effective_branch_id(request, user)
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+    elif active_branch_id is None:
+        return queryset.none()
+
+    scoped_queryset = queryset.filter(
+        Q(created_by=user)
+        | build_user_branch_q(active_branch_id, 'created_by')
+        | Q(specific_group__branch_id=active_branch_id)
+        | Q(specific_course__groups__branch_id=active_branch_id)
+        | Q(custom_recipients__branch_id=active_branch_id)
+        | Q(
+            custom_recipients__branch_memberships__branch_id=active_branch_id,
+            custom_recipients__branch_memberships__is_active=True,
+        )
+    ).distinct()
+
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(
+        created_by__in=out_of_scope_users
+    ).exclude(
+        custom_recipients__in=out_of_scope_users
+    ).exclude(
+        template__created_by__in=out_of_scope_users
+    ).filter(
+        Q(specific_group__isnull=True) | Q(specific_group__branch_id=active_branch_id)
+    ).filter(
+        Q(specific_course__isnull=True) | Q(specific_course__groups__branch_id=active_branch_id)
+    ).distinct()
+
+
+def _scope_email_logs_to_active_branch(queryset, request):
+    user = request.user
+    active_branch_id = get_effective_branch_id(request, user)
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+    elif active_branch_id is None:
+        return queryset.none()
+
+    scoped_queryset = queryset.filter(
+        build_user_branch_q(active_branch_id, 'recipient')
+        | Q(campaign__specific_group__branch_id=active_branch_id)
+        | Q(campaign__specific_course__groups__branch_id=active_branch_id)
+        | build_user_branch_q(active_branch_id, 'campaign__created_by')
+    ).distinct()
+
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(
+        recipient__in=out_of_scope_users
+    ).exclude(
+        campaign__created_by__in=out_of_scope_users
+    ).exclude(
+        campaign__template__created_by__in=out_of_scope_users
+    ).filter(
+        Q(campaign__specific_group__isnull=True) | Q(campaign__specific_group__branch_id=active_branch_id)
+    ).filter(
+        Q(campaign__specific_course__isnull=True) | Q(campaign__specific_course__groups__branch_id=active_branch_id)
+    ).distinct()
+
+
+def _scope_automations_to_active_branch(queryset, request):
+    user = request.user
+    active_branch_id = get_effective_branch_id(request, user)
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+    elif active_branch_id is None:
+        return queryset.none()
+
+    scoped_queryset = queryset.filter(
+        build_user_branch_q(active_branch_id, 'template__created_by')
+    ).distinct()
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(
+        template__created_by__in=out_of_scope_users
+    ).distinct()
+
+
 class EmailTemplateViewSet(viewsets.ModelViewSet):
     """Email template management API"""
 
@@ -52,14 +159,7 @@ class EmailTemplateViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filter templates"""
         queryset = EmailTemplate.objects.all()
-        if not is_global_branch_user(self.request.user):
-            active_branch_id = get_effective_branch_id(self.request, self.request.user)
-            if active_branch_id is None:
-                return queryset.none()
-            queryset = queryset.filter(
-                Q(created_by=self.request.user)
-                | build_user_branch_q(active_branch_id, 'created_by')
-            ).distinct()
+        queryset = _scope_templates_to_active_branch(queryset, self.request)
 
         # Filter by template type
         template_type = self.request.query_params.get('template_type')
@@ -146,20 +246,7 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
         queryset = EmailCampaign.objects.select_related(
             'template', 'created_by'
         ).all()
-        if not is_global_branch_user(self.request.user):
-            active_branch_id = get_effective_branch_id(self.request, self.request.user)
-            if active_branch_id is None:
-                return queryset.none()
-            queryset = queryset.filter(
-                Q(created_by=self.request.user)
-                | build_user_branch_q(active_branch_id, 'created_by')
-                | Q(specific_group__branch_id=active_branch_id)
-                | Q(custom_recipients__branch_id=active_branch_id)
-                | Q(
-                    custom_recipients__branch_memberships__branch_id=active_branch_id,
-                    custom_recipients__branch_memberships__is_active=True,
-                )
-            ).distinct()
+        queryset = _scope_campaigns_to_active_branch(queryset, self.request)
 
         # Filter by status
         campaign_status = self.request.query_params.get('status')
@@ -173,13 +260,23 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
 
         return queryset.order_by('-created_at')
 
-    def perform_create(self, serializer):
-        """Set created_by to current user"""
+    def _validate_campaign_scope(self, serializer, *, existing_campaign=None):
         active_branch_id = get_effective_branch_id(self.request, self.request.user)
         if active_branch_id is None and not is_global_branch_user(self.request.user):
             raise PermissionDenied('No active branch scope available for this user.')
 
+        template = serializer.validated_data.get('template')
+        if template is None and existing_campaign is not None:
+            template = existing_campaign.template
+        if template is not None and not _scope_templates_to_active_branch(
+            EmailTemplate.objects.filter(id=template.id),
+            self.request,
+        ).exists():
+            raise PermissionDenied('Selected template is outside your active branch scope.')
+
         specific_course = serializer.validated_data.get('specific_course')
+        if specific_course is None and existing_campaign is not None:
+            specific_course = existing_campaign.specific_course
         if (
             specific_course is not None
             and active_branch_id is not None
@@ -188,11 +285,17 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
             raise PermissionDenied('Selected course is outside your active branch scope.')
 
         specific_group = serializer.validated_data.get('specific_group')
+        if specific_group is None and existing_campaign is not None:
+            specific_group = existing_campaign.specific_group
         if specific_group is not None:
             ensure_user_can_access_branch(self.request.user, specific_group.branch_id)
 
-        custom_recipients = list(serializer.validated_data.get('custom_recipients', []))
-        if active_branch_id is not None:
+        custom_recipients = serializer.validated_data.get('custom_recipients')
+        if custom_recipients is None and existing_campaign is not None:
+            custom_recipients = existing_campaign.custom_recipients.all()
+
+        if active_branch_id is not None and custom_recipients is not None:
+            custom_recipients = list(custom_recipients)
             invalid_recipient_ids = [
                 recipient.id
                 for recipient in custom_recipients
@@ -202,7 +305,19 @@ class EmailCampaignViewSet(viewsets.ModelViewSet):
                 raise PermissionDenied(
                     f'Users {invalid_recipient_ids} are outside your active branch scope.'
                 )
+
+    def perform_create(self, serializer):
+        """Set created_by to current user"""
+        self._validate_campaign_scope(serializer)
         serializer.save(created_by=self.request.user)
+
+    def perform_update(self, serializer):
+        self._validate_campaign_scope(serializer, existing_campaign=self.get_object())
+        active_branch_id = get_effective_branch_id(self.request, self.request.user)
+        if active_branch_id is not None and not is_global_branch_user(self.request.user):
+            serializer.save(created_by=self.request.user)
+            return
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def schedule(self, request, pk=None):
@@ -367,15 +482,7 @@ class EmailLogViewSet(viewsets.ReadOnlyModelViewSet):
         queryset = EmailLog.objects.select_related(
             'campaign', 'template', 'recipient'
         ).all()
-        if not is_global_branch_user(self.request.user):
-            active_branch_id = get_effective_branch_id(self.request, self.request.user)
-            if active_branch_id is None:
-                return queryset.none()
-            queryset = queryset.filter(
-                build_user_branch_q(active_branch_id, 'recipient')
-                | Q(campaign__specific_group__branch_id=active_branch_id)
-                | build_user_branch_q(active_branch_id, 'campaign__created_by')
-            ).distinct()
+        queryset = _scope_email_logs_to_active_branch(queryset, self.request)
 
         # Filter by campaign
         campaign_id = self.request.query_params.get('campaign_id')
@@ -423,13 +530,7 @@ class AutomatedEmailViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         """Filter automated emails"""
         queryset = AutomatedEmail.objects.select_related('template').all()
-        if not is_global_branch_user(self.request.user):
-            active_branch_id = get_effective_branch_id(self.request, self.request.user)
-            if active_branch_id is None:
-                return queryset.none()
-            queryset = queryset.filter(
-                build_user_branch_q(active_branch_id, 'template__created_by')
-            ).distinct()
+        queryset = _scope_automations_to_active_branch(queryset, self.request)
 
         # Filter by trigger type
         trigger_type = self.request.query_params.get('trigger_type')
@@ -442,6 +543,25 @@ class AutomatedEmailViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(is_active=is_active.lower() == 'true')
 
         return queryset.order_by('name')
+
+    def _validate_automation_scope(self, serializer, *, existing_automation=None):
+        template = serializer.validated_data.get('template')
+        if template is None and existing_automation is not None:
+            template = existing_automation.template
+
+        if template is not None and not _scope_templates_to_active_branch(
+            EmailTemplate.objects.filter(id=template.id),
+            self.request,
+        ).exists():
+            raise PermissionDenied('Selected template is outside your active branch scope.')
+
+    def perform_create(self, serializer):
+        self._validate_automation_scope(serializer)
+        serializer.save()
+
+    def perform_update(self, serializer):
+        self._validate_automation_scope(serializer, existing_automation=self.get_object())
+        serializer.save()
 
     @action(detail=True, methods=['post'])
     def toggle_active(self, request, pk=None):

@@ -56,11 +56,21 @@ def _scope_forums_to_active_branch(queryset, request):
     elif active_branch_id is None:
         return queryset.none()
 
-    return queryset.filter(
+    scoped_queryset = queryset.filter(
         Q(course__groups__branch_id=active_branch_id)
         | build_user_branch_q(active_branch_id, 'moderators')
         | build_user_branch_q(active_branch_id, 'topics__author')
         | build_user_branch_q(active_branch_id, 'topics__posts__author')
+    ).distinct()
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(
+        moderators__in=out_of_scope_users
+    ).exclude(
+        topics__author__in=out_of_scope_users
+    ).exclude(
+        topics__posts__author__in=out_of_scope_users
     ).distinct()
 
 
@@ -74,11 +84,21 @@ def _scope_study_groups_to_active_branch(queryset, request):
     elif active_branch_id is None:
         return queryset.none()
 
-    return queryset.filter(
+    scoped_queryset = queryset.filter(
         build_user_branch_q(active_branch_id, 'creator')
         | build_user_branch_q(active_branch_id, 'admins')
         | build_user_branch_q(active_branch_id, 'members')
         | Q(course__groups__branch_id=active_branch_id)
+    ).distinct()
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(
+        creator__in=out_of_scope_users
+    ).exclude(
+        admins__in=out_of_scope_users
+    ).exclude(
+        members__in=out_of_scope_users
     ).distinct()
 
 

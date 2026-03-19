@@ -92,6 +92,57 @@ def test_task_endpoints_are_branch_scoped(api_client):
 
 
 @pytest.mark.django_db
+def test_task_board_list_excludes_legacy_cross_branch_members(api_client):
+    branch_a = Branch.objects.create(name='Task Legacy Board Branch A')
+    branch_b = Branch.objects.create(name='Task Legacy Board Branch B')
+
+    manager = User.objects.create_user(
+        username='task_legacy_board_manager',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_a,
+    )
+    BranchMembership.objects.create(
+        user=manager,
+        branch=branch_a,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    in_scope_teacher = User.objects.create_user(
+        username='task_legacy_board_teacher_a',
+        password='StrongPass123!',
+        role=UserRoleEnum.TEACHER.value,
+        is_teacher=True,
+        branch=branch_a,
+    )
+    out_scope_teacher = User.objects.create_user(
+        username='task_legacy_board_teacher_b',
+        password='StrongPass123!',
+        role=UserRoleEnum.TEACHER.value,
+        is_teacher=True,
+        branch=branch_b,
+    )
+
+    in_scope_board = Board.objects.create(name='Task In Scope Board')
+    in_scope_board.users.add(manager)
+    in_scope_board.teachers.add(in_scope_teacher)
+
+    legacy_cross_branch_board = Board.objects.create(name='Task Legacy Cross Branch Board')
+    legacy_cross_branch_board.users.add(manager)
+    legacy_cross_branch_board.teachers.add(out_scope_teacher)
+
+    client = _auth_client_for_user(api_client, manager)
+    response = client.get('/api/task/boards/')
+    assert response.status_code == status.HTTP_200_OK
+    payload = response.data['results'] if isinstance(response.data, dict) else response.data
+    board_ids = {item['id'] for item in payload}
+    assert in_scope_board.id in board_ids
+    assert legacy_cross_branch_board.id not in board_ids
+
+
+@pytest.mark.django_db
 def test_certificate_endpoints_are_branch_scoped(api_client):
     branch_a = Branch.objects.create(name='Certificate Branch A')
     branch_b = Branch.objects.create(name='Certificate Branch B')

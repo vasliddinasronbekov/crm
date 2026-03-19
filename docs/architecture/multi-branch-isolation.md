@@ -62,6 +62,7 @@ Write operations now validate branch ownership for scoped users:
 
 ### 1) Task domain
 - Branch-scoped access for boards/lists/tasks/autotasks and bulk task creation.
+- Legacy mixed-branch boards are excluded from scoped task/list/autotask views.
 - Certificate endpoints branch-scoped by student/course/issuer.
 - Certificate template ownership added via:
   - `task.CertificateTemplate.branch`
@@ -80,16 +81,27 @@ Write operations now validate branch ownership for scoped users:
 - Legacy mixed-branch conversations are excluded from scoped querysets.
 - Cross-branch participant/recipient writes are blocked.
 - Attachment uploads now also block legacy mixed-branch conversation access.
+- Email campaigns/automations now hide legacy mixed-branch recipient/template links.
+- Email campaign create/update now validates template/course/group/recipient branch scope.
+- Email read scopes now honor explicit `active_branch` for superusers (optional narrowed view).
+- Email logs now exclude legacy mixed-branch rows even when campaign creator is in-scope.
+- Automated email create/update now validates template ownership against active branch scope.
 
 ### 3) Social domain
 - Forums now require authentication and are branch-scoped.
 - Study groups/posts/comments are branch-scoped for read and write.
 - Feed and peer conversations are branch-scoped and cross-branch thread leakage is blocked.
+- Legacy mixed-branch forums/study-groups are excluded from scoped listings.
 
 ### 4) Subscriptions webhook hardening
 - Payme/Click handlers are method-scoped and ID-scoped to prevent cross-gateway updates.
 - Added safer numeric parsing and amount validation.
 - Added idempotent handling for repeated webhook delivery paths.
+
+### 5) Subscriptions read-side branch isolation
+- Staff reads for subscriptions/payments/invoices are now branch-scoped for non-global users.
+- Stats endpoints (`overview`, `revenue`) aggregate only active-branch data for scoped admins.
+- Payment/invoice/stats reads now exclude legacy records with cross-branch linked subscriptions/payments.
 
 ## Next phases
 - Phase 3: introduce org-level structure (`Organization` -> `Branch`) for multi-company SaaS isolation.
