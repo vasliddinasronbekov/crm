@@ -435,10 +435,16 @@ export default function StudentsPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background p-8">
-        <div className="max-w-7xl mx-auto">
+      <div className="relative min-h-screen p-8">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -top-20 -left-20 h-80 w-80 rounded-full bg-primary/25 blur-3xl" />
+          <div className="absolute top-1/4 -right-24 h-80 w-80 rounded-full bg-success/15 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-warning/10 blur-3xl" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto">
         {/* Header */}
-        <div className="mb-8 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
+        <div className="glass-panel-strong mb-8 rounded-3xl p-6 flex flex-col xl:flex-row xl:items-center xl:justify-between gap-6">
           <div>
             <h1 className="text-3xl font-bold mb-2 flex items-center gap-3">
               <Users className="h-8 w-8 text-primary" />
@@ -451,14 +457,14 @@ export default function StudentsPage() {
           <div className="flex flex-wrap items-center gap-3">
             <button
               onClick={() => exportStudents(displayStudents, 'students-page.csv')}
-              className="px-4 py-2 bg-background border border-border rounded-xl hover:bg-border/50 transition-colors flex items-center gap-2 text-sm"
+              className="px-4 py-2 glass-chip rounded-xl hover:bg-border/50 transition-colors flex items-center gap-2 text-sm"
             >
               <Download className="h-4 w-4" />
               Export Page
             </button>
             <button
               disabled
-              className="px-4 py-2 bg-background border border-border rounded-xl text-text-secondary/60 cursor-not-allowed flex items-center gap-2 text-sm"
+              className="px-4 py-2 glass-chip rounded-xl text-text-secondary/60 cursor-not-allowed flex items-center gap-2 text-sm"
               title="Bulk import will be enabled once CSV templates are finalized."
             >
               <Upload className="h-4 w-4" />
@@ -471,7 +477,7 @@ export default function StudentsPage() {
               className={`px-4 py-2 rounded-xl transition-colors flex items-center gap-2 font-medium ${
                 canCreateStudent
                   ? 'bg-primary text-background hover:bg-primary/90'
-                  : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                  : 'glass-chip text-text-secondary/70 cursor-not-allowed'
               }`}
             >
               <Plus className="h-5 w-5" />
@@ -482,9 +488,9 @@ export default function StudentsPage() {
 
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
-          <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+          <div className="glass-panel-strong p-6 rounded-2xl hover:border-primary/50 transition-all">
             <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
                 <Users className="h-6 w-6 text-primary" />
               </div>
               {isFetching && <div className="w-4 h-4 border-2 border-primary/50 border-t-transparent rounded-full animate-spin"></div>}
@@ -493,9 +499,9 @@ export default function StudentsPage() {
             <p className="text-sm text-text-secondary">Total Students</p>
           </div>
 
-          <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+          <div className="glass-panel p-6 rounded-2xl hover:border-primary/50 transition-all">
             <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-xl bg-success/15 border border-success/25 flex items-center justify-center">
                 <Mail className="h-6 w-6 text-success" />
               </div>
               <span className="text-xs text-text-secondary">On this page</span>
@@ -504,9 +510,9 @@ export default function StudentsPage() {
             <p className="text-sm text-text-secondary">With Email</p>
           </div>
 
-          <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+          <div className="glass-panel p-6 rounded-2xl hover:border-primary/50 transition-all">
             <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-info/10 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-xl bg-primary/10 border border-primary/20 flex items-center justify-center">
                 <Phone className="h-6 w-6 text-info" />
               </div>
               <span className="text-xs text-text-secondary">On this page</span>
@@ -515,9 +521,9 @@ export default function StudentsPage() {
             <p className="text-sm text-text-secondary">With Phone</p>
           </div>
 
-          <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+          <div className="glass-panel p-6 rounded-2xl hover:border-primary/50 transition-all">
             <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-xl bg-warning/15 border border-warning/25 flex items-center justify-center">
                 <Calendar className="h-6 w-6 text-warning" />
               </div>
               <span className="text-xs text-text-secondary">On this page</span>
@@ -525,9 +531,9 @@ export default function StudentsPage() {
             <p className="text-3xl font-bold mb-1">{stats.recentlyAdded}</p>
             <p className="text-sm text-text-secondary">Recently Added</p>
           </div>
-          <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+          <div className="glass-panel p-6 rounded-2xl hover:border-primary/50 transition-all">
             <div className="flex items-center justify-between mb-4">
-              <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
+              <div className="h-12 w-12 rounded-xl bg-primary/15 border border-primary/25 flex items-center justify-center">
                 <Activity className="h-6 w-6 text-primary" />
               </div>
               <span className="text-xs text-text-secondary">On this page</span>
@@ -538,7 +544,7 @@ export default function StudentsPage() {
         </div>
 
         {/* Filters and Actions */}
-        <div className="bg-surface p-4 rounded-2xl border border-border mb-6">
+        <div className="glass-panel-strong p-4 rounded-2xl mb-6">
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex-1 w-full lg:w-auto relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
@@ -582,7 +588,7 @@ export default function StudentsPage() {
               <div className="flex gap-1 bg-background border border-border rounded-xl p-1">
                 <button
                   onClick={() => setViewMode('grid')}
-                  className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-primary text-background' : 'hover:bg-surface'}`}
+                  className={`p-2 rounded-lg transition-colors ${viewMode === 'grid' ? 'bg-primary text-background' : 'hover:bg-surface/70'}`}
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2V6zM14 6a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2V6zM4 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2H6a2 2 0 01-2-2v-2zM14 16a2 2 0 012-2h2a2 2 0 012 2v2a2 2 0 01-2 2h-2a2 2 0 01-2-2v-2z" />
@@ -590,7 +596,7 @@ export default function StudentsPage() {
                 </button>
                 <button
                   onClick={() => setViewMode('table')}
-                  className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-primary text-background' : 'hover:bg-surface'}`}
+                  className={`p-2 rounded-lg transition-colors ${viewMode === 'table' ? 'bg-primary text-background' : 'hover:bg-surface/70'}`}
                 >
                   <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 10h16M4 14h16M4 18h16" />
@@ -657,7 +663,7 @@ export default function StudentsPage() {
               <div
                 key={student.id}
                 onClick={() => router.push(`/dashboard/students/${student.id}`)}
-                className="bg-surface border border-border rounded-2xl p-6 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all group cursor-pointer"
+                className="glass-panel rounded-2xl p-6 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all group cursor-pointer"
               >
                 <div className="flex items-start justify-between mb-4">
                   <div className="flex items-center gap-3">

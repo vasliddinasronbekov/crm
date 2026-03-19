@@ -615,9 +615,15 @@ export default function FinanceDashboard() {
       {loading ? (
         <LoadingScreen message="Loading finance intelligence..." />
       ) : (
-        <div className="min-h-screen bg-background p-8">
-          <div className="max-w-7xl mx-auto space-y-6">
-        <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
+        <div className="relative min-h-screen p-8">
+          <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            <div className="absolute -top-20 -left-16 h-80 w-80 rounded-full bg-primary/25 blur-3xl" />
+            <div className="absolute top-1/4 -right-24 h-80 w-80 rounded-full bg-success/12 blur-3xl" />
+            <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-warning/10 blur-3xl" />
+          </div>
+
+          <div className="relative z-10 max-w-7xl mx-auto space-y-6">
+        <div className="glass-panel-strong rounded-3xl p-6 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div>
             <h1 className="text-3xl font-bold flex items-center gap-3">
               <Wallet className="h-8 w-8 text-primary" />
@@ -641,7 +647,7 @@ export default function FinanceDashboard() {
               className={`px-4 py-2 rounded-xl transition-opacity flex items-center gap-2 ${
                 canCreatePayment
                   ? 'bg-success text-success-foreground hover:opacity-90'
-                  : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                  : 'glass-chip text-text-secondary/70 cursor-not-allowed'
               }`}
             >
               <DollarSign className="h-4 w-4" />
@@ -654,7 +660,7 @@ export default function FinanceDashboard() {
               className={`px-4 py-2 rounded-xl transition-opacity flex items-center gap-2 ${
                 canCreateExpense
                   ? 'bg-error text-error-foreground hover:opacity-90'
-                  : 'bg-background border border-border text-text-secondary/70 cursor-not-allowed'
+                  : 'glass-chip text-text-secondary/70 cursor-not-allowed'
               }`}
             >
               <TrendingDown className="h-4 w-4" />
@@ -663,7 +669,7 @@ export default function FinanceDashboard() {
             <button
               onClick={handleRefresh}
               disabled={refreshing}
-              className="px-4 py-2 bg-surface border border-border rounded-xl hover:bg-border/50 transition-colors flex items-center gap-2"
+              className="glass-chip px-4 py-2 rounded-xl hover:bg-border/50 transition-colors flex items-center gap-2"
             >
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
@@ -671,13 +677,13 @@ export default function FinanceDashboard() {
           </div>
         </div>
 
-        <div className="flex gap-2 border-b border-border">
+        <div className="glass-panel rounded-2xl p-2 flex gap-2 border-b border-border overflow-x-auto">
           <button
             onClick={() => setActiveTab('overview')}
-            className={`px-5 py-3 border-b-2 transition-colors ${
+            className={`px-5 py-3 rounded-xl border transition-colors whitespace-nowrap ${
               activeTab === 'overview'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-background/60'
             }`}
           >
             <BarChart3 className="h-4 w-4 inline mr-2" />
@@ -685,10 +691,10 @@ export default function FinanceDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('receivables')}
-            className={`px-5 py-3 border-b-2 transition-colors ${
+            className={`px-5 py-3 rounded-xl border transition-colors whitespace-nowrap ${
               activeTab === 'receivables'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-background/60'
             }`}
           >
             <Target className="h-4 w-4 inline mr-2" />
@@ -696,10 +702,10 @@ export default function FinanceDashboard() {
           </button>
           <button
             onClick={() => setActiveTab('operations')}
-            className={`px-5 py-3 border-b-2 transition-colors ${
+            className={`px-5 py-3 rounded-xl border transition-colors whitespace-nowrap ${
               activeTab === 'operations'
-                ? 'border-primary text-primary'
-                : 'border-transparent text-text-secondary hover:text-text-primary'
+                ? 'border-primary/40 bg-primary/10 text-primary'
+                : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-background/60'
             }`}
           >
             <Activity className="h-4 w-4 inline mr-2" />
@@ -710,7 +716,7 @@ export default function FinanceDashboard() {
         {activeTab === 'overview' && (
           <>
             <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-6 gap-4">
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="glass-panel-strong rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <TrendingUp className="h-5 w-5 text-success" />
                   <span className="text-xs text-text-secondary">Revenue</span>
@@ -719,7 +725,7 @@ export default function FinanceDashboard() {
                 <p className="text-xs text-text-secondary mt-1">Gross collected</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="glass-panel rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <TrendingDown className="h-5 w-5 text-error" />
                   <span className="text-xs text-text-secondary">Expense</span>
@@ -730,7 +736,7 @@ export default function FinanceDashboard() {
                 <p className="text-xs text-text-secondary mt-1">Operating cost</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="glass-panel rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <DollarSign className="h-5 w-5 text-primary" />
                   <span
@@ -747,7 +753,7 @@ export default function FinanceDashboard() {
                 <p className="text-xs text-text-secondary mt-1">Net profit</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="glass-panel rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <CreditCard className="h-5 w-5 text-warning" />
                   <span className="text-xs text-text-secondary">Receivable</span>
@@ -756,7 +762,7 @@ export default function FinanceDashboard() {
                 <p className="text-xs text-text-secondary mt-1">Open student balances</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="glass-panel rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <Users className="h-5 w-5 text-info" />
                   <span className="text-xs text-text-secondary">Payroll</span>
@@ -767,7 +773,7 @@ export default function FinanceDashboard() {
                 <p className="text-xs text-text-secondary mt-1">Pending teacher payout</p>
               </div>
 
-              <div className="bg-surface border border-border rounded-2xl p-5">
+              <div className="glass-panel rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-3">
                   <Target className="h-5 w-5 text-primary" />
                   <span className="text-xs text-text-secondary">Efficiency</span>

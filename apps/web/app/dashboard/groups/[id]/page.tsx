@@ -1267,9 +1267,9 @@ export default function GroupDetailPage() {
   if (!group) {
     return (
       <ProtectedRoute>
-        <div className="min-h-screen bg-background p-8">
+        <div className="relative min-h-screen p-8">
           <div className="max-w-7xl mx-auto">
-            <div className="bg-surface border border-border rounded-2xl text-center py-12">
+            <div className="glass-panel-strong rounded-2xl text-center py-12">
               <p className="text-text-secondary text-lg mb-4">Group not found.</p>
               <button onClick={() => router.push('/dashboard/groups')} className="btn-primary">
                 Back to Groups
@@ -1283,9 +1283,15 @@ export default function GroupDetailPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background p-8">
-        <div className="max-w-7xl mx-auto space-y-6">
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
+      <div className="relative min-h-screen p-8">
+        <div className="pointer-events-none absolute inset-0 overflow-hidden">
+          <div className="absolute -top-20 -left-20 h-80 w-80 rounded-full bg-primary/22 blur-3xl" />
+          <div className="absolute top-1/4 -right-24 h-80 w-80 rounded-full bg-success/12 blur-3xl" />
+          <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-warning/10 blur-3xl" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto space-y-6">
+          <div className="glass-panel-strong rounded-3xl p-6 flex flex-col lg:flex-row lg:items-start lg:justify-between gap-4">
             <div>
               <button
                 onClick={() => router.push('/dashboard/groups')}
@@ -1349,7 +1355,7 @@ export default function GroupDetailPage() {
                 {canViewPayments && (
                   <button
                     onClick={() => setActiveTab('payments')}
-                    className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-xs font-medium hover:border-primary/40"
+                    className="inline-flex items-center gap-2 rounded-xl border border-border bg-background/70 px-3 py-2 text-xs font-medium hover:border-primary/40"
                   >
                     <Wallet className="h-3.5 w-3.5" />
                     Payments desk
@@ -1388,7 +1394,7 @@ export default function GroupDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
-            <div className="bg-surface border border-border rounded-2xl p-5">
+            <div className="glass-panel-strong rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <Users className="h-5 w-5 text-primary" />
               </div>
@@ -1396,7 +1402,7 @@ export default function GroupDetailPage() {
               <p className="text-sm text-text-secondary">Students</p>
             </div>
 
-            <div className="bg-surface border border-border rounded-2xl p-5">
+            <div className="glass-panel rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <Calendar className="h-5 w-5 text-info" />
               </div>
@@ -1404,7 +1410,7 @@ export default function GroupDetailPage() {
               <p className="text-sm text-text-secondary">Days per Week</p>
             </div>
 
-            <div className="bg-surface border border-border rounded-2xl p-5">
+            <div className="glass-panel rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <Clock className="h-5 w-5 text-warning" />
               </div>
@@ -1412,7 +1418,7 @@ export default function GroupDetailPage() {
               <p className="text-sm text-text-secondary">Session Duration</p>
             </div>
 
-            <div className="bg-surface border border-border rounded-2xl p-5">
+            <div className="glass-panel rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <CalendarDays className="h-5 w-5 text-success" />
               </div>
@@ -1420,7 +1426,7 @@ export default function GroupDetailPage() {
               <p className="text-sm text-text-secondary">Duration (Weeks)</p>
             </div>
 
-            <div className="bg-surface border border-border rounded-2xl p-5">
+            <div className="glass-panel rounded-2xl p-5">
               <div className="flex items-center justify-between mb-3">
                 <DollarSign className={`h-5 w-5 ${debtStudentsCount > 0 ? 'text-warning' : 'text-success'}`} />
               </div>
@@ -1437,7 +1443,7 @@ export default function GroupDetailPage() {
           </div>
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-5">
+            <div className="glass-panel rounded-2xl p-5">
               <p className="text-xs text-text-secondary uppercase tracking-wide mb-2">Session status</p>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-lg font-semibold">{sessionStatusLabel}</p>
@@ -1453,7 +1459,7 @@ export default function GroupDetailPage() {
               </p>
             </div>
 
-            <div className="bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-5">
+            <div className="glass-panel rounded-2xl p-5">
               <p className="text-xs text-text-secondary uppercase tracking-wide mb-2">Financial snapshot</p>
               <div className="flex items-center justify-between gap-3">
                 <p className="text-lg font-semibold">{formatCurrencyFromMinor(totalBalanceTiyin)}</p>
@@ -1471,7 +1477,7 @@ export default function GroupDetailPage() {
               </p>
             </div>
 
-            <div className="bg-surface/90 backdrop-blur-md border border-border rounded-2xl p-5">
+            <div className="glass-panel rounded-2xl p-5">
               <div className="flex items-center justify-between gap-2 mb-2">
                 <p className="text-xs text-text-secondary uppercase tracking-wide">Operational alerts</p>
                 <ShieldAlert className="h-4 w-4 text-warning" />
@@ -1502,15 +1508,15 @@ export default function GroupDetailPage() {
             </div>
           </div>
 
-          <div className="flex gap-2 border-b border-border">
+          <div className="glass-panel rounded-2xl p-2 flex gap-2 border-b border-border overflow-x-auto">
             {visibleTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setActiveTab(tab.id)}
-                className={`px-5 py-3 border-b-2 transition-colors flex items-center gap-2 ${
+                className={`px-5 py-3 rounded-xl border transition-colors flex items-center gap-2 whitespace-nowrap ${
                   activeTab === tab.id
-                    ? 'border-primary text-primary'
-                    : 'border-transparent text-text-secondary hover:text-text-primary'
+                    ? 'border-primary/40 bg-primary/10 text-primary'
+                    : 'border-transparent text-text-secondary hover:text-text-primary hover:bg-background/60'
                 }`}
               >
                 <tab.icon className="h-5 w-5" />

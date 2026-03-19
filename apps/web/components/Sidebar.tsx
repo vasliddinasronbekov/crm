@@ -127,7 +127,7 @@ export function Sidebar({
 
   return (
     <div
-      className={`glass-panel-strong fixed inset-y-0 left-0 z-40 w-72 border-r border-border transition-all duration-300 ${
+      className={`glass-panel-strong fixed inset-y-0 left-0 z-40 w-72 border-r border-border flex flex-col overflow-hidden transition-all duration-300 ${
         mobileOpen ? 'translate-x-0' : '-translate-x-full'
       } ${collapsed ? 'lg:w-20' : 'lg:w-72'} lg:translate-x-0`}
     >
@@ -158,7 +158,7 @@ export function Sidebar({
         </div>
       </div>
 
-      <nav className="flex-1 overflow-y-auto px-3 py-4">
+      <nav className="min-h-0 flex-1 overflow-y-auto px-3 py-4">
         {Object.entries(sectionLabels).map(([sectionKey, label]) => {
           const sectionItems = visibleNavigation.filter((item) => item.section === sectionKey)
           if (!sectionItems.length) {
