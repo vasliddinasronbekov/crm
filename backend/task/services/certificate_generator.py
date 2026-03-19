@@ -173,21 +173,31 @@ class CertificateGenerator:
         return pdf_content
 
 
-def _resolve_template(template_id=None):
+def _resolve_template(template_id=None, scope_branch_id=None):
     from ..certificate_models import CertificateTemplate
+
+    queryset = CertificateTemplate.objects.filter(is_active=True)
+    scoped_queryset = queryset
+    if scope_branch_id is not None:
+        scoped_queryset = queryset.filter(branch_id=scope_branch_id)
 
     template = None
     if template_id:
-        try:
-            template = CertificateTemplate.objects.get(id=template_id, is_active=True)
-        except CertificateTemplate.DoesNotExist:
-            template = None
+        template = scoped_queryset.filter(id=template_id).first()
+        if template is None and scope_branch_id is None:
+            template = queryset.filter(id=template_id).first()
 
     if template is None:
-        template = (
-            CertificateTemplate.objects.filter(is_default=True, is_active=True).first()
-            or CertificateTemplate.objects.filter(is_active=True).first()
-        )
+        if scope_branch_id is not None:
+            template = (
+                scoped_queryset.filter(is_default=True).first()
+                or scoped_queryset.first()
+            )
+        else:
+            template = (
+                queryset.filter(is_default=True).first()
+                or queryset.first()
+            )
 
     return template
 
@@ -203,6 +213,7 @@ def issue_certificate_for_student(
     completion_date=None,
     notes='',
     force_regenerate=False,
+    scope_branch_id=None,
 ):
     """
     Create or update a certificate and regenerate the PDF when data changes.
@@ -217,13 +228,14 @@ def issue_certificate_for_student(
         completion_date: Course completion date
         notes: Admin notes
         force_regenerate: Force PDF regeneration even if data is unchanged
+        scope_branch_id: Active branch scope for template resolution
 
     Returns:
         tuple[Certificate, bool]: certificate instance and created flag
     """
     from ..certificate_models import Certificate
 
-    resolved_template = _resolve_template(template_id)
+    resolved_template = _resolve_template(template_id, scope_branch_id=scope_branch_id)
     resolved_completion_date = completion_date or timezone.now().date()
 
     certificate, created = Certificate.objects.get_or_create(

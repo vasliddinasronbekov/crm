@@ -23,6 +23,7 @@ from student_profile.models import Course, Attendance, ExamScore
 from student_profile.content_models import StudentProgress, Lesson
 from users.models import User
 from users.branch_scope import (
+    build_direct_user_branch_q,
     build_user_branch_q,
     get_effective_branch_id,
     is_global_branch_user,
@@ -45,11 +46,33 @@ def _scope_certificate_relations_to_active_branch(queryset, request, certificate
         return queryset.none()
 
     prefix = f'{certificate_field}__' if certificate_field else ''
-    return queryset.filter(
+    scoped_queryset = queryset.filter(
         build_user_branch_q(active_branch_id, f'{prefix}student')
         | build_user_branch_q(active_branch_id, f'{prefix}issued_by')
-        | Q(**{f'{prefix}course__groups__branch_id': active_branch_id})
     ).distinct()
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(
+        **{f'{prefix}student__in': out_of_scope_users}
+    ).distinct()
+
+
+def _scope_templates_to_active_branch(queryset, request):
+    user = request.user
+    active_branch_id = get_effective_branch_id(request, user)
+
+    if is_global_branch_user(user):
+        if active_branch_id is None:
+            return queryset
+        return queryset.filter(
+            Q(branch_id=active_branch_id) | Q(branch__isnull=True)
+        ).distinct()
+
+    if active_branch_id is None:
+        return queryset.none()
+
+    return queryset.filter(branch_id=active_branch_id).distinct()
 
 
 def _ensure_course_and_student_in_active_branch(request, *, student=None, course=None):
@@ -66,6 +89,8 @@ def _ensure_course_and_student_in_active_branch(request, *, student=None, course
 
     if course is not None and not course.groups.filter(branch_id=active_branch_id).exists():
         raise PermissionDenied('Selected course is outside your active branch scope.')
+
+    return active_branch_id
 
 
 class CertificateViewSet(viewsets.ModelViewSet):
@@ -119,8 +144,19 @@ class CertificateViewSet(viewsets.ModelViewSet):
         
         student = get_object_or_404(User, id=serializer.validated_data['student_id'])
         course = get_object_or_404(Course, id=serializer.validated_data['course_id'])
-        _ensure_course_and_student_in_active_branch(request, student=student, course=course)
+        active_branch_id = _ensure_course_and_student_in_active_branch(
+            request,
+            student=student,
+            course=course,
+        )
         template_id = serializer.validated_data.get('template_id')
+        if template_id:
+            template_allowed = _scope_templates_to_active_branch(
+                CertificateTemplate.objects.filter(id=template_id, is_active=True),
+                request,
+            ).exists()
+            if not template_allowed:
+                raise PermissionDenied('Selected template is outside your active branch scope.')
         grade = serializer.validated_data.get('grade', '')
         hours = serializer.validated_data.get('hours_completed', 0)
         completion_date = serializer.validated_data.get('completion_date')
@@ -138,6 +174,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
                 completion_date=completion_date,
                 notes=notes,
                 force_regenerate=force_regenerate,
+                scope_branch_id=active_branch_id,
             )
 
             response_serializer = CertificateSerializer(certificate, context={'request': request})
@@ -183,7 +220,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
             return denied
 
         certificate = self.get_object()
-        _ensure_course_and_student_in_active_branch(
+        active_branch_id = _ensure_course_and_student_in_active_branch(
             request,
             student=certificate.student,
             course=certificate.course,
@@ -199,6 +236,7 @@ class CertificateViewSet(viewsets.ModelViewSet):
             completion_date=certificate.completion_date,
             notes=certificate.notes,
             force_regenerate=True,
+            scope_branch_id=active_branch_id,
         )
         serializer = CertificateSerializer(certificate, context={'request': request})
         return Response(serializer.data)
@@ -221,16 +259,26 @@ class CertificateViewSet(viewsets.ModelViewSet):
 
         student = get_object_or_404(User, id=student_id)
         course = get_object_or_404(Course, id=course_id)
-        _ensure_course_and_student_in_active_branch(request, student=student, course=course)
+        active_branch_id = _ensure_course_and_student_in_active_branch(
+            request,
+            student=student,
+            course=course,
+        )
 
-        enrolled_groups = student.student_groups.filter(course=course).select_related('branch')
+        enrolled_groups = student.student_groups.filter(course=course)
         progress_qs = StudentProgress.objects.filter(student=student, course=course)
         lesson_count = Lesson.objects.filter(module__course=course).count()
         completed_lessons = progress_qs.filter(lesson__isnull=False, is_completed=True).count()
         attendance_qs = Attendance.objects.filter(student=student, group__course=course)
+        exam_qs = ExamScore.objects.filter(student=student, group__course=course)
+        if active_branch_id is not None:
+            enrolled_groups = enrolled_groups.filter(branch_id=active_branch_id)
+            attendance_qs = attendance_qs.filter(group__branch_id=active_branch_id)
+            exam_qs = exam_qs.filter(group__branch_id=active_branch_id)
+
+        enrolled_groups = enrolled_groups.select_related('branch')
         total_sessions = attendance_qs.count()
         present_sessions = attendance_qs.filter(attendance_status=Attendance.STATUS_PRESENT).count()
-        exam_qs = ExamScore.objects.filter(student=student, group__course=course)
         exam_count = exam_qs.count()
         average_score = round(
             sum(exam_qs.values_list('score', flat=True)) / exam_count,
@@ -378,7 +426,45 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
         ).order_by('-is_default', 'name')
         if not _is_certificate_manager(self.request.user):
             return queryset.none()
-        return queryset
+        return _scope_templates_to_active_branch(queryset, self.request)
+
+    def perform_create(self, serializer):
+        active_branch_id = get_effective_branch_id(self.request, self.request.user)
+
+        if is_global_branch_user(self.request.user):
+            serializer.save(created_by=self.request.user)
+            return
+
+        if active_branch_id is None:
+            raise PermissionDenied('No active branch scope available for this user.')
+
+        requested_branch = serializer.validated_data.get('branch')
+        requested_branch_id = requested_branch.id if requested_branch else None
+        if requested_branch_id is not None and requested_branch_id != active_branch_id:
+            raise PermissionDenied('Cannot create a template for another branch.')
+
+        serializer.save(
+            created_by=self.request.user,
+            branch_id=active_branch_id,
+        )
+
+    def perform_update(self, serializer):
+        active_branch_id = get_effective_branch_id(self.request, self.request.user)
+        instance = self.get_object()
+
+        if not is_global_branch_user(self.request.user):
+            if active_branch_id is None:
+                raise PermissionDenied('No active branch scope available for this user.')
+            if instance.branch_id != active_branch_id:
+                raise PermissionDenied('You do not have access to this template.')
+            requested_branch = serializer.validated_data.get('branch')
+            requested_branch_id = requested_branch.id if requested_branch else None
+            if requested_branch_id is not None and requested_branch_id != active_branch_id:
+                raise PermissionDenied('Cannot move template ownership to another branch.')
+            serializer.save(created_by=instance.created_by or self.request.user, branch_id=active_branch_id)
+            return
+
+        serializer.save()
 
     def list(self, request, *args, **kwargs):
         denied = None if _is_certificate_manager(request.user) else Response(
@@ -437,18 +523,7 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
                 {'error': 'This template is in use by one or more certificates and cannot be deleted.'},
                 status=status.HTTP_400_BAD_REQUEST
             )
-        
-        print(f"Attempting to delete CertificateTemplate with id: {instance.id}")
-        try:
-            response = super().destroy(request, *args, **kwargs)
-            print(f"Successfully deleted CertificateTemplate with id: {instance.id}")
-            return response
-        except Exception as e:
-            print(f"Error deleting CertificateTemplate with id: {instance.id}, error: {e}")
-            return Response(
-                {'error': f'Failed to delete certificate template: {str(e)}'},
-                status=status.HTTP_500_INTERNAL_SERVER_ERROR
-            )
+        return super().destroy(request, *args, **kwargs)
 
     @action(detail=True, methods=['post'])
     def set_default(self, request, pk=None):
@@ -461,11 +536,14 @@ class CertificateTemplateViewSet(viewsets.ModelViewSet):
         template = self.get_object()
 
         # Remove default from others
-        CertificateTemplate.objects.update(is_default=False)
+        branch_scope = Q(branch_id=template.branch_id)
+        if template.branch_id is None:
+            branch_scope = Q(branch__isnull=True)
+        CertificateTemplate.objects.filter(branch_scope).exclude(id=template.id).update(is_default=False)
 
         # Set this as default
         template.is_default = True
-        template.save()
+        template.save(update_fields=['is_default', 'updated_at'])
 
         return Response({'message': 'Template set as default'})
 

@@ -19,10 +19,12 @@ from .models import Conversation, ChatMessage
 from PIL import Image
 from io import BytesIO
 from users.branch_scope import (
+    build_direct_user_branch_q,
     build_user_branch_q,
     get_effective_branch_id,
     is_global_branch_user,
 )
+from users.models import User
 
 
 # File upload size limits (in MB)
@@ -51,10 +53,14 @@ def _conversation_with_branch_scope(conversation_id, request):
     elif active_branch_id is None:
         return None
 
-    return queryset.filter(
+    scoped_queryset = queryset.filter(
         build_user_branch_q(active_branch_id, 'user')
         | build_user_branch_q(active_branch_id, 'participants')
-    ).distinct().first()
+    ).distinct()
+    out_of_scope_users = User.objects.exclude(
+        build_direct_user_branch_q(active_branch_id)
+    ).distinct()
+    return scoped_queryset.exclude(participants__in=out_of_scope_users).distinct().first()
 
 
 @extend_schema(

@@ -135,11 +135,13 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
 
     background_image_url = serializers.SerializerMethodField()
     certificate_count = serializers.IntegerField(read_only=True)
+    created_by_name = serializers.SerializerMethodField()
 
     class Meta:
         model = CertificateTemplate
         fields = [
             'id', 'name', 'template_type',
+            'branch', 'created_by', 'created_by_name',
             'background_image', 'background_image_url',
             'background_color', 'text_color', 'border_color',
             'layout_config',
@@ -147,6 +149,7 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
             'certificate_count',
             'created_at', 'updated_at',
         ]
+        read_only_fields = ['created_by', 'created_by_name', 'certificate_count', 'created_at', 'updated_at']
 
     def get_background_image_url(self, obj) -> Any:
         if not obj.background_image:
@@ -155,6 +158,11 @@ class CertificateTemplateSerializer(serializers.ModelSerializer):
         if request:
             return request.build_absolute_uri(obj.background_image.url)
         return obj.background_image.url
+
+    def get_created_by_name(self, obj) -> Any:
+        if not obj.created_by:
+            return ''
+        return obj.created_by.get_full_name().strip() or obj.created_by.username
 
 
 class CertificateVerificationSerializer(serializers.ModelSerializer):

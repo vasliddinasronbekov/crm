@@ -1,4 +1,5 @@
 import pytest
+from django.core.files.uploadedfile import SimpleUploadedFile
 from rest_framework import status
 from rest_framework_simplejwt.tokens import RefreshToken
 
@@ -206,3 +207,110 @@ def test_conversation_list_excludes_out_of_scope_legacy_participants(api_client)
     titles = {item['title'] for item in payload}
     assert 'In Scope' in titles
     assert 'Legacy Cross Branch' not in titles
+
+
+@pytest.mark.django_db
+def test_chat_conversation_list_excludes_out_of_scope_legacy_participants(api_client):
+    branch_a = Branch.objects.create(name='Chat Scope Branch A')
+    branch_b = Branch.objects.create(name='Chat Scope Branch B')
+
+    manager = User.objects.create_user(
+        username='chat_scope_manager',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_a,
+        is_staff=True,
+    )
+    BranchMembership.objects.create(
+        user=manager,
+        branch=branch_a,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    participant_a = User.objects.create_user(
+        username='chat_scope_user_a',
+        password='StrongPass123!',
+        role=UserRoleEnum.STUDENT.value,
+        branch=branch_a,
+    )
+    participant_b = User.objects.create_user(
+        username='chat_scope_user_b',
+        password='StrongPass123!',
+        role=UserRoleEnum.STUDENT.value,
+        branch=branch_b,
+    )
+
+    in_scope = Conversation.objects.create(
+        user=manager,
+        conversation_type='platform',
+        title='Chat In Scope',
+    )
+    in_scope.participants.add(manager, participant_a)
+
+    legacy_cross_branch = Conversation.objects.create(
+        user=manager,
+        conversation_type='platform',
+        title='Chat Legacy Cross Branch',
+    )
+    legacy_cross_branch.participants.add(manager, participant_b)
+
+    client = _auth_client_for_user(api_client, manager)
+    response = client.get('/api/messaging/chat/conversations/')
+    assert response.status_code == status.HTTP_200_OK
+
+    payload = response.data['results'] if isinstance(response.data, dict) else response.data
+    titles = {item['title'] for item in payload}
+    assert 'Chat In Scope' in titles
+    assert 'Chat Legacy Cross Branch' not in titles
+
+
+@pytest.mark.django_db
+def test_attachment_upload_blocks_legacy_cross_branch_conversations(api_client):
+    branch_a = Branch.objects.create(name='Chat Attachment Scope Branch A')
+    branch_b = Branch.objects.create(name='Chat Attachment Scope Branch B')
+
+    manager = User.objects.create_user(
+        username='chat_attachment_scope_manager',
+        password='StrongPass123!',
+        role=UserRoleEnum.MANAGER.value,
+        branch=branch_a,
+        is_staff=True,
+    )
+    BranchMembership.objects.create(
+        user=manager,
+        branch=branch_a,
+        role=UserRoleEnum.MANAGER.value,
+        is_primary=True,
+        is_active=True,
+    )
+
+    participant_b = User.objects.create_user(
+        username='chat_attachment_scope_user_b',
+        password='StrongPass123!',
+        role=UserRoleEnum.STUDENT.value,
+        branch=branch_b,
+    )
+
+    legacy_cross_branch = Conversation.objects.create(
+        user=manager,
+        conversation_type='platform',
+        title='Attachment Legacy Cross Branch',
+    )
+    legacy_cross_branch.participants.add(manager, participant_b)
+
+    client = _auth_client_for_user(api_client, manager)
+    response = client.post(
+        '/api/messaging/upload/',
+        data={
+            'conversation_id': legacy_cross_branch.id,
+            'file': SimpleUploadedFile(
+                'scope-check.txt',
+                b'scope check',
+                content_type='text/plain',
+            ),
+        },
+        format='multipart',
+    )
+    assert response.status_code == status.HTTP_404_NOT_FOUND

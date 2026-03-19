@@ -74,6 +74,21 @@ class CertificateTemplate(models.Model):
 
     name = models.CharField(max_length=255)
     template_type = models.CharField(max_length=50, choices=TEMPLATE_TYPES, default='standard')
+    branch = models.ForeignKey(
+        'student_profile.Branch',
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='certificate_templates',
+        help_text='Template ownership scope. Null means global template.',
+    )
+    created_by = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='created_certificate_templates',
+    )
 
     # Design customization
     background_image = models.ImageField(upload_to='certificate_templates/', blank=True, null=True)

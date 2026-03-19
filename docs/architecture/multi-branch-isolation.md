@@ -1,4 +1,4 @@
-# Multi-Branch Isolation (Phase 1)
+# Multi-Branch Isolation (Phase 1 + Phase 2)
 
 ## Goal
 Enable one education company to run multiple physical branches inside one unified platform, while keeping operational data isolated by branch for non-superusers.
@@ -58,7 +58,39 @@ Write operations now validate branch ownership for scoped users:
 3. Backfill branch for legacy records with null branch (groups/payments where needed).
 4. Add admin UI for assigning multi-branch memberships.
 
+## Implemented in Phase 2
+
+### 1) Task domain
+- Branch-scoped access for boards/lists/tasks/autotasks and bulk task creation.
+- Certificate endpoints branch-scoped by student/course/issuer.
+- Certificate template ownership added via:
+  - `task.CertificateTemplate.branch`
+  - `task.CertificateTemplate.created_by`
+- Scoped users can only manage templates in their active branch.
+- Default template toggling is now isolated per branch (not global).
+- Scoped certificate generation no longer falls back to global templates.
+- Certificate eligibility and list responses now avoid shared-course cross-branch leakage.
+
+### 2) Messaging domain
+- Branch-scoped filtering across:
+  - conversation lists
+  - chat history/messages
+  - file upload/delete conversation access
+  - email campaigns/logs/automations
+- Legacy mixed-branch conversations are excluded from scoped querysets.
+- Cross-branch participant/recipient writes are blocked.
+- Attachment uploads now also block legacy mixed-branch conversation access.
+
+### 3) Social domain
+- Forums now require authentication and are branch-scoped.
+- Study groups/posts/comments are branch-scoped for read and write.
+- Feed and peer conversations are branch-scoped and cross-branch thread leakage is blocked.
+
+### 4) Subscriptions webhook hardening
+- Payme/Click handlers are method-scoped and ID-scoped to prevent cross-gateway updates.
+- Added safer numeric parsing and amount validation.
+- Added idempotent handling for repeated webhook delivery paths.
+
 ## Next phases
-- Phase 2: enforce branch scope across CRM, messaging, analytics, and social modules.
 - Phase 3: introduce org-level structure (`Organization` -> `Branch`) for multi-company SaaS isolation.
 - Phase 4: per-branch audit dashboards and branch-level RBAC overrides.
