@@ -98,6 +98,12 @@ from .payment_reconciliation import (
 from .permissions import IsTeacherOrReadOnly, IsAdminOrGroupOwnerOrReadOnly
 from users.permissions import HasRoleCapability
 from users.roles import has_capability
+from users.branch_scope import (
+    apply_branch_scope,
+    ensure_user_can_access_branch,
+    get_accessible_branch_ids,
+    is_global_branch_user,
+)
 
 
 # --- 5. Barcha ViewSet va View'larni tartib bilan e'lon qilamiz ---
@@ -402,19 +408,35 @@ class GroupViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = Group.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         # Role-based filtering
         if user.is_superuser:
-            queryset = Group.objects.all()
+            queryset = apply_branch_scope(
+                queryset,
+                self.request,
+                user,
+                field_name='branch',
+            )
         elif user.is_staff:
-            if user.branch_id:
-                queryset = Group.objects.filter(Q(branch=user.branch) | Q(branch__isnull=True))
-            else:
-                queryset = Group.objects.all()
+            if branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='branch',
+                )
         elif user.is_teacher:
             queryset = Group.objects.filter(
                 Q(main_teacher=user) | Q(assistant_teacher=user)
             ).distinct()
+            if branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='branch',
+                )
         else:
             queryset = Group.objects.filter(students=user)
 
@@ -494,6 +516,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
 
         validated = serializer.validated_data
+        ensure_user_can_access_branch(request.user, validated['group'].branch_id)
         attendance_status = validated.get('attendance_status', Attendance.STATUS_PRESENT)
         attendance_obj = (
             Attendance.objects.filter(
@@ -525,10 +548,14 @@ class AttendanceViewSet(viewsets.ModelViewSet):
         return Response(output_serializer.data, status=response_status)
 
     def perform_create(self, serializer):
+        group = serializer.validated_data.get('group')
+        ensure_user_can_access_branch(self.request.user, getattr(group, 'branch_id', None))
         attendance = serializer.save()
         self._apply_attendance_policies_safely(attendance)
 
     def perform_update(self, serializer):
+        group = serializer.validated_data.get('group', serializer.instance.group)
+        ensure_user_can_access_branch(self.request.user, getattr(group, 'branch_id', None))
         attendance = serializer.save()
         self._apply_attendance_policies_safely(attendance)
 
@@ -582,6 +609,7 @@ class AttendanceViewSet(viewsets.ModelViewSet):
                 validated = serializer.validated_data
                 student = validated['student']
                 group = validated['group']
+                ensure_user_can_access_branch(request.user, group.branch_id)
                 date = validated['date']
                 attendance_status = validated.get('attendance_status', Attendance.STATUS_PRESENT)
 
@@ -633,11 +661,35 @@ class AttendanceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = Attendance.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         # Role-based filtering
-        if user.is_superuser or user.is_teacher or user.is_staff:
-            if user.branch:
-                queryset = queryset.filter(group__branch=user.branch)
+        if user.is_superuser:
+            queryset = apply_branch_scope(
+                queryset,
+                self.request,
+                user,
+                field_name='group__branch',
+            )
+        elif user.is_teacher:
+            queryset = queryset.filter(
+                Q(group__main_teacher=user) | Q(group__assistant_teacher=user)
+            )
+            if branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
+        elif user.is_staff:
+            if branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
         else:
             queryset = queryset.filter(student=user)
 
@@ -732,11 +784,35 @@ class ExamScoreViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = ExamScore.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         # Role-based filtering
-        if user.is_superuser or user.is_teacher:
-            if user.branch:
-                queryset = queryset.filter(group__branch=user.branch)
+        if user.is_superuser:
+            queryset = apply_branch_scope(
+                queryset,
+                self.request,
+                user,
+                field_name='group__branch',
+            )
+        elif user.is_teacher:
+            queryset = queryset.filter(
+                Q(group__main_teacher=user) | Q(group__assistant_teacher=user)
+            )
+            if branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
+        elif user.is_staff:
+            if branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
         else:
             queryset = queryset.filter(student=user)
 
@@ -774,6 +850,8 @@ class PaymentViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         with transaction.atomic():
+            group = serializer.validated_data.get('group')
+            ensure_user_can_access_branch(self.request.user, getattr(group, 'branch_id', None))
             payment = serializer.save()
             apply_payment_to_student_account(payment, actor=self.request.user)
             ensure_cash_receipt(payment, actor=self.request.user)
@@ -796,6 +874,7 @@ class PaymentViewSet(viewsets.ModelViewSet):
         previous_group_id = previous.group_id
 
         payment = serializer.save()
+        ensure_user_can_access_branch(self.request.user, getattr(payment.group, 'branch_id', None))
         paid_state_changed = (
             previous_status != payment.status
             or previous_amount != payment.amount
@@ -863,22 +942,40 @@ class PaymentViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = Payment.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         # Capability-aligned visibility:
         # - payments.manage: operational staff can inspect branch-scoped payments
         # - payments.record (teacher): only payments tied to their teaching scope
         # - fallback payments.read: own student/parent payments only
         if has_capability(user, 'payments.manage'):
-            if user.branch:
-                queryset = queryset.filter(group__branch=user.branch)
+            if is_global_branch_user(user):
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
+            elif branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
         elif has_capability(user, 'payments.record'):
             queryset = queryset.filter(
                 Q(teacher_id=user.id)
                 | Q(group__main_teacher_id=user.id)
                 | Q(group__assistant_teacher_id=user.id)
             )
-            if user.branch:
-                queryset = queryset.filter(group__branch=user.branch)
+            if branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
         else:
             queryset = queryset.filter(by_user=user)
 

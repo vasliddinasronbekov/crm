@@ -14,6 +14,11 @@ from drf_spectacular.utils import extend_schema
 from django.contrib.auth import update_session_auth_hash
 from django.db.models import Q
 from .models import User, UserRoleEnum
+from .branch_scope import (
+    get_accessible_branch_ids,
+    get_effective_branch_id,
+    is_global_branch_user,
+)
 from .serializers import (
     UserSerializer,
     UserProfileSerializer,
@@ -23,6 +28,7 @@ from .serializers import (
     UserRoleUpdateSerializer,
 )
 from .permissions import HasRoleCapability
+from student_profile.models import Branch
 from edu_project.middleware.login_attempt import (
     record_login_attempt,
     is_locked_out,
@@ -42,6 +48,29 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         'retrieve': 'users.read_all',
         'set_role': 'users.manage',
     }
+
+    def get_queryset(self):
+        queryset = User.objects.all().order_by('id')
+        user = self.request.user
+
+        if is_global_branch_user(user):
+            return queryset
+
+        active_branch_id = get_effective_branch_id(self.request, user)
+        if active_branch_id is None:
+            return queryset.none()
+
+        return (
+            queryset.filter(
+                Q(branch_id=active_branch_id)
+                | Q(student_groups__branch_id=active_branch_id)
+                | Q(main_teacher_groups__branch_id=active_branch_id)
+                | Q(assistant_teacher_groups__branch_id=active_branch_id)
+                | Q(balances__group__branch_id=active_branch_id)
+            )
+            .distinct()
+            .order_by('id')
+        )
 
     @action(detail=True, methods=['post'])
     def set_role(self, request, pk=None):
@@ -84,6 +113,19 @@ class StudentViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = User.objects.filter(role=UserRoleEnum.STUDENT.value)
+        user = self.request.user
+
+        if not is_global_branch_user(user):
+            active_branch_id = get_effective_branch_id(self.request, user)
+            if active_branch_id is None:
+                return queryset.none()
+            queryset = queryset.filter(
+                Q(branch_id=active_branch_id)
+                | Q(student_groups__branch_id=active_branch_id)
+                | Q(balances__group__branch_id=active_branch_id)
+                | Q(attendances__group__branch_id=active_branch_id)
+                | Q(made_payments__group__branch_id=active_branch_id)
+            ).distinct()
 
         # Date filtering - filter by date_joined
         date_param = self.request.query_params.get('date', None)
@@ -585,6 +627,17 @@ class TeacherViewSet(viewsets.ModelViewSet):
 
     def get_queryset(self):
         queryset = User.objects.filter(role=UserRoleEnum.TEACHER.value)
+        user = self.request.user
+
+        if not is_global_branch_user(user):
+            active_branch_id = get_effective_branch_id(self.request, user)
+            if active_branch_id is None:
+                return queryset.none()
+            queryset = queryset.filter(
+                Q(branch_id=active_branch_id)
+                | Q(main_teacher_groups__branch_id=active_branch_id)
+                | Q(assistant_teacher_groups__branch_id=active_branch_id)
+            ).distinct()
 
         # Date filtering - filter by date_joined
         date_param = self.request.query_params.get('date', None)
@@ -622,6 +675,44 @@ class TeacherViewSet(viewsets.ModelViewSet):
             queryset = queryset.filter(Q(phone__isnull=True) | Q(phone__exact=''))
 
         return queryset.order_by('-date_joined')
+
+
+@extend_schema(responses=OpenApiTypes.OBJECT)
+class BranchContextView(APIView):
+    """
+    Resolve branch visibility context for the current user.
+    Frontend can use this for branch switchers and scoped requests.
+    """
+
+    permission_classes = [permissions.IsAuthenticated, HasRoleCapability]
+    required_capability = 'profile.self'
+
+    def get(self, request):
+        user = request.user
+        global_scope = is_global_branch_user(user)
+        requested_branch_id = request.query_params.get('branch_id')
+
+        active_branch_id = get_effective_branch_id(request, user)
+        if global_scope:
+            branches_qs = Branch.objects.all().order_by('name')
+        else:
+            branch_ids = get_accessible_branch_ids(user)
+            branches_qs = Branch.objects.filter(id__in=branch_ids).order_by('name')
+
+        branches = list(
+            branches_qs.values('id', 'name', 'latitude', 'longitude')
+        )
+        accessible_branch_ids = [branch['id'] for branch in branches]
+
+        return Response(
+            {
+                'is_global_scope': global_scope,
+                'active_branch_id': active_branch_id,
+                'requested_branch_id': int(requested_branch_id) if str(requested_branch_id or '').isdigit() else None,
+                'accessible_branch_ids': accessible_branch_ids,
+                'branches': branches,
+            }
+        )
 
 # --- MAVJUD KOD ---
 class MyTokenObtainPairView(TokenObtainPairView):

@@ -36,6 +36,7 @@ from .accounting_serializers import (
 from .models import Group, AutomaticFine
 from users.models import User
 from users.permissions import HasRoleCapability
+from users.branch_scope import apply_branch_scope, get_accessible_branch_ids, is_global_branch_user
 from .services.financial_automation import accounting_realtime_metrics, reactivate_student_account
 
 
@@ -55,9 +56,23 @@ class StudentAccountViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = StudentAccount.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         if user.is_superuser or user.is_staff:
-            pass
+            if is_global_branch_user(user):
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='student__balances__group__branch',
+                )
+            elif branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='student__balances__group__branch',
+                )
         elif user.is_teacher:
             queryset = queryset.filter(student__student_groups__main_teacher=user).distinct()
         else:
@@ -85,7 +100,7 @@ class StudentAccountViewSet(viewsets.ReadOnlyModelViewSet):
         if status_filter:
             queryset = queryset.filter(status=status_filter)
 
-        return queryset.select_related('student').order_by('student__username')
+        return queryset.select_related('student').distinct().order_by('student__username')
 
     @action(detail=True, methods=['post'])
     def reactivate(self, request, pk=None):
@@ -124,9 +139,23 @@ class MonthlySubscriptionChargeViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = MonthlySubscriptionCharge.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         if user.is_superuser or user.is_staff:
-            pass
+            if is_global_branch_user(user):
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
+            elif branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
         elif user.is_teacher:
             queryset = queryset.filter(group__main_teacher=user)
         else:
@@ -158,9 +187,25 @@ class AccountingActivityLogViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = AccountingActivityLog.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         if user.is_superuser or user.is_staff:
-            pass
+            if is_global_branch_user(user):
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
+            elif branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
         elif user.is_teacher:
             queryset = queryset.filter(group__main_teacher=user)
         else:
@@ -192,9 +237,27 @@ class RealtimeAccountingDashboardView(APIView):
 
     def get(self, request):
         metrics = accounting_realtime_metrics()
+        branch_ids = get_accessible_branch_ids(request.user)
 
         activity_qs = AccountingActivityLog.objects.all()
-        if not (request.user.is_superuser or request.user.is_staff):
+        if request.user.is_superuser:
+            activity_qs = apply_branch_scope(
+                activity_qs,
+                request,
+                request.user,
+                field_name='group__branch',
+                include_unassigned=True,
+            )
+        elif request.user.is_staff:
+            if branch_ids:
+                activity_qs = apply_branch_scope(
+                    activity_qs,
+                    request,
+                    request.user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
+        else:
             if request.user.is_teacher:
                 activity_qs = activity_qs.filter(group__main_teacher=request.user)
             else:
@@ -239,12 +302,24 @@ class StudentBalanceViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = StudentBalance.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         # Role-based filtering
         if user.is_superuser or user.is_staff:
-            # Admin/staff can see all balances
-            if user.branch:
-                queryset = queryset.filter(group__branch=user.branch)
+            if is_global_branch_user(user):
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
+            elif branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
         else:
             # Students can only see their own balances
             queryset = queryset.filter(student=user)
@@ -335,14 +410,36 @@ class TeacherEarningsViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = TeacherEarnings.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         # Role-based filtering
         if user.is_teacher and not user.is_superuser:
             # Teachers can only see their own earnings
             queryset = queryset.filter(teacher=user)
-        elif user.is_staff and user.branch:
-            # Branch staff see earnings for their branch
-            queryset = queryset.filter(group__branch=user.branch)
+            if branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                )
+        elif user.is_superuser or user.is_staff:
+            if is_global_branch_user(user):
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
+            elif branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
 
         # Filter by teacher
         teacher_id = self.request.query_params.get('teacher', None)
@@ -486,11 +583,26 @@ class StudentFineViewSet(viewsets.ModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = StudentFine.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         # Role-based filtering
         if user.is_superuser or user.is_staff:
-            if user.branch:
-                queryset = queryset.filter(group__branch=user.branch)
+            if is_global_branch_user(user):
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
+            elif branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
         else:
             # Students can only see their own fines
             queryset = queryset.filter(student=user)
@@ -626,10 +738,26 @@ class FinancialSummaryViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = FinancialSummary.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
-        # Filter by branch
-        if user.branch:
-            queryset = queryset.filter(Q(branch=user.branch) | Q(branch__isnull=True))
+        if user.is_superuser:
+            queryset = apply_branch_scope(
+                queryset,
+                self.request,
+                user,
+                field_name='branch',
+                include_unassigned=True,
+            )
+        elif branch_ids:
+            queryset = apply_branch_scope(
+                queryset,
+                self.request,
+                user,
+                field_name='branch',
+                include_unassigned=True,
+            )
+        else:
+            queryset = queryset.filter(branch__isnull=True)
 
         branch_id = self.request.query_params.get('branch', None)
         if branch_id:
@@ -731,16 +859,37 @@ class AccountTransactionViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         user = self.request.user
         queryset = AccountTransaction.objects.all()
+        branch_ids = get_accessible_branch_ids(user)
 
         # Role-based filtering
         if user.is_superuser or user.is_staff:
-            # Admin/staff can see all transactions
-            if user.branch:
-                # Filter by branch through group
-                queryset = queryset.filter(Q(group__branch=user.branch) | Q(group__isnull=True))
+            if is_global_branch_user(user):
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
+            elif branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
         elif user.is_teacher:
             # Teachers see transactions related to them
             queryset = queryset.filter(Q(teacher=user) | Q(group__main_teacher=user))
+            if branch_ids:
+                queryset = apply_branch_scope(
+                    queryset,
+                    self.request,
+                    user,
+                    field_name='group__branch',
+                    include_unassigned=True,
+                )
         else:
             # Students see only their own transactions
             queryset = queryset.filter(student=user)

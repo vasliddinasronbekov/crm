@@ -1,6 +1,7 @@
 # /mnt/usb/edu-api-project/users/models.py
 
 from django.db import models
+from django.db.models import Q
 from django.contrib.auth.models import AbstractUser
 from core.models import Region
 
@@ -158,5 +159,99 @@ class User(AbstractUser):
 
         super().save(*args, **kwargs)
 
+    def get_active_branch_memberships(self):
+        """
+        Active branch links for this user.
+        Falls back to an empty queryset for unsaved instances.
+        """
+        if not self.pk:
+            return BranchMembership.objects.none()
+        return self.branch_memberships.filter(is_active=True)
+
+    def get_accessible_branch_ids(self) -> list[int]:
+        """
+        Branch IDs this user can operate in.
+        Includes legacy `user.branch` for backward compatibility.
+        """
+        branch_ids = list(
+            self.get_active_branch_memberships().values_list('branch_id', flat=True)
+        )
+        if self.branch_id and self.branch_id not in branch_ids:
+            branch_ids.append(self.branch_id)
+        return branch_ids
+
+    def get_primary_branch_id(self) -> int | None:
+        """
+        Preferred branch for scoped operations.
+        Priority: explicit primary membership -> legacy user.branch -> first active membership.
+        """
+        primary = (
+            self.get_active_branch_memberships()
+            .filter(is_primary=True)
+            .order_by('id')
+            .first()
+        )
+        if primary:
+            return primary.branch_id
+        if self.branch_id:
+            return self.branch_id
+        fallback = self.get_active_branch_memberships().order_by('id').first()
+        return fallback.branch_id if fallback else None
+
     def __str__(self):
         return self.username
+
+
+class BranchMembership(models.Model):
+    """
+    Explicit user-to-branch assignment used for branch-scoped data isolation.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='branch_memberships',
+    )
+    branch = models.ForeignKey(
+        'student_profile.Branch',
+        on_delete=models.CASCADE,
+        related_name='user_memberships',
+    )
+    role = models.CharField(
+        max_length=32,
+        choices=UserRoleEnum.choices,
+        blank=True,
+        null=True,
+        help_text="Optional branch-local role override for reporting/admin UIs.",
+    )
+    is_primary = models.BooleanField(
+        default=False,
+        help_text="Primary branch used when no branch override is provided.",
+    )
+    is_active = models.BooleanField(default=True)
+    assigned_by = models.ForeignKey(
+        User,
+        on_delete=models.SET_NULL,
+        null=True,
+        blank=True,
+        related_name='assigned_branch_memberships',
+    )
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-is_primary', 'branch__name', 'id']
+        constraints = [
+            models.UniqueConstraint(
+                fields=['user', 'branch'],
+                name='uniq_user_branch_membership',
+            ),
+            models.UniqueConstraint(
+                fields=['user'],
+                condition=Q(is_primary=True, is_active=True),
+                name='uniq_primary_active_branch_membership_per_user',
+            ),
+        ]
+
+    def __str__(self):
+        return f"{self.user.username} -> {self.branch.name}"

@@ -3,10 +3,13 @@ Tests for User model and authentication
 """
 
 import pytest
+from datetime import date, time, timedelta
 from django.contrib.auth import get_user_model
 from rest_framework import status
-from users.models import UserRoleEnum
+from rest_framework_simplejwt.tokens import RefreshToken
+from users.models import BranchMembership, UserRoleEnum
 from student_profile.accounting_models import StudentAccount
+from student_profile.models import Branch, Course, Group
 
 User = get_user_model()
 
@@ -317,3 +320,115 @@ class TestUserAPI:
             format='json',
         )
         assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+@pytest.mark.api
+@pytest.mark.django_db
+class TestBranchScope:
+    def _auth_as(self, client, user):
+        refresh = RefreshToken.for_user(user)
+        client.credentials(HTTP_AUTHORIZATION=f'Bearer {refresh.access_token}')
+
+    def _create_group(self, *, branch, course, teacher, name):
+        today = date.today()
+        return Group.objects.create(
+            name=name,
+            branch=branch,
+            course=course,
+            main_teacher=teacher,
+            start_day=today,
+            end_day=today + timedelta(days=90),
+            start_time=time(9, 0),
+            end_time=time(10, 0),
+            days='monday,wednesday,friday',
+        )
+
+    def test_manager_student_list_is_branch_scoped(self, api_client):
+        branch_a = Branch.objects.create(name='Branch A')
+        branch_b = Branch.objects.create(name='Branch B')
+
+        manager = User.objects.create_user(
+            username='manager_scope',
+            password='StrongPass123!',
+            role=UserRoleEnum.MANAGER.value,
+            branch=branch_a,
+        )
+        BranchMembership.objects.create(
+            user=manager,
+            branch=branch_a,
+            role=UserRoleEnum.MANAGER.value,
+            is_primary=True,
+            is_active=True,
+        )
+
+        teacher = User.objects.create_user(
+            username='scope_teacher',
+            password='StrongPass123!',
+            role=UserRoleEnum.TEACHER.value,
+            is_teacher=True,
+            branch=branch_a,
+        )
+        course = Course.objects.create(name='Math', description='Math', price=60000000)
+
+        student_a = User.objects.create_user(
+            username='student_a',
+            password='StrongPass123!',
+            role=UserRoleEnum.STUDENT.value,
+        )
+        student_b = User.objects.create_user(
+            username='student_b',
+            password='StrongPass123!',
+            role=UserRoleEnum.STUDENT.value,
+        )
+
+        group_a = self._create_group(branch=branch_a, course=course, teacher=teacher, name='A1')
+        group_b = self._create_group(branch=branch_b, course=course, teacher=teacher, name='B1')
+        group_a.students.add(student_a)
+        group_b.students.add(student_b)
+
+        self._auth_as(api_client, manager)
+        response = api_client.get('/api/users/students/')
+        assert response.status_code == status.HTTP_200_OK
+        returned_ids = {row['id'] for row in response.data.get('results', response.data)}
+        assert student_a.id in returned_ids
+        assert student_b.id not in returned_ids
+
+    def test_branch_context_returns_accessible_branches_and_active_branch(self, api_client):
+        branch_a = Branch.objects.create(name='Branch Context A')
+        branch_b = Branch.objects.create(name='Branch Context B')
+        branch_c = Branch.objects.create(name='Branch Context C')
+
+        director = User.objects.create_user(
+            username='director_scope',
+            password='StrongPass123!',
+            role=UserRoleEnum.DIRECTOR.value,
+            branch=branch_a,
+        )
+        BranchMembership.objects.create(
+            user=director,
+            branch=branch_a,
+            role=UserRoleEnum.DIRECTOR.value,
+            is_primary=True,
+            is_active=True,
+        )
+        BranchMembership.objects.create(
+            user=director,
+            branch=branch_b,
+            role=UserRoleEnum.DIRECTOR.value,
+            is_primary=False,
+            is_active=True,
+        )
+
+        self._auth_as(api_client, director)
+
+        response_default = api_client.get('/api/auth/branch-context/')
+        assert response_default.status_code == status.HTTP_200_OK
+        assert response_default.data['active_branch_id'] == branch_a.id
+        assert set(response_default.data['accessible_branch_ids']) == {branch_a.id, branch_b.id}
+
+        response_switched = api_client.get(f'/api/auth/branch-context/?branch_id={branch_b.id}')
+        assert response_switched.status_code == status.HTTP_200_OK
+        assert response_switched.data['active_branch_id'] == branch_b.id
+
+        response_forbidden = api_client.get(f'/api/auth/branch-context/?branch_id={branch_c.id}')
+        assert response_forbidden.status_code == status.HTTP_403_FORBIDDEN

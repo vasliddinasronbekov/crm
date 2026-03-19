@@ -3,9 +3,17 @@
 from django.contrib import admin
 from django.contrib import messages
 from django.contrib.auth.admin import UserAdmin
-from .models import User, UserRoleEnum
+from .models import BranchMembership, User, UserRoleEnum
 from student_profile.accounting_models import StudentAccount
 from student_profile.services.financial_automation import set_student_account_status
+
+
+class BranchMembershipInline(admin.TabularInline):
+    model = BranchMembership
+    fk_name = 'user'
+    extra = 0
+    fields = ('branch', 'role', 'is_primary', 'is_active', 'assigned_by', 'created_at')
+    readonly_fields = ('created_at',)
 
 
 @admin.register(User)
@@ -13,6 +21,7 @@ class CustomUserAdmin(UserAdmin):
     list_display = UserAdmin.list_display + ('role', 'is_teacher')
     list_filter = UserAdmin.list_filter + ('role', 'is_teacher')
     actions = ['activate_students', 'freeze_students', 'deactivate_students']
+    inlines = [BranchMembershipInline]
     fieldsets = UserAdmin.fieldsets + (
         (
             'Platform Roles',
