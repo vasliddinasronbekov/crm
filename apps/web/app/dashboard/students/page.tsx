@@ -1,11 +1,11 @@
 'use client'
 
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { toast } from 'react-hot-toast'
 import {
   Users, Plus, Edit, Trash2, X, Search, Mail, Phone,
-  Calendar, Download, Upload, Eye, MoreVertical, Activity, CheckCircle,
+  Calendar, Download, Upload, Eye, MoreVertical, Activity, CheckCircle, AlertTriangle, Sparkles,
   UserCheck, PauseCircle, UserX
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
@@ -25,6 +25,7 @@ import LoadingScreen from '@/components/LoadingScreen'
 
 type ViewMode = 'grid' | 'table'
 type StudentAccountStatus = 'active' | 'frozen' | 'deactivated'
+type StudentFocus = 'all' | 'needs_contact' | 'new_this_week' | 'account_risk' | 'incomplete_profiles'
 
 interface StudentAccountStatusEntry {
   accountId?: number
@@ -45,12 +46,14 @@ export default function StudentsPage() {
   const canCreateStudent = permissionState.hasPermission('students.create')
   const canEditStudent = permissionState.hasPermission('students.edit')
   const canDeleteStudent = permissionState.hasPermission('students.delete')
+  const canViewFinance = permissionState.hasPermission('payments.view') && permissionState.canAccessPage('/dashboard/finance')
 
   // React Query hooks
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(9)
   const [searchQuery, setSearchQuery] = useState('')
   const debouncedSearchQuery = useDebouncedValue(searchQuery, 300)
+  const [studentFocus, setStudentFocus] = useState<StudentFocus>('all')
   const [filterStatus, setFilterStatus] = useState<
     'all' | 'with_email' | 'missing_email' | 'with_phone' | 'missing_phone'
   >('all')
@@ -96,21 +99,17 @@ export default function StudentsPage() {
   const students: Student[] = studentsData?.results || []
   const studentIdsParam: string = students.map((student: Student) => student.id).join(',')
 
-  const displayStudents = recentOnly
-    ? students.filter((student: Student) => {
-        if (!student.date_joined) return false
-        const joinDate = new Date(student.date_joined)
-        const weekAgo = new Date()
-        weekAgo.setDate(weekAgo.getDate() - 7)
-        return joinDate > weekAgo
-      })
+  const baseStudents = recentOnly
+    ? students.filter((student: Student) => isJoinedWithinDays(student, 7))
     : students
+
+  const displayStudents = baseStudents.filter((student: Student) => matchesStudentFocus(student, studentFocus))
   const totalStudents = studentsData?.count || 0
   const totalPages = Math.ceil(totalStudents / limit)
 
   useEffect(() => {
     setSelectedIds([])
-  }, [page, limit, filterStatus, debouncedSearchQuery, recentOnly])
+  }, [page, limit, filterStatus, debouncedSearchQuery, recentOnly, studentFocus])
 
   useEffect(() => {
     let cancelled = false
@@ -351,6 +350,31 @@ export default function StudentsPage() {
     return Math.round((filled / fields.length) * 100)
   }
 
+  const isJoinedWithinDays = (student: Student, days: number) => {
+    if (!student.date_joined) return false
+    const joinDate = new Date(student.date_joined)
+    const cutoff = new Date()
+    cutoff.setDate(cutoff.getDate() - days)
+    return joinDate > cutoff
+  }
+
+  const matchesStudentFocus = (student: Student, focus: StudentFocus) => {
+    switch (focus) {
+      case 'needs_contact':
+        return !student.email || !student.phone
+      case 'new_this_week':
+        return isJoinedWithinDays(student, 7)
+      case 'account_risk': {
+        const status = getAccountStatus(student.id)
+        return status === 'frozen' || status === 'deactivated'
+      }
+      case 'incomplete_profiles':
+        return getProfileCompleteness(student) < 60
+      default:
+        return true
+    }
+  }
+
   const toggleSelectStudent = (id: number) => {
     setSelectedIds((prev) =>
       prev.includes(id) ? prev.filter((item) => item !== id) : [...prev, id]
@@ -395,17 +419,79 @@ export default function StudentsPage() {
     withEmail: displayStudents.filter((s: Student) => s.email).length,
     withPhone: displayStudents.filter((s: Student) => s.phone).length,
     recentlyAdded: displayStudents.filter((s: Student) => {
-      if (!s.date_joined) return false
-      const joinDate = new Date(s.date_joined)
-      const weekAgo = new Date()
-      weekAgo.setDate(weekAgo.getDate() - 7)
-      return joinDate > weekAgo
+      return isJoinedWithinDays(s, 7)
     }).length,
     completeProfiles: displayStudents.filter((s: Student) => s.email && s.phone && s.address).length
   }
   const pageCompleteness = displayStudents.length
     ? Math.round((stats.completeProfiles / displayStudents.length) * 100)
     : 0
+
+  const focusFilters: Array<{ id: StudentFocus; label: string; description: string; count: number }> = [
+    { id: 'all', label: 'All', description: 'All students in current dataset', count: baseStudents.length },
+    {
+      id: 'needs_contact',
+      label: 'Needs Contact',
+      description: 'Missing email or phone',
+      count: baseStudents.filter((student: Student) => matchesStudentFocus(student, 'needs_contact')).length,
+    },
+    {
+      id: 'new_this_week',
+      label: 'New This Week',
+      description: 'Joined in last 7 days',
+      count: baseStudents.filter((student: Student) => matchesStudentFocus(student, 'new_this_week')).length,
+    },
+    {
+      id: 'account_risk',
+      label: 'Account Risk',
+      description: 'Frozen or deactivated account',
+      count: baseStudents.filter((student: Student) => matchesStudentFocus(student, 'account_risk')).length,
+    },
+    {
+      id: 'incomplete_profiles',
+      label: 'Incomplete',
+      description: 'Profile completeness below 60%',
+      count: baseStudents.filter((student: Student) => matchesStudentFocus(student, 'incomplete_profiles')).length,
+    },
+  ]
+
+  const todayFocusActions = useMemo(
+    () => [
+      {
+        key: 'add',
+        label: 'Add Student',
+        description: 'Create a new student profile quickly.',
+        icon: Plus,
+        disabled: !canCreateStudent,
+        onClick: () => setShowAddModal(true),
+      },
+      {
+        key: 'contact',
+        label: 'Contact Gaps',
+        description: 'Jump to students missing contact channels.',
+        icon: AlertTriangle,
+        disabled: false,
+        onClick: () => setStudentFocus('needs_contact'),
+      },
+      {
+        key: 'quality',
+        label: 'Profile Quality',
+        description: 'Review low-completeness profiles.',
+        icon: Sparkles,
+        disabled: false,
+        onClick: () => setStudentFocus('incomplete_profiles'),
+      },
+      {
+        key: 'debt',
+        label: 'Open Debtors',
+        description: 'Cross-check debtors in finance view.',
+        icon: Activity,
+        disabled: !canViewFinance,
+        onClick: () => router.push('/dashboard/finance'),
+      },
+    ],
+    [canCreateStudent, canViewFinance, router]
+  )
 
   const PaginationControls = () => (
     <div className="flex justify-center items-center gap-4 mt-8">
@@ -486,6 +572,41 @@ export default function StudentsPage() {
           </div>
         </div>
 
+        <div className="glass-panel rounded-2xl p-4 mb-6">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-semibold">Today Focus</p>
+              <p className="text-xs text-text-secondary">Fast actions for student operations</p>
+            </div>
+            <span className="text-xs text-text-secondary">
+              Showing {displayStudents.length} of {baseStudents.length} students
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            {todayFocusActions.map((action) => {
+              const ActionIcon = action.icon
+              return (
+                <button
+                  key={action.key}
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                  className={`rounded-xl px-4 py-3 text-left border transition-colors ${
+                    action.disabled
+                      ? 'glass-chip text-text-secondary/60 cursor-not-allowed'
+                      : 'glass-chip hover:border-primary/40 hover:bg-primary/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <ActionIcon className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold">{action.label}</span>
+                  </div>
+                  <p className="text-xs text-text-secondary">{action.description}</p>
+                </button>
+              )
+            })}
+          </div>
+        </div>
+
         {/* Statistics Cards */}
         <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
           <div className="glass-panel-strong p-6 rounded-2xl hover:border-primary/50 transition-all">
@@ -545,6 +666,25 @@ export default function StudentsPage() {
 
         {/* Filters and Actions */}
         <div className="glass-panel-strong p-4 rounded-2xl mb-6">
+          <div className="flex flex-wrap items-center gap-2 mb-4">
+            {focusFilters.map((filter) => (
+              <button
+                key={filter.id}
+                onClick={() => {
+                  setStudentFocus(filter.id)
+                  setPage(1)
+                }}
+                title={filter.description}
+                className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+                  studentFocus === filter.id
+                    ? 'bg-primary text-background border-primary'
+                    : 'glass-chip text-text-secondary hover:text-text-primary hover:border-primary/40'
+                }`}
+              >
+                {filter.label} ({filter.count})
+              </button>
+            ))}
+          </div>
           <div className="flex flex-col lg:flex-row gap-4 items-center justify-between">
             <div className="flex-1 w-full lg:w-auto relative">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-5 w-5 text-text-secondary" />
@@ -834,7 +974,7 @@ export default function StudentsPage() {
 
         {/* Table View */}
         {viewMode === 'table' && (
-          <div className="bg-surface rounded-2xl border border-border overflow-hidden">
+          <div className="glass-panel rounded-2xl overflow-hidden">
             <div className="overflow-x-auto">
               <table className="w-full">
                 <thead className="bg-background border-b border-border">

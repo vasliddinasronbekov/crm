@@ -47,6 +47,7 @@ import LoadingScreen from '@/components/LoadingScreen'
 import { usePermissions } from '@/lib/permissions'
 
 type FinanceTab = 'overview' | 'receivables' | 'operations'
+type FinanceQuickFocus = 'all' | 'cashflow' | 'risk' | 'payroll'
 type PaymentStatus = 'paid' | 'pending' | 'failed'
 
 type PaymentStatusMetric = {
@@ -193,6 +194,8 @@ export default function FinanceDashboard() {
   const canCreateExpense = permissionState.hasPermission('expenses.create')
 
   const [activeTab, setActiveTab] = useState<FinanceTab>('overview')
+  const [quickFocus, setQuickFocus] = useState<FinanceQuickFocus>('all')
+  const [quickSearch, setQuickSearch] = useState('')
   const [refreshing, setRefreshing] = useState(false)
   const [showPaymentModal, setShowPaymentModal] = useState(false)
   const [showExpenseModal, setShowExpenseModal] = useState(false)
@@ -610,6 +613,116 @@ export default function FinanceDashboard() {
     )
   }
 
+  const todayFinanceActions = [
+    {
+      key: 'payment',
+      label: 'Record Payment',
+      description: 'Capture incoming payment and update balance.',
+      icon: DollarSign,
+      disabled: !canCreatePayment,
+      onClick: () => setShowPaymentModal(true),
+    },
+    {
+      key: 'expense',
+      label: 'Log Expense',
+      description: 'Add operational expense and keep P&L accurate.',
+      icon: TrendingDown,
+      disabled: !canCreateExpense,
+      onClick: () => setShowExpenseModal(true),
+    },
+    {
+      key: 'debt',
+      label: 'Review Debtors',
+      description: 'Jump to receivables risk and top debtors.',
+      icon: AlertTriangle,
+      disabled: false,
+      onClick: () => {
+        setActiveTab('receivables')
+        setQuickFocus('risk')
+      },
+    },
+    {
+      key: 'payroll',
+      label: 'Check Payroll',
+      description: 'Inspect pending teacher payouts.',
+      icon: Users,
+      disabled: false,
+      onClick: () => {
+        setActiveTab('operations')
+        setQuickFocus('payroll')
+      },
+    },
+  ]
+
+  const operationCards = useMemo(
+    () => [
+      {
+        key: 'payments',
+        title: 'Payments Ledger',
+        description: 'Filter and manage all transactions.',
+        icon: CreditCard,
+        href: '/dashboard/payments',
+        focus: 'cashflow' as FinanceQuickFocus,
+      },
+      {
+        key: 'accounting',
+        title: 'Accounting Ledger',
+        description: 'Detailed balances and accounting entries.',
+        icon: Wallet,
+        href: '/dashboard/accounting',
+        focus: 'cashflow' as FinanceQuickFocus,
+      },
+      {
+        key: 'reports',
+        title: 'Reports',
+        description: 'Generate downloadable finance reports.',
+        icon: FileText,
+        href: '/dashboard/reports',
+        focus: 'risk' as FinanceQuickFocus,
+      },
+      {
+        key: 'analytics',
+        title: 'Analytics',
+        description: 'Cross-functional performance intelligence.',
+        icon: BarChart3,
+        href: '/dashboard/analytics',
+        focus: 'risk' as FinanceQuickFocus,
+      },
+      {
+        key: 'hr',
+        title: 'HR & Salary',
+        description: 'Payroll approvals and compensation control.',
+        icon: Users,
+        href: '/dashboard/hr',
+        focus: 'payroll' as FinanceQuickFocus,
+      },
+      {
+        key: 'expenses',
+        title: 'Expenses',
+        description: 'Audit spend categories and trend outliers.',
+        icon: TrendingDown,
+        href: '/dashboard/expenses',
+        focus: 'risk' as FinanceQuickFocus,
+      },
+    ],
+    []
+  )
+
+  const filteredOperationCards = useMemo(() => {
+    const term = quickSearch.trim().toLowerCase()
+
+    return operationCards.filter((card) => {
+      const focusMatches = quickFocus === 'all' || card.focus === quickFocus
+      if (!focusMatches) return false
+      if (!permissionState.canAccessPage(card.href)) return false
+      if (!term) return true
+      return (
+        card.title.toLowerCase().includes(term) ||
+        card.description.toLowerCase().includes(term)
+      )
+    })
+  }, [operationCards, permissionState, quickFocus, quickSearch])
+
   return (
     <ProtectedRoute>
       {loading ? (
@@ -674,6 +787,41 @@ export default function FinanceDashboard() {
               <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
               Refresh
             </button>
+          </div>
+        </div>
+
+        <div className="glass-panel rounded-2xl p-4">
+          <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+            <div>
+              <p className="text-sm font-semibold">Today Focus</p>
+              <p className="text-xs text-text-secondary">Action-first workflow for finance team</p>
+            </div>
+            <span className="text-xs text-text-secondary">
+              Debtors: {dashboard.debtStudentCount} • Pending payroll: {formatCurrencyFromMinor(dashboard.pendingTeacherEarnings)}
+            </span>
+          </div>
+          <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+            {todayFinanceActions.map((action) => {
+              const ActionIcon = action.icon
+              return (
+                <button
+                  key={action.key}
+                  onClick={action.onClick}
+                  disabled={action.disabled}
+                  className={`rounded-xl px-4 py-3 text-left border transition-colors ${
+                    action.disabled
+                      ? 'glass-chip text-text-secondary/60 cursor-not-allowed'
+                      : 'glass-chip hover:border-primary/40 hover:bg-primary/5'
+                  }`}
+                >
+                  <div className="flex items-center gap-2 mb-1">
+                    <ActionIcon className="h-4 w-4 text-primary" />
+                    <span className="text-sm font-semibold">{action.label}</span>
+                  </div>
+                  <p className="text-xs text-text-secondary">{action.description}</p>
+                </button>
+              )
+            })}
           </div>
         </div>
 
@@ -880,58 +1028,81 @@ export default function FinanceDashboard() {
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              <button
-                onClick={() => router.push('/dashboard/payments')}
-                className="p-4 bg-surface border border-border rounded-2xl hover:bg-border/50 transition-colors text-left"
-              >
-                <CreditCard className="h-5 w-5 text-primary mb-3" />
-                <p className="font-semibold">Payments Ledger</p>
-                <p className="text-sm text-text-secondary">Filter and manage all transactions.</p>
-                <span className="text-primary text-sm mt-2 inline-flex items-center gap-1">
-                  Open
-                  <ArrowRight className="h-4 w-4" />
+            <div className="glass-panel rounded-2xl p-4">
+              <div className="flex flex-wrap items-center justify-between gap-3 mb-4">
+                <div>
+                  <p className="font-semibold">Operational Links</p>
+                  <p className="text-xs text-text-secondary">Filter tools by focus and jump faster</p>
+                </div>
+                <span className="text-xs text-text-secondary">
+                  Showing {filteredOperationCards.length} tools
                 </span>
-              </button>
+              </div>
 
-              <button
-                onClick={() => router.push('/dashboard/accounting')}
-                className="p-4 bg-surface border border-border rounded-2xl hover:bg-border/50 transition-colors text-left"
-              >
-                <Wallet className="h-5 w-5 text-primary mb-3" />
-                <p className="font-semibold">Accounting Ledger</p>
-                <p className="text-sm text-text-secondary">Detailed balances and entries.</p>
-                <span className="text-primary text-sm mt-2 inline-flex items-center gap-1">
-                  Open
-                  <ArrowRight className="h-4 w-4" />
-                </span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2 mb-4">
+                {([
+                  { id: 'all', label: 'All' },
+                  { id: 'cashflow', label: 'Cashflow' },
+                  { id: 'risk', label: 'Risk' },
+                  { id: 'payroll', label: 'Payroll' },
+                ] as Array<{ id: FinanceQuickFocus; label: string }>).map((focus) => (
+                  <button
+                    key={focus.id}
+                    onClick={() => setQuickFocus(focus.id)}
+                    className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+                      quickFocus === focus.id
+                        ? 'bg-primary text-background border-primary'
+                        : 'glass-chip text-text-secondary hover:text-text-primary hover:border-primary/40'
+                    }`}
+                  >
+                    {focus.label}
+                  </button>
+                ))}
+                <input
+                  type="search"
+                  value={quickSearch}
+                  onChange={(event) => setQuickSearch(event.target.value)}
+                  placeholder="Search tools..."
+                  className="glass-input rounded-xl px-3 py-2 text-sm min-w-[220px]"
+                />
+              </div>
 
-              <button
-                onClick={() => router.push('/dashboard/reports')}
-                className="p-4 bg-surface border border-border rounded-2xl hover:bg-border/50 transition-colors text-left"
-              >
-                <FileText className="h-5 w-5 text-primary mb-3" />
-                <p className="font-semibold">Reports</p>
-                <p className="text-sm text-text-secondary">Generate downloadable finance reports.</p>
-                <span className="text-primary text-sm mt-2 inline-flex items-center gap-1">
-                  Open
-                  <ArrowRight className="h-4 w-4" />
-                </span>
-              </button>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                {filteredOperationCards.map((card) => {
+                  const CardIcon = card.icon
+                  return (
+                    <button
+                      key={card.key}
+                      onClick={() => router.push(card.href)}
+                      className="glass-chip rounded-2xl p-4 hover:border-primary/40 hover:bg-primary/5 transition-colors text-left"
+                    >
+                      <CardIcon className="h-5 w-5 text-primary mb-3" />
+                      <p className="font-semibold">{card.title}</p>
+                      <p className="text-sm text-text-secondary">{card.description}</p>
+                      <span className="text-primary text-sm mt-2 inline-flex items-center gap-1">
+                        Open
+                        <ArrowRight className="h-4 w-4" />
+                      </span>
+                    </button>
+                  )
+                })}
+              </div>
 
-              <button
-                onClick={() => router.push('/dashboard/analytics')}
-                className="p-4 bg-surface border border-border rounded-2xl hover:bg-border/50 transition-colors text-left"
-              >
-                <BarChart3 className="h-5 w-5 text-primary mb-3" />
-                <p className="font-semibold">Analytics</p>
-                <p className="text-sm text-text-secondary">Cross-functional performance intelligence.</p>
-                <span className="text-primary text-sm mt-2 inline-flex items-center gap-1">
-                  Open
-                  <ArrowRight className="h-4 w-4" />
-                </span>
-              </button>
+              {filteredOperationCards.length === 0 && (
+                <div className="glass-chip rounded-xl p-6 mt-3 text-center">
+                  <p className="font-semibold mb-1">No tools found</p>
+                  <p className="text-sm text-text-secondary mb-3">Try another focus or clear search.</p>
+                  <button
+                    onClick={() => {
+                      setQuickFocus('all')
+                      setQuickSearch('')
+                    }}
+                    className="px-4 py-2 rounded-xl bg-primary text-background text-sm font-medium"
+                  >
+                    Reset
+                  </button>
+                </div>
+              )}
             </div>
           </>
         )}
