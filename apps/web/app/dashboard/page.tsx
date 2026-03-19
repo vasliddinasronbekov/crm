@@ -381,7 +381,7 @@ export default function DashboardPage() {
         icon: Receipt,
         color: 'from-rose-500/20 to-rose-600/20',
         iconColor: 'text-rose-500',
-        href: '/dashboard/expenses',
+        href: '/dashboard/finance?tab=operations&focus=cashflow',
         stat: '💸',
         statLabel: 'Expense Tracking',
         requiredPermissions: ['expenses.view']
@@ -428,7 +428,7 @@ export default function DashboardPage() {
         href: '/dashboard/finance',
         stat: '💰',
         statLabel: 'Financial Hub',
-        requiredPermissions: ['payments.view']
+        requiredPermissions: ['payments.view', 'expenses.view', 'hr.view', 'salaries.view']
       },
       {
         title: 'Analytics',
@@ -447,7 +447,7 @@ export default function DashboardPage() {
         icon: DollarSign,
         color: 'from-lime-500/20 to-lime-600/20',
         iconColor: 'text-lime-500',
-        href: '/dashboard/payments',
+        href: '/dashboard/finance?tab=receivables&focus=cashflow',
         stat: '💰',
         statLabel: 'Payments',
         requiredPermissions: ['payments.view']
@@ -458,7 +458,7 @@ export default function DashboardPage() {
         icon: Wallet,
         color: 'from-violet-500/20 to-violet-600/20',
         iconColor: 'text-violet-500',
-        href: '/dashboard/accounting',
+        href: '/dashboard/finance?tab=overview&focus=risk',
         stat: '💼',
         statLabel: 'Accounting',
         requiredPermissions: ['payments.view']

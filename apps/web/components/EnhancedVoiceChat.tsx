@@ -77,7 +77,7 @@ export default function EnhancedVoiceChat() {
       '/dashboard/groups': 'Groups Management',
       '/dashboard/crm': 'CRM & Leads',
       '/dashboard/lms': 'Course Management',
-      '/dashboard/payments': 'Payments',
+      '/dashboard/finance': 'Finance Control Center',
       '/dashboard/messaging': 'Messaging',
       '/dashboard/analytics': 'Analytics',
       '/dashboard/reports': 'Reports',
@@ -87,7 +87,6 @@ export default function EnhancedVoiceChat() {
       '/dashboard/support': 'Support Center',
       '/dashboard/email': 'Email Management',
       '/dashboard/announcements': 'Announcements',
-      '/dashboard/expenses': 'Expenses Management',
       '/dashboard/leaderboard': 'Leaderboard',
       '/dashboard/certificates': 'Certificates Management',
     }

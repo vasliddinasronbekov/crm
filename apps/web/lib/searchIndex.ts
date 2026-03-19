@@ -136,7 +136,7 @@ export const SEARCH_INDEX: SearchAction[] = [
     description: 'View and manage payments',
     keywords: ['payments', 'transactions', 'billing', 'invoices', 'money'],
     category: 'page',
-    path: '/dashboard/payments',
+    path: '/dashboard/finance?tab=receivables&focus=cashflow',
     icon: 'credit-card'
   },
   {
@@ -145,7 +145,7 @@ export const SEARCH_INDEX: SearchAction[] = [
     description: 'Financial accounting and reports',
     keywords: ['accounting', 'finance', 'reports', 'revenue', 'expenses', 'balance'],
     category: 'page',
-    path: '/dashboard/accounting',
+    path: '/dashboard/finance?tab=overview&focus=risk',
     icon: 'calculator'
   },
 
@@ -343,7 +343,7 @@ export const SEARCH_INDEX: SearchAction[] = [
     description: 'Generate financial or analytics report',
     keywords: ['generate', 'create', 'report', 'export', 'pdf'],
     category: 'action',
-    path: '/dashboard/accounting',
+    path: '/dashboard/finance?tab=overview&focus=risk',
     icon: 'file-download'
   },
   {

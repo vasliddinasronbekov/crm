@@ -436,7 +436,7 @@ export const STAFF_ROUTE_FAMILY_POLICIES: StaffRouteFamilyPolicy[] = [
   },
   {
     family: 'payments_finance',
-    patterns: ['/dashboard/payments*', '/dashboard/finance*', '/dashboard/accounting*', '/dashboard/subscriptions*'],
+    patterns: ['/dashboard/payments*', '/dashboard/accounting*', '/dashboard/subscriptions*'],
     requiredPermission: 'payments.view',
     intendedAccess: 'staff_and_teacher',
     backendParityNote: 'Teachers can record payments but edit/delete remains ops-scoped on backend.',

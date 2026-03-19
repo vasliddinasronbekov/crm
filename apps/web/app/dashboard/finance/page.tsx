@@ -740,7 +740,7 @@ export default function FinanceDashboard() {
         title: 'Payments Ledger',
         description: 'Filter and manage all transactions.',
         icon: CreditCard,
-        href: '/dashboard/payments',
+        href: '/dashboard/finance?tab=receivables&focus=cashflow',
         focus: 'cashflow' as FinanceQuickFocus,
       },
       {
@@ -748,7 +748,7 @@ export default function FinanceDashboard() {
         title: 'Accounting Ledger',
         description: 'Detailed balances and accounting entries.',
         icon: Wallet,
-        href: '/dashboard/accounting',
+        href: '/dashboard/finance?tab=overview&focus=risk',
         focus: 'cashflow' as FinanceQuickFocus,
       },
       {
@@ -780,7 +780,7 @@ export default function FinanceDashboard() {
         title: 'Expenses',
         description: 'Audit spend categories and trend outliers.',
         icon: TrendingDown,
-        href: '/dashboard/expenses',
+        href: '/dashboard/finance?tab=operations&focus=cashflow',
         focus: 'risk' as FinanceQuickFocus,
       },
     ],
@@ -1245,7 +1245,7 @@ export default function FinanceDashboard() {
                 <div className="flex items-center justify-between mb-5">
                   <h2 className="text-lg font-bold">Top Receivables</h2>
                   <button
-                    onClick={() => router.push('/dashboard/payments')}
+                    onClick={() => router.push('/dashboard/finance?tab=receivables&focus=cashflow')}
                     className="text-sm text-primary hover:underline inline-flex items-center gap-1"
                   >
                     Manage payments
@@ -1347,7 +1347,7 @@ export default function FinanceDashboard() {
                 </div>
 
                 <button
-                  onClick={() => router.push('/dashboard/accounting')}
+                  onClick={() => router.push('/dashboard/finance?tab=operations&focus=payroll')}
                   className="mt-4 btn-secondary w-full flex items-center justify-center gap-2"
                 >
                   Open accounting payroll

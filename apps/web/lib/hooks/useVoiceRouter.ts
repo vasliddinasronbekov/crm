@@ -18,10 +18,18 @@ const pages = [
   { title: 'Support', url: '/dashboard/support', keywords: ['support', 'ticket', 'help'] },
   { title: 'Email Marketing', url: '/dashboard/email', keywords: ['email', 'campaign', 'template'] },
   { title: 'Announcements', url: '/dashboard/announcements', keywords: ['announcement', 'notice', 'broadcast'] },
-  { title: 'Expenses', url: '/dashboard/expenses', keywords: ['expense', 'cost', 'spending'] },
+  {
+    title: 'Expenses',
+    url: '/dashboard/finance?tab=operations&focus=cashflow',
+    keywords: ['expense', 'cost', 'spending'],
+  },
   { title: 'Leaderboard', url: '/dashboard/leaderboard', keywords: ['leaderboard', 'ranking', 'top'] },
   { title: 'Certificates', url: '/dashboard/certificates', keywords: ['certificate', 'award', 'diploma'] },
-  { title: 'Payments', url: '/dashboard/payments', keywords: ['payment', 'transaction', 'money'] },
+  {
+    title: 'Payments',
+    url: '/dashboard/finance?tab=receivables&focus=cashflow',
+    keywords: ['payment', 'transaction', 'money'],
+  },
   { title: 'Analytics', url: '/dashboard/analytics', keywords: ['analytics', 'report', 'stats'] },
   { title: 'HR & Salary', url: '/dashboard/hr', keywords: ['hr', 'salary', 'payroll'] },
 ]
