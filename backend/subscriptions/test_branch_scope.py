@@ -18,6 +18,31 @@ def _auth_client_for_user(api_client, user):
     return api_client
 
 
+def _ensure_invoice_for_payment(payment, *, user, subscription, amount, invoice_number, now):
+    """
+    Payments with status=succeeded may already get an invoice from post_save signals.
+    Reuse that invoice when present so tests remain stable across signal configurations.
+    """
+    existing = Invoice.objects.filter(payment=payment).first()
+    if existing:
+        return existing
+
+    return Invoice.objects.create(
+        user=user,
+        subscription=subscription,
+        payment=payment,
+        invoice_number=invoice_number,
+        status='paid',
+        subtotal=amount,
+        tax=Decimal('0'),
+        discount=Decimal('0'),
+        total=amount,
+        currency='USD',
+        line_items=[{'description': 'Scoped invoice', 'amount': float(amount)}],
+        due_date=now.date() + timedelta(days=7),
+    )
+
+
 @pytest.mark.django_db
 def test_subscription_read_endpoints_are_branch_scoped_for_staff(api_client):
     branch_a = Branch.objects.create(name='Subscription Scope Branch A')
@@ -96,33 +121,21 @@ def test_subscription_read_endpoints_are_branch_scoped_for_staff(api_client):
         succeeded_at=now,
     )
 
-    invoice_a = Invoice.objects.create(
+    invoice_a = _ensure_invoice_for_payment(
+        payment_a,
         user=student_a,
         subscription=sub_a,
-        payment=payment_a,
+        amount=Decimal('100.00'),
         invoice_number='SCOPE-A-0001',
-        status='paid',
-        subtotal=Decimal('100.00'),
-        tax=Decimal('0'),
-        discount=Decimal('0'),
-        total=Decimal('100.00'),
-        currency='USD',
-        line_items=[{'description': 'Scoped A', 'amount': 100}],
-        due_date=now.date() + timedelta(days=7),
+        now=now,
     )
-    invoice_b = Invoice.objects.create(
+    invoice_b = _ensure_invoice_for_payment(
+        payment_b,
         user=student_b,
         subscription=sub_b,
-        payment=payment_b,
+        amount=Decimal('300.00'),
         invoice_number='SCOPE-B-0001',
-        status='paid',
-        subtotal=Decimal('300.00'),
-        tax=Decimal('0'),
-        discount=Decimal('0'),
-        total=Decimal('300.00'),
-        currency='USD',
-        line_items=[{'description': 'Scoped B', 'amount': 300}],
-        due_date=now.date() + timedelta(days=7),
+        now=now,
     )
 
     client = _auth_client_for_user(api_client, manager)
@@ -327,33 +340,21 @@ def test_subscription_read_endpoints_exclude_legacy_cross_branch_links(api_clien
         succeeded_at=now,
     )
 
-    in_scope_invoice = Invoice.objects.create(
+    in_scope_invoice = _ensure_invoice_for_payment(
+        in_scope_payment,
         user=student_a,
         subscription=sub_a,
-        payment=in_scope_payment,
+        amount=Decimal('100.00'),
         invoice_number='SCOPE-LEGACY-A-0001',
-        status='paid',
-        subtotal=Decimal('100.00'),
-        tax=Decimal('0'),
-        discount=Decimal('0'),
-        total=Decimal('100.00'),
-        currency='USD',
-        line_items=[{'description': 'Scoped In', 'amount': 100}],
-        due_date=now.date() + timedelta(days=7),
+        now=now,
     )
-    legacy_cross_branch_invoice = Invoice.objects.create(
+    legacy_cross_branch_invoice = _ensure_invoice_for_payment(
+        legacy_cross_branch_payment,
         user=student_a,
         subscription=sub_b,
-        payment=legacy_cross_branch_payment,
+        amount=Decimal('50.00'),
         invoice_number='SCOPE-LEGACY-A-0002',
-        status='paid',
-        subtotal=Decimal('50.00'),
-        tax=Decimal('0'),
-        discount=Decimal('0'),
-        total=Decimal('50.00'),
-        currency='USD',
-        line_items=[{'description': 'Scoped Legacy', 'amount': 50}],
-        due_date=now.date() + timedelta(days=7),
+        now=now,
     )
 
     client = _auth_client_for_user(api_client, manager)
