@@ -108,7 +108,7 @@ export default function TeachersPage() {
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
   const [newTeacher, setNewTeacher] = useState(EMPTY_TEACHER_FORM)
 
-  const teachers = useMemo(() => teachersData?.results ?? [], [teachersData?.results])
+  const teachers = useMemo<Teacher[]>(() => (teachersData?.results ?? []) as Teacher[], [teachersData?.results])
   const totalTeachers = teachersData?.count ?? 0
   const totalPages = Math.max(1, Math.ceil(totalTeachers / limit))
 
