@@ -459,10 +459,16 @@ export default function DashboardPage() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-8">
-      <div className="max-w-7xl mx-auto">
+    <div className="relative min-h-screen p-8">
+      <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+        <div className="absolute -top-24 -left-24 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
+        <div className="absolute top-1/3 -right-20 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
+        <div className="absolute bottom-0 left-1/3 h-72 w-72 rounded-full bg-warning/20 blur-3xl" />
+      </div>
+
+      <div className="relative z-10 max-w-7xl mx-auto space-y-8">
         {/* Header Section */}
-        <div className="mb-8">
+        <div className="glass-panel-strong rounded-3xl p-6">
           <div className="flex items-center justify-between mb-6">
             <div>
               <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
@@ -478,7 +484,7 @@ export default function DashboardPage() {
                 })}
               </p>
             </div>
-            <div className="bg-gradient-to-br from-primary/20 to-primary/5 rounded-2xl p-6 border border-primary/20">
+            <div className="glass-panel rounded-2xl p-6">
               <div className="flex items-center gap-3">
                 <Activity className="h-8 w-8 text-primary" />
                 <div>
@@ -493,7 +499,7 @@ export default function DashboardPage() {
           {canViewFinanceOverview ? (
             <>
             <div className="grid grid-cols-1 xl:grid-cols-5 gap-6 mb-8">
-              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-success/50 transition-all h-[120px] flex flex-col">
+              <div className="glass-panel-strong p-6 rounded-2xl hover:border-success/50 transition-all h-[120px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-text-secondary">Total Income</p>
                   <TrendingUp className="h-5 w-5 text-success" />
@@ -504,7 +510,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-text-secondary mt-1">All paid payments</p>
               </div>
 
-              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-error/50 transition-all h-[120px] flex flex-col">
+              <div className="glass-panel p-6 rounded-2xl hover:border-error/50 transition-all h-[120px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-text-secondary">Total Debt</p>
                   <AlertCircle className="h-5 w-5 text-error" />
@@ -515,7 +521,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-text-secondary mt-1">Sum of all negative balances</p>
               </div>
 
-              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all h-[120px] flex flex-col">
+              <div className="glass-panel p-6 rounded-2xl hover:border-primary/50 transition-all h-[120px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-text-secondary">Net Profit</p>
                   <PiggyBank className="h-5 w-5 text-primary" />
@@ -527,7 +533,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-text-secondary mt-1">Income + sum of all balances</p>
               </div>
 
-              <div className="bg-surface p-6 rounded-2xl border border-border hover:border-warning/50 transition-all h-[120px] flex flex-col">
+              <div className="glass-panel p-6 rounded-2xl hover:border-warning/50 transition-all h-[120px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm text-text-secondary">Teacher Payroll</p>
                   <Briefcase className="h-5 w-5 text-warning" />
@@ -538,7 +544,7 @@ export default function DashboardPage() {
                 <p className="text-xs text-text-secondary mt-1">40% pro-rated payout obligation</p>
               </div>
 
-              <div className="bg-surface rounded-2xl border border-border p-4 h-[120px] flex flex-col">
+              <div className="glass-panel rounded-2xl p-4 h-[120px] flex flex-col">
                 <div className="flex items-center justify-between mb-3">
                   <p className="text-sm font-semibold">Live Activity Feed</p>
                   {isRealtimeLoading && <span className="text-xs text-text-secondary">syncing...</span>}
@@ -546,7 +552,7 @@ export default function DashboardPage() {
                 <div className="space-y-2 h-[120px] overflow-y-auto pr-1">
                   {(realtimeDashboard?.recent_logs || []).length > 0 ? (
                     (realtimeDashboard?.recent_logs || []).map((log) => (
-                      <div key={log.id} className="rounded-xl border border-border bg-background p-3">
+                      <div key={log.id} className="rounded-xl border border-border glass-chip p-3">
                         <p className="text-xs font-medium mb-1">{log.message}</p>
                         <div className="flex items-center justify-between text-[11px] text-text-secondary">
                           <span>{log.actor_username || 'System'}</span>
@@ -563,7 +569,7 @@ export default function DashboardPage() {
 
             {canViewGroups && (
               <div className="grid grid-cols-1 xl:grid-cols-3 gap-6 mb-8">
-                <div className="xl:col-span-2 bg-surface/90 backdrop-blur-md rounded-2xl border border-border p-5 h-[320px] flex flex-col">
+                <div className="xl:col-span-2 glass-panel-strong rounded-2xl p-5 h-[320px] flex flex-col">
                   <div className="flex items-center justify-between mb-4">
                     <div>
                       <p className="text-sm text-text-secondary">Operational Jump List</p>
@@ -593,7 +599,7 @@ export default function DashboardPage() {
                         <button
                           key={group.id}
                           onClick={() => router.push(`/dashboard/groups/${group.id}`)}
-                          className="w-full rounded-xl border border-border bg-background px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
+                          className="w-full rounded-xl glass-chip px-3 py-2 text-left transition-colors hover:border-primary/40 hover:bg-primary/5"
                         >
                           <div className="flex items-center justify-between gap-2">
                             <p className="font-medium">{group.name}</p>
@@ -611,7 +617,7 @@ export default function DashboardPage() {
                         </button>
                       ))
                     ) : (
-                      <div className="rounded-xl border border-dashed border-border bg-background px-4 py-6 text-center text-sm text-text-secondary">
+                      <div className="rounded-xl border border-dashed border-border glass-chip px-4 py-6 text-center text-sm text-text-secondary">
                         No groups are in session right now.
                       </div>
                     )}
@@ -621,7 +627,7 @@ export default function DashboardPage() {
             )}
             </>
           ) : (
-            <div className="mb-8 bg-surface rounded-2xl border border-border p-6">
+            <div className="mb-8 glass-panel rounded-2xl p-6">
               <p className="text-sm text-text-secondary">
                 Financial realtime metrics are available for finance-enabled roles.
               </p>
@@ -630,7 +636,7 @@ export default function DashboardPage() {
 
           {/* Key Metrics */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="bg-surface rounded-2xl border border-border p-6 hover:border-primary/50 transition-all">
+            <div className="glass-panel rounded-2xl p-6 hover:border-primary/50 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
                   <Users className="h-6 w-6 text-primary" />
@@ -641,7 +647,7 @@ export default function DashboardPage() {
               <p className="text-sm text-text-secondary">Total Students</p>
             </div>
 
-            <div className="bg-surface rounded-2xl border border-border p-6 hover:border-primary/50 transition-all">
+            <div className="glass-panel rounded-2xl p-6 hover:border-primary/50 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-12 w-12 rounded-xl bg-purple-500/10 flex items-center justify-center">
                   <GraduationCap className="h-6 w-6 text-purple-500" />
@@ -652,7 +658,7 @@ export default function DashboardPage() {
               <p className="text-sm text-text-secondary">Teaching Staff</p>
             </div>
 
-            <div className="bg-surface rounded-2xl border border-border p-6 hover:border-primary/50 transition-all">
+            <div className="glass-panel rounded-2xl p-6 hover:border-primary/50 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-12 w-12 rounded-xl bg-green-500/10 flex items-center justify-center">
                   <BookOpen className="h-6 w-6 text-green-500" />
@@ -663,7 +669,7 @@ export default function DashboardPage() {
               <p className="text-sm text-text-secondary">Active Groups</p>
             </div>
 
-            <div className="bg-surface rounded-2xl border border-border p-6 hover:border-primary/50 transition-all">
+            <div className="glass-panel rounded-2xl p-6 hover:border-primary/50 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-12 w-12 rounded-xl bg-orange-500/10 flex items-center justify-center">
                   <Target className="h-6 w-6 text-orange-500" />
@@ -677,7 +683,7 @@ export default function DashboardPage() {
         </div>
 
         {/* Quick Access Section */}
-        <div className="mb-8">
+        <div className="glass-panel-strong rounded-3xl p-6">
           <div className="flex items-center justify-between mb-6">
             <h2 className="text-2xl font-bold flex items-center gap-2">
               <Zap className="h-6 w-6 text-primary" />
@@ -693,7 +699,7 @@ export default function DashboardPage() {
                 <button
                   key={index}
                   onClick={() => router.push(card.href)}
-                  className="group bg-surface rounded-2xl border border-border p-6 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all text-left relative overflow-hidden"
+                  className="group glass-panel rounded-2xl p-6 hover:border-primary/50 hover:shadow-lg hover:shadow-primary/10 transition-all text-left relative overflow-hidden"
                 >
                   {/* Background Gradient */}
                   <div className={`absolute inset-0 bg-gradient-to-br ${card.color} opacity-0 group-hover:opacity-100 transition-opacity`}></div>
@@ -715,7 +721,7 @@ export default function DashboardPage() {
                     </p>
 
                     {/* Stat Badge */}
-                    <div className="flex items-center justify-between pt-4 border-t border-border">
+                    <div className="flex items-center justify-between pt-4 border-t border-border/70">
                       <span className="text-xs text-text-secondary">{card.statLabel}</span>
                       <span className="text-2xl font-bold group-hover:scale-110 transition-transform">
                         {card.stat}
@@ -731,34 +737,34 @@ export default function DashboardPage() {
         {/* System Info */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
           {/* Recent Activity */}
-          <div className="bg-surface rounded-2xl border border-border p-6">
+          <div className="glass-panel rounded-2xl p-6">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <Clock className="h-5 w-5 text-primary" />
               System Status
             </h3>
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
+              <div className="flex items-center justify-between p-3 glass-chip rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-2 rounded-full bg-success animate-pulse"></div>
                   <span className="text-sm">Backend API</span>
                 </div>
                 <span className="text-sm font-medium text-success">Online</span>
               </div>
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
+              <div className="flex items-center justify-between p-3 glass-chip rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-2 rounded-full bg-success animate-pulse"></div>
                   <span className="text-sm">Database</span>
                 </div>
                 <span className="text-sm font-medium text-success">Connected</span>
               </div>
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
+              <div className="flex items-center justify-between p-3 glass-chip rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-2 rounded-full bg-success animate-pulse"></div>
                   <span className="text-sm">AI Services</span>
                 </div>
                 <span className="text-sm font-medium text-success">Active</span>
               </div>
-              <div className="flex items-center justify-between p-3 bg-background rounded-xl">
+              <div className="flex items-center justify-between p-3 glass-chip rounded-xl">
                 <div className="flex items-center gap-3">
                   <div className="h-2 w-2 rounded-full bg-success animate-pulse"></div>
                   <span className="text-sm">Storage</span>
@@ -769,13 +775,13 @@ export default function DashboardPage() {
           </div>
 
           {/* Platform Stats */}
-          <div className="bg-surface rounded-2xl border border-border p-6">
+          <div className="glass-panel rounded-2xl p-6">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
               <BarChart3 className="h-5 w-5 text-primary" />
               Platform Overview
             </h3>
             <div className="space-y-4">
-              <div className="p-3 bg-background rounded-xl">
+              <div className="p-3 glass-chip rounded-xl">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-text-secondary">Student Engagement</span>
                   <span className="text-sm font-bold text-success">{getStudentEngagement()}%</span>
@@ -787,7 +793,7 @@ export default function DashboardPage() {
                   {analytics?.active_students || 0} active of {stats?.total_students || 0} students
                 </p>
               </div>
-              <div className="p-3 bg-background rounded-xl">
+              <div className="p-3 glass-chip rounded-xl">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-text-secondary">Payment Success Rate</span>
                   <span className="text-sm font-bold text-primary">{getCourseCompletion()}%</span>
@@ -799,7 +805,7 @@ export default function DashboardPage() {
                   {analytics?.paid_payments || 0} paid of {analytics?.total_payments || 0} payments
                 </p>
               </div>
-              <div className="p-3 bg-background rounded-xl">
+              <div className="p-3 glass-chip rounded-xl">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-text-secondary">Group Activity</span>
                   <span className="text-sm font-bold text-warning">{getTeacherActivity()}%</span>
@@ -811,7 +817,7 @@ export default function DashboardPage() {
                   {analytics?.active_groups || 0} active of {stats?.total_groups || 0} groups
                 </p>
               </div>
-              <div className="p-3 bg-background rounded-xl">
+              <div className="p-3 glass-chip rounded-xl">
                 <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-text-secondary">Lead Conversion</span>
                   <span className="text-sm font-bold text-info">{getLeadConversion()}%</span>

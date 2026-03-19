@@ -716,7 +716,7 @@ export default function TeacherDetailPage() {
     return (
       <ProtectedRoute>
         <div className="p-8">
-          <div className="max-w-2xl mx-auto bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-8 text-center">
+          <div className="max-w-2xl mx-auto glass-panel-strong rounded-2xl p-8 text-center">
             <h1 className="text-2xl font-bold mb-3">Teacher not found</h1>
             <p className="text-text-secondary mb-6">The teacher may have been removed or you may not have access.</p>
             <button
@@ -733,7 +733,7 @@ export default function TeacherDetailPage() {
 
   return (
     <ProtectedRoute>
-      <div className="relative p-8">
+      <div className="relative min-h-screen p-8">
         <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
           <div className="absolute -top-24 -left-24 h-72 w-72 rounded-full bg-primary/20 blur-3xl" />
           <div className="absolute top-1/4 -right-24 h-72 w-72 rounded-full bg-cyan-500/20 blur-3xl" />
@@ -741,11 +741,12 @@ export default function TeacherDetailPage() {
         </div>
 
         <div className="relative z-10 space-y-8">
+        <div className="glass-panel-strong rounded-3xl p-6 space-y-6">
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div className="flex items-center gap-4">
             <button
               onClick={() => router.push('/dashboard/teachers')}
-              className="h-10 w-10 rounded-xl border border-border bg-surface hover:bg-background transition-colors flex items-center justify-center"
+              className="h-10 w-10 rounded-xl glass-chip hover:bg-background transition-colors flex items-center justify-center"
               title="Back to teachers"
             >
               <ArrowLeft className="h-5 w-5" />
@@ -821,27 +822,27 @@ export default function TeacherDetailPage() {
         </div>
 
         <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
-          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+          <div className="glass-panel rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Groups</p>
             <p className="text-2xl font-bold">{groups.length}</p>
           </div>
-          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+          <div className="glass-panel rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Active Groups</p>
             <p className="text-2xl font-bold">{activeGroupCount}</p>
           </div>
-          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+          <div className="glass-panel rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Students</p>
             <p className="text-2xl font-bold">{totalStudents}</p>
           </div>
-          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+          <div className="glass-panel rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">This Month</p>
             <p className="text-2xl font-bold text-primary">{formatCurrencyFromMinor(currentMonthEarningsTiyin)}</p>
           </div>
-          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+          <div className="glass-panel rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Unpaid Accrual</p>
             <p className="text-2xl font-bold text-warning">{formatCurrencyFromMinor(summaryUnpaidTiyin)}</p>
           </div>
-          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+          <div className="glass-panel rounded-2xl p-4">
             <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Payout Rate</p>
             <p className="text-2xl font-bold">{payoutRate}%</p>
           </div>
@@ -876,7 +877,7 @@ export default function TeacherDetailPage() {
           </div>
         </div>
 
-        <div className="inline-flex items-center rounded-xl border border-white/15 bg-surface/70 backdrop-blur-xl p-1">
+        <div className="inline-flex w-fit items-center rounded-2xl glass-panel p-1.5">
           {([
             ['overview', 'Overview'],
             ['groups', 'Groups'],
@@ -888,19 +889,20 @@ export default function TeacherDetailPage() {
               onClick={() => setActiveTab(tabId)}
               className={`px-4 py-2 text-sm font-semibold rounded-lg transition-colors ${
                 activeTab === tabId
-                  ? 'bg-primary text-background'
-                  : 'text-text-secondary hover:text-text-primary hover:bg-background'
+                  ? 'bg-gradient-to-r from-primary to-cyan-500 text-background shadow-[0_12px_24px_-16px_rgba(37,99,235,0.8)]'
+                  : 'glass-chip text-text-secondary hover:text-text-primary hover:bg-background/70'
               }`}
             >
               {label}
             </button>
           ))}
         </div>
+        </div>
 
         {activeTab === 'overview' && (
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
             <div className="xl:col-span-1 space-y-6">
-              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <div className="glass-panel rounded-2xl p-5">
                 <h2 className="text-lg font-bold mb-4">Profile</h2>
                 <div className="space-y-4 text-sm">
                   <div className="flex items-center gap-3">
@@ -926,7 +928,7 @@ export default function TeacherDetailPage() {
                 </div>
               </div>
 
-              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <div className="glass-panel rounded-2xl p-5">
                 <h2 className="text-lg font-bold mb-4">Compensation Snapshot</h2>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between text-sm">
@@ -949,7 +951,7 @@ export default function TeacherDetailPage() {
             </div>
 
             <div className="xl:col-span-2 space-y-6">
-              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <div className="glass-panel rounded-2xl p-5">
                 <div className="flex items-center justify-between mb-4">
                   <h2 className="text-lg font-bold">Earnings Trend (6 months)</h2>
                   <TrendingUp className="h-5 w-5 text-primary" />
@@ -972,7 +974,7 @@ export default function TeacherDetailPage() {
                 </div>
               </div>
 
-              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <div className="glass-panel rounded-2xl p-5">
                 <h2 className="text-lg font-bold mb-4">Recent Accrual Events</h2>
                 <div className="space-y-3">
                   {earnings.slice(0, 8).map((entry) => (
@@ -1016,7 +1018,7 @@ export default function TeacherDetailPage() {
         {activeTab === 'groups' && (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             {groups.map((group) => (
-              <div key={group.id} className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+              <div key={group.id} className="glass-panel rounded-2xl p-5">
                 <div className="flex items-start justify-between gap-3 mb-4">
                   <div>
                     <h3 className="text-lg font-bold">{group.name}</h3>
@@ -1060,7 +1062,7 @@ export default function TeacherDetailPage() {
               </div>
             ))}
             {groups.length === 0 && (
-              <div className="col-span-full bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-10 text-center text-text-secondary">
+              <div className="col-span-full glass-panel rounded-2xl p-10 text-center text-text-secondary">
                 No assigned groups found for this teacher.
               </div>
             )}
@@ -1069,7 +1071,7 @@ export default function TeacherDetailPage() {
 
         {activeTab === 'attendance' && (
           <div className="space-y-6">
-            <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+            <div className="glass-panel rounded-2xl p-5">
               <div className="flex flex-wrap items-center gap-3">
                 <input
                   type="month"
@@ -1102,40 +1104,40 @@ export default function TeacherDetailPage() {
             </div>
 
             {attendanceLoading ? (
-              <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-10">
+              <div className="glass-panel rounded-2xl p-10">
                 <LoadingScreen message="Loading attendance insights..." fullHeight={false} />
               </div>
             ) : (
               <>
                 <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-4">
-                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+                  <div className="glass-panel rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Attendance Rows</p>
                     <p className="text-2xl font-bold">{attendanceSummary.total}</p>
                   </div>
-                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+                  <div className="glass-panel rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Present</p>
                     <p className="text-2xl font-bold text-success">{attendanceSummary.present}</p>
                   </div>
-                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+                  <div className="glass-panel rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Excused</p>
                     <p className="text-2xl font-bold text-warning">{attendanceSummary.absence}</p>
                   </div>
-                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+                  <div className="glass-panel rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Unexcused</p>
                     <p className="text-2xl font-bold text-error">{attendanceSummary.absent}</p>
                   </div>
-                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+                  <div className="glass-panel rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Students Marked</p>
                     <p className="text-2xl font-bold">{attendanceSummary.uniqueStudents}</p>
                   </div>
-                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-4">
+                  <div className="glass-panel rounded-2xl p-4">
                     <p className="text-xs uppercase tracking-wide text-text-secondary mb-2">Presence Rate</p>
                     <p className="text-2xl font-bold">{attendanceSummary.presenceRate}%</p>
                   </div>
                 </div>
 
                 <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
-                  <div className="xl:col-span-2 bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+                  <div className="xl:col-span-2 glass-panel rounded-2xl p-5">
                     <div className="flex items-center justify-between mb-4">
                       <h2 className="text-lg font-bold">Daily Attendance Heatmap</h2>
                       <span className="text-sm text-text-secondary">
@@ -1182,7 +1184,7 @@ export default function TeacherDetailPage() {
                     </div>
                   </div>
 
-                  <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-5">
+                  <div className="glass-panel rounded-2xl p-5">
                     <h2 className="text-lg font-bold mb-4">Latest Marked Days</h2>
                     <div className="space-y-2">
                       {attendanceTimeline.slice(0, 10).map((row) => (
@@ -1212,7 +1214,7 @@ export default function TeacherDetailPage() {
         )}
 
         {activeTab === 'earnings' && (
-          <div className="bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl overflow-hidden">
+          <div className="glass-panel rounded-2xl overflow-hidden">
             <div className="p-5 border-b border-border flex flex-wrap items-center gap-3">
               <div className="inline-flex items-center gap-2 rounded-xl border border-border bg-background px-3 py-2 text-sm">
                 <Coins className="h-4 w-4 text-primary" />
@@ -1294,7 +1296,7 @@ export default function TeacherDetailPage() {
 
         {isEditModalOpen && (
           <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
-            <div className="w-full max-w-lg bg-surface/70 backdrop-blur-xl border border-white/15 rounded-2xl p-6">
+            <div className="w-full max-w-lg glass-panel rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4">Edit Teacher Profile</h2>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-3">

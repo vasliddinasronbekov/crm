@@ -333,19 +333,25 @@ export default function StudentDetailPage() {
 
   return (
     <ProtectedRoute>
-      <div className="min-h-screen bg-background p-8">
-        <div className="max-w-7xl mx-auto">
+      <div className="relative min-h-screen p-8">
+        <div className="pointer-events-none absolute inset-0 -z-10 overflow-hidden">
+          <div className="absolute -top-28 -left-20 h-80 w-80 rounded-full bg-primary/20 blur-3xl" />
+          <div className="absolute top-1/4 right-0 h-72 w-72 rounded-full bg-cyan-500/15 blur-3xl" />
+          <div className="absolute -bottom-12 left-1/3 h-72 w-72 rounded-full bg-warning/20 blur-3xl" />
+        </div>
+
+        <div className="relative z-10 max-w-7xl mx-auto">
           {/* Back Button */}
           <button
             onClick={() => router.push('/dashboard/students')}
-            className="mb-6 flex items-center gap-2 text-text-secondary hover:text-primary transition-colors"
+            className="mb-6 inline-flex items-center gap-2 rounded-xl px-4 py-2 glass-chip text-sm font-medium text-text-secondary hover:text-primary transition-colors"
           >
             <ArrowLeft className="h-5 w-5" />
             Back to Students
           </button>
 
           {/* Header with Student Info */}
-          <div className="bg-surface rounded-2xl border border-border p-8 mb-8">
+          <div className="glass-panel-strong rounded-3xl p-8 mb-8">
             <div className="flex items-start justify-between">
               <div className="flex items-center gap-6">
                 <div className="relative h-24 w-24 rounded-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center text-primary font-bold text-3xl border-4 border-primary/20 overflow-hidden">
@@ -391,7 +397,7 @@ export default function StudentDetailPage() {
               </div>
 
               {/* Risk Assessment Badge */}
-              <div className={`px-6 py-3 rounded-xl border-2 ${getRiskColor(risk_assessment.risk_level)}`}>
+              <div className={`px-6 py-3 rounded-xl border-2 shadow-lg ${getRiskColor(risk_assessment.risk_level)}`}>
                 <div className="text-center">
                   <p className="text-xs font-medium uppercase mb-1">Risk Level</p>
                   <p className="text-2xl font-bold capitalize">{risk_assessment.risk_level}</p>
@@ -408,7 +414,7 @@ export default function StudentDetailPage() {
                 className={`px-4 py-2 rounded-xl border transition-colors text-sm font-medium flex items-center gap-2 ${
                   canManageAccountStatus && accountStatus !== 'active' && !isStatusMutationRunning
                     ? 'bg-success/10 text-success border-success/30 hover:bg-success/20'
-                    : 'bg-background border-border text-text-secondary/70 cursor-not-allowed'
+                    : 'glass-chip border-border text-text-secondary/70 cursor-not-allowed'
                 }`}
               >
                 <UserCheck className="h-4 w-4" />
@@ -421,7 +427,7 @@ export default function StudentDetailPage() {
                 className={`px-4 py-2 rounded-xl border transition-colors text-sm font-medium flex items-center gap-2 ${
                   canManageAccountStatus && accountStatus !== 'frozen' && !isStatusMutationRunning
                     ? 'bg-warning/10 text-warning border-warning/30 hover:bg-warning/20'
-                    : 'bg-background border-border text-text-secondary/70 cursor-not-allowed'
+                    : 'glass-chip border-border text-text-secondary/70 cursor-not-allowed'
                 }`}
               >
                 <PauseCircle className="h-4 w-4" />
@@ -434,7 +440,7 @@ export default function StudentDetailPage() {
                 className={`px-4 py-2 rounded-xl border transition-colors text-sm font-medium flex items-center gap-2 ${
                   canManageAccountStatus && accountStatus !== 'deactivated' && !isStatusMutationRunning
                     ? 'bg-error/10 text-error border-error/30 hover:bg-error/20'
-                    : 'bg-background border-border text-text-secondary/70 cursor-not-allowed'
+                    : 'glass-chip border-border text-text-secondary/70 cursor-not-allowed'
                 }`}
               >
                 <UserX className="h-4 w-4" />
@@ -442,19 +448,19 @@ export default function StudentDetailPage() {
               </button>
               <button
                 onClick={() => toast.success('Messaging module coming online for this student.')}
-                className="px-4 py-2 bg-primary text-background rounded-xl hover:bg-primary/90 transition-colors text-sm font-medium"
+                className="px-4 py-2 rounded-xl bg-gradient-to-r from-primary to-cyan-500 text-background hover:opacity-95 transition-opacity text-sm font-medium"
               >
                 Message Student
               </button>
               <button
                 onClick={() => toast.success('New schedule entry prepared.')}
-                className="px-4 py-2 bg-background border border-border rounded-xl hover:bg-border/50 transition-colors text-sm"
+                className="px-4 py-2 glass-chip rounded-xl hover:bg-border/50 transition-colors text-sm"
               >
                 Schedule Follow-up
               </button>
               <button
                 onClick={() => toast.success('Payment workflow queued.')}
-                className="px-4 py-2 bg-background border border-border rounded-xl hover:bg-border/50 transition-colors text-sm"
+                className="px-4 py-2 glass-chip rounded-xl hover:bg-border/50 transition-colors text-sm"
               >
                 Record Payment
               </button>
@@ -464,7 +470,7 @@ export default function StudentDetailPage() {
           {/* Key Metrics Cards */}
           <div className="grid grid-cols-1 md:grid-cols-5 gap-6 mb-8">
             {/* Payment Status */}
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+            <div className="glass-panel-strong p-6 rounded-2xl hover:border-primary/50 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-12 w-12 rounded-xl bg-success/10 flex items-center justify-center">
                   <DollarSign className="h-6 w-6 text-success" />
@@ -488,7 +494,7 @@ export default function StudentDetailPage() {
             </div>
 
             {/* Attendance Rate */}
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-info/50 transition-all">
+            <div className="glass-panel p-6 rounded-2xl hover:border-info/50 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-12 w-12 rounded-xl bg-info/10 flex items-center justify-center">
                   <Calendar className="h-6 w-6 text-info" />
@@ -503,7 +509,7 @@ export default function StudentDetailPage() {
             </div>
 
             {/* Average Score */}
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-warning/50 transition-all">
+            <div className="glass-panel p-6 rounded-2xl hover:border-warning/50 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-12 w-12 rounded-xl bg-warning/10 flex items-center justify-center">
                   <Award className="h-6 w-6 text-warning" />
@@ -518,7 +524,7 @@ export default function StudentDetailPage() {
             </div>
 
             {/* Coins */}
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+            <div className="glass-panel p-6 rounded-2xl hover:border-primary/50 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
                   <Coins className="h-6 w-6 text-primary" />
@@ -531,7 +537,7 @@ export default function StudentDetailPage() {
             </div>
 
             {/* Engagement Index */}
-            <div className="bg-surface p-6 rounded-2xl border border-border hover:border-primary/50 transition-all">
+            <div className="glass-panel p-6 rounded-2xl hover:border-primary/50 transition-all">
               <div className="flex items-center justify-between mb-4">
                 <div className="h-12 w-12 rounded-xl bg-primary/10 flex items-center justify-center">
                   <Target className="h-6 w-6 text-primary" />
@@ -549,7 +555,7 @@ export default function StudentDetailPage() {
           {/* Risk + Recommendations */}
           {(risk_assessment.risk_factors.length > 0 || recommendations.length > 0) && (
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-              <div className="bg-surface rounded-2xl border border-border p-6">
+              <div className="glass-panel rounded-2xl p-6">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <AlertTriangle className="h-6 w-6 text-warning" />
                   Risk Factors
@@ -559,7 +565,7 @@ export default function StudentDetailPage() {
                     {risk_assessment.risk_factors.map((factor, index) => (
                       <span
                         key={`${factor}-${index}`}
-                        className="px-3 py-2 rounded-xl bg-background border border-border text-sm"
+                        className="px-3 py-2 rounded-xl glass-chip text-sm"
                       >
                         {factor}
                       </span>
@@ -569,7 +575,7 @@ export default function StudentDetailPage() {
                   <p className="text-text-secondary text-sm">No active risk indicators.</p>
                 )}
               </div>
-              <div className="bg-surface rounded-2xl border border-border p-6">
+              <div className="glass-panel rounded-2xl p-6">
                 <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                   <Target className="h-6 w-6 text-primary" />
                   Recommended Actions
@@ -593,7 +599,7 @@ export default function StudentDetailPage() {
           {/* Content Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
             {/* Groups */}
-            <div className="bg-surface rounded-2xl border border-border p-6">
+            <div className="glass-panel rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Users className="h-6 w-6 text-primary" />
                 Enrolled Groups ({groups.length})
@@ -601,7 +607,7 @@ export default function StudentDetailPage() {
               <div className="space-y-3">
                 {groups.length > 0 ? (
                   groups.map((group) => (
-                    <div key={group.id} className="p-4 bg-background rounded-xl border border-border">
+                    <div key={group.id} className="p-4 rounded-xl glass-chip">
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <h3 className="font-bold">{group.name}</h3>
@@ -640,7 +646,7 @@ export default function StudentDetailPage() {
             </div>
 
             {/* Recent Payments */}
-            <div className="bg-surface rounded-2xl border border-border p-6">
+            <div className="glass-panel rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <DollarSign className="h-6 w-6 text-success" />
                 Recent Payments
@@ -648,7 +654,7 @@ export default function StudentDetailPage() {
               <div className="space-y-3 max-h-[400px] overflow-y-auto">
                 {recent_payments.length > 0 ? (
                   recent_payments.map((payment) => (
-                    <div key={payment.id} className="p-4 bg-background rounded-xl border border-border">
+                    <div key={payment.id} className="p-4 rounded-xl glass-chip">
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="font-bold text-success">
@@ -683,7 +689,7 @@ export default function StudentDetailPage() {
           {/* Bottom Grid */}
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
             {/* Recent Attendance */}
-            <div className="bg-surface rounded-2xl border border-border p-6">
+            <div className="glass-panel rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Calendar className="h-6 w-6 text-info" />
                 Recent Attendance
@@ -691,7 +697,7 @@ export default function StudentDetailPage() {
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {recent_attendance.length > 0 ? (
                   recent_attendance.map((record) => (
-                    <div key={record.id} className="flex items-center justify-between p-3 bg-background rounded-xl">
+                    <div key={record.id} className="flex items-center justify-between p-3 rounded-xl glass-chip">
                       <div>
                         <p className="text-sm font-medium">{new Date(record.date).toLocaleDateString()}</p>
                         <p className="text-xs text-text-secondary">{record.group || 'N/A'}</p>
@@ -711,7 +717,7 @@ export default function StudentDetailPage() {
             </div>
 
             {/* Recent Exams */}
-            <div className="bg-surface rounded-2xl border border-border p-6">
+            <div className="glass-panel rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Award className="h-6 w-6 text-warning" />
                 Recent Exams
@@ -719,7 +725,7 @@ export default function StudentDetailPage() {
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {recent_exams.length > 0 ? (
                   recent_exams.map((exam) => (
-                    <div key={exam.id} className="p-3 bg-background rounded-xl">
+                    <div key={exam.id} className="p-3 rounded-xl glass-chip">
                       <div className="flex items-start justify-between mb-2">
                         <div>
                           <p className="text-sm font-medium">{exam.group || 'Exam'}</p>
@@ -742,7 +748,7 @@ export default function StudentDetailPage() {
             </div>
 
             {/* Recent Coin Transactions */}
-            <div className="bg-surface rounded-2xl border border-border p-6">
+            <div className="glass-panel rounded-2xl p-6">
               <h2 className="text-xl font-bold mb-4 flex items-center gap-2">
                 <Coins className="h-6 w-6 text-primary" />
                 Coin History
@@ -750,7 +756,7 @@ export default function StudentDetailPage() {
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {coins.recent_transactions.length > 0 ? (
                   coins.recent_transactions.map((transaction) => (
-                    <div key={transaction.id} className="p-3 bg-background rounded-xl">
+                    <div key={transaction.id} className="p-3 rounded-xl glass-chip">
                       <div className="flex items-start justify-between mb-1">
                         <p className="text-sm font-medium">{transaction.reason}</p>
                         <span className={`text-lg font-bold ${transaction.amount > 0 ? 'text-success' : 'text-error'}`}>
