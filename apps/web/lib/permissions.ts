@@ -524,12 +524,20 @@ export const STAFF_ROUTE_FAMILY_POLICIES: StaffRouteFamilyPolicy[] = [
  * Page access permissions with wildcard support.
  * `*` means prefix match.
  */
-export const PAGE_PERMISSION_RULES: PagePermissionRule[] = STAFF_ROUTE_FAMILY_POLICIES.flatMap((family) =>
-  family.patterns.map((pattern) => ({
-    pattern,
-    requiredPermissions: [family.requiredPermission],
-  })),
-);
+const FINANCE_HUB_PERMISSION_RULE: PagePermissionRule = {
+  pattern: '/dashboard/finance*',
+  requiredPermissions: ['payments.view', 'expenses.view', 'hr.view', 'salaries.view'],
+};
+
+export const PAGE_PERMISSION_RULES: PagePermissionRule[] = [
+  FINANCE_HUB_PERMISSION_RULE,
+  ...STAFF_ROUTE_FAMILY_POLICIES.flatMap((family) =>
+    family.patterns.map((pattern) => ({
+      pattern,
+      requiredPermissions: [family.requiredPermission],
+    })),
+  ),
+];
 
 // Backward-compatible export for existing imports.
 export const PAGE_PERMISSIONS: Record<string, Permission[]> = PAGE_PERMISSION_RULES.reduce(

@@ -111,7 +111,7 @@ export default function CashReceiptVerifyPage() {
             Cash Receipt Verification
           </h1>
           <p className="mt-2 text-sm text-text-secondary">
-            Verify payment receipt authenticity from EduVoice CRM.
+            Verify payment receipt authenticity from EDUOS CRM.
           </p>
         </div>
 
