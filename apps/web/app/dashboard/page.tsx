@@ -1,6 +1,6 @@
 'use client'
 
-import { useState, useEffect, useRef } from 'react'
+import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
@@ -38,6 +38,14 @@ interface AnalyticsData {
   [key: string]: any
 }
 
+type DashboardFocus = 'all' | 'operations' | 'finance' | 'learning' | 'growth'
+
+interface FocusFilter {
+  id: DashboardFocus
+  label: string
+  description: string
+}
+
 export default function DashboardPage() {
   const { user } = useAuth()
   const permissions = usePermissions(user)
@@ -56,6 +64,8 @@ export default function DashboardPage() {
   const [stats, setStats] = useState<DashboardStats | null>(null)
   const [analytics, setAnalytics] = useState<AnalyticsData | null>(null)
   const [isLoading, setIsLoading] = useState(true)
+  const [selectedFocus, setSelectedFocus] = useState<DashboardFocus>('all')
+  const [moduleSearch, setModuleSearch] = useState('')
   const realtimeRefetchRef = useRef(refetchRealtimeDashboard)
   const canViewFinanceOverview = permissions.hasAnyPermission(['payments.view'])
   const ongoingGroups = ongoingGroupsData?.results || []
@@ -210,6 +220,14 @@ export default function DashboardPage() {
   }
 
   const dateLocale = language === 'uz' ? 'uz-UZ' : language === 'ru' ? 'ru-RU' : 'en-US'
+
+  const focusFilters: FocusFilter[] = [
+    { id: 'all', label: 'All', description: 'Everything at a glance' },
+    { id: 'operations', label: 'Operations', description: 'Attendance, tasks, scheduling' },
+    { id: 'finance', label: 'Finance', description: 'Payments, accounting, payroll' },
+    { id: 'learning', label: 'Learning', description: 'Students, teachers, groups, LMS' },
+    { id: 'growth', label: 'Growth', description: 'CRM, support, campaigns' },
+  ]
 
   interface FeatureCard {
     title: string
@@ -454,6 +472,122 @@ export default function DashboardPage() {
     ))
   }
 
+  const getCardFocus = (href: string): DashboardFocus => {
+    if (
+      href.startsWith('/dashboard/finance') ||
+      href.startsWith('/dashboard/payments') ||
+      href.startsWith('/dashboard/accounting') ||
+      href.startsWith('/dashboard/expenses') ||
+      href.startsWith('/dashboard/hr')
+    ) {
+      return 'finance'
+    }
+
+    if (
+      href.startsWith('/dashboard/students') ||
+      href.startsWith('/dashboard/teachers') ||
+      href.startsWith('/dashboard/groups') ||
+      href.startsWith('/dashboard/lms') ||
+      href.startsWith('/dashboard/certificates')
+    ) {
+      return 'learning'
+    }
+
+    if (
+      href.startsWith('/dashboard/crm') ||
+      href.startsWith('/dashboard/email') ||
+      href.startsWith('/dashboard/support') ||
+      href.startsWith('/dashboard/announcements') ||
+      href.startsWith('/dashboard/leaderboard')
+    ) {
+      return 'growth'
+    }
+
+    return 'operations'
+  }
+
+  const allFeatureCards = getFeatureCards()
+  const filteredFeatureCards = allFeatureCards.filter((card) => {
+    const focusMatches = selectedFocus === 'all' || getCardFocus(card.href) === selectedFocus
+    if (!focusMatches) return false
+
+    if (!moduleSearch.trim()) return true
+    const term = moduleSearch.trim().toLowerCase()
+    return (
+      card.title.toLowerCase().includes(term) ||
+      card.description.toLowerCase().includes(term) ||
+      card.statLabel.toLowerCase().includes(term)
+    )
+  })
+
+  const todayActions = useMemo(() => {
+    const actions: Array<{ label: string; description: string; href: string; icon: LucideIcon }> = []
+
+    if (permissions.hasPermission('attendance.create') && permissions.canAccessPage('/dashboard/groups')) {
+      actions.push({
+        label: 'Take attendance',
+        description: 'Open live group attendance and mark today quickly',
+        href: '/dashboard/groups',
+        icon: Calendar,
+      })
+    }
+
+    if (permissions.hasPermission('payments.view') && permissions.canAccessPage('/dashboard/finance')) {
+      actions.push({
+        label: 'Review debtors',
+        description: 'Check negative balances and overdue students',
+        href: '/dashboard/finance',
+        icon: AlertCircle,
+      })
+    }
+
+    if (permissions.hasPermission('tasks.view') && permissions.canAccessPage('/dashboard/tasks')) {
+      actions.push({
+        label: 'Open task board',
+        description: 'Resolve pending items and blockers',
+        href: '/dashboard/tasks',
+        icon: CheckSquare,
+      })
+    }
+
+    if (permissions.hasPermission('support.view') && permissions.canAccessPage('/dashboard/support')) {
+      actions.push({
+        label: 'Support inbox',
+        description: 'Handle new support tickets and replies',
+        href: '/dashboard/support',
+        icon: MessageCircle,
+      })
+    }
+
+    if (actions.length === 0) {
+      actions.push({
+        label: 'Explore modules',
+        description: 'Open your accessible tools and continue work',
+        href: '/dashboard/students',
+        icon: Layers,
+      })
+    }
+
+    return actions.slice(0, 4)
+  }, [permissions])
+
+  const recentLogs = useMemo(() => {
+    const rawLogs = realtimeDashboard?.recent_logs || []
+    const deduped = new Map<string, typeof rawLogs[number]>()
+
+    rawLogs.forEach((log) => {
+      const key = `${(log.actor_username || 'system').toLowerCase()}::${(log.message || '').toLowerCase()}`
+      const existing = deduped.get(key)
+      if (!existing || new Date(log.created_at).getTime() > new Date(existing.created_at).getTime()) {
+        deduped.set(key, log)
+      }
+    })
+
+    return Array.from(deduped.values())
+      .sort((left, right) => new Date(right.created_at).getTime() - new Date(left.created_at).getTime())
+      .slice(0, 10)
+  }, [realtimeDashboard?.recent_logs])
+
   if (isLoading) {
     return <LoadingScreen message={translateText('Loading dashboard...')} />
   }
@@ -469,7 +603,7 @@ export default function DashboardPage() {
       <div className="relative z-10 max-w-7xl mx-auto space-y-8">
         {/* Header Section */}
         <div className="glass-panel-strong rounded-3xl p-6">
-          <div className="flex items-center justify-between mb-6">
+          <div className="flex flex-wrap items-start justify-between gap-4 mb-6">
             <div>
               <h1 className="text-4xl font-bold mb-2 flex items-center gap-3">
                 {getGreeting()}, {getUserName()}!
@@ -484,7 +618,7 @@ export default function DashboardPage() {
                 })}
               </p>
             </div>
-            <div className="glass-panel rounded-2xl p-6">
+            <div className="glass-panel rounded-2xl p-6 min-w-[280px]">
               <div className="flex items-center gap-3">
                 <Activity className="h-8 w-8 text-primary" />
                 <div>
@@ -492,6 +626,36 @@ export default function DashboardPage() {
                   <p className="text-xl font-bold text-success">All Systems Operational</p>
                 </div>
               </div>
+            </div>
+          </div>
+
+          <div className="glass-panel rounded-2xl p-4 mb-6">
+            <div className="flex flex-wrap items-center justify-between gap-3 mb-3">
+              <div>
+                <p className="text-sm font-semibold">Today Focus</p>
+                <p className="text-xs text-text-secondary">Fast actions for your role</p>
+              </div>
+              <span className="text-xs text-text-secondary">
+                {todayActions.length} suggested actions
+              </span>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-3">
+              {todayActions.map((action) => {
+                const ActionIcon = action.icon
+                return (
+                  <button
+                    key={action.label}
+                    onClick={() => router.push(action.href)}
+                    className="glass-chip rounded-xl px-4 py-3 text-left hover:border-primary/40 hover:bg-primary/5 transition-colors"
+                  >
+                    <div className="flex items-center gap-2 mb-1">
+                      <ActionIcon className="h-4 w-4 text-primary" />
+                      <span className="text-sm font-semibold">{action.label}</span>
+                    </div>
+                    <p className="text-xs text-text-secondary">{action.description}</p>
+                  </button>
+                )
+              })}
             </div>
           </div>
 
@@ -550,8 +714,8 @@ export default function DashboardPage() {
                   {isRealtimeLoading && <span className="text-xs text-text-secondary">syncing...</span>}
                 </div>
                 <div className="space-y-2 h-[120px] overflow-y-auto pr-1">
-                  {(realtimeDashboard?.recent_logs || []).length > 0 ? (
-                    (realtimeDashboard?.recent_logs || []).map((log) => (
+                  {recentLogs.length > 0 ? (
+                    recentLogs.map((log) => (
                       <div key={log.id} className="rounded-xl border border-border glass-chip p-3">
                         <p className="text-xs font-medium mb-1">{log.message}</p>
                         <div className="flex items-center justify-between text-[11px] text-text-secondary">
@@ -692,8 +856,37 @@ export default function DashboardPage() {
             <p className="text-sm text-text-secondary">Click any card to navigate</p>
           </div>
 
+          <div className="flex flex-wrap items-center gap-3 mb-5">
+            <div className="flex flex-wrap gap-2">
+              {focusFilters.map((filter) => (
+                <button
+                  key={filter.id}
+                  onClick={() => setSelectedFocus(filter.id)}
+                  className={`px-3 py-1.5 rounded-xl text-xs font-medium border transition-colors ${
+                    selectedFocus === filter.id
+                      ? 'bg-primary text-background border-primary'
+                      : 'glass-chip text-text-secondary hover:text-text-primary hover:border-primary/40'
+                  }`}
+                  title={filter.description}
+                >
+                  {filter.label}
+                </button>
+              ))}
+            </div>
+            <input
+              type="search"
+              value={moduleSearch}
+              onChange={(event) => setModuleSearch(event.target.value)}
+              placeholder="Search modules..."
+              className="glass-input rounded-xl px-3 py-2 text-sm min-w-[220px]"
+            />
+            <span className="text-xs text-text-secondary">
+              Showing {filteredFeatureCards.length} of {allFeatureCards.length}
+            </span>
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-            {getFeatureCards().map((card, index) => {
+            {filteredFeatureCards.map((card, index) => {
               const Icon = card.icon
               return (
                 <button
@@ -732,6 +925,22 @@ export default function DashboardPage() {
               )
             })}
           </div>
+
+          {filteredFeatureCards.length === 0 && (
+            <div className="glass-chip rounded-2xl p-6 mt-4 text-center">
+              <p className="font-semibold mb-1">No modules match this filter</p>
+              <p className="text-sm text-text-secondary mb-3">Try another focus area or clear search.</p>
+              <button
+                onClick={() => {
+                  setSelectedFocus('all')
+                  setModuleSearch('')
+                }}
+                className="px-4 py-2 rounded-xl bg-primary text-background text-sm font-medium"
+              >
+                Reset filters
+              </button>
+            </div>
+          )}
         </div>
 
         {/* System Info */}
