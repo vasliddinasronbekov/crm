@@ -17,6 +17,9 @@ export interface Student {
   parent_phone?: string
   parent_email?: string
   notes?: string
+  branch_ids?: number[]
+  primary_branch_id?: number | null
+  branch_names?: string[]
 }
 
 export interface StudentFormData {
@@ -31,6 +34,8 @@ export interface StudentFormData {
   parent_phone?: string
   parent_email?: string
   notes?: string
+  branch_ids?: number[]
+  primary_branch_id?: number | null
 }
 
 // Query keys factory for consistent cache management
@@ -46,13 +51,17 @@ export const studentsKeys = {
  * Hook to fetch all students with automatic caching
  * @param filters - Optional filters for students list
  */
-export function useStudents({ page = 1, limit = 10, ...restFilters }: { page?: number, limit?: number, [key: string]: any } = {}) {
-  const filters = { page, limit, ...restFilters };
+export function useStudents({ page = 1, limit = 10, scopeKey = "default", ...restFilters }: { page?: number, limit?: number, scopeKey?: string | number | null, [key: string]: any } = {}) {
+  const requestFilters = { page, limit, ...restFilters };
+  const cacheFilters = {
+    ...requestFilters,
+    scopeKey: scopeKey ?? "all",
+  };
+
   return useQuery({
-    queryKey: studentsKeys.list(filters),
+    queryKey: studentsKeys.list(cacheFilters),
     queryFn: async () => {
-      // The API is expected to return an object like { count: number, results: Student[] }
-      const response = await apiService.getStudents(filters);
+      const response = await apiService.getStudents(requestFilters);
       // Return the array of students, handling both paginated and non-paginated responses
       return response
     },
@@ -65,12 +74,14 @@ export function useStudents({ page = 1, limit = 10, ...restFilters }: { page?: n
  * Hook to fetch a single student by ID
  * @param id - Student ID
  */
-export function useStudent(id: number | string | null) {
+export function useStudent(id: number | string | null, { scopeKey = "default" }: { scopeKey?: string | number | null } = {}) {
+  const resolvedScopeKey = scopeKey ?? "all"
+
   return useQuery({
-    queryKey: studentsKeys.detail(id!),
+    queryKey: [...studentsKeys.detail(id!), resolvedScopeKey],
     queryFn: async () => {
       const response = await apiService.getStudent(Number(id))
-      return response.data
+      return response
     },
     enabled: !!id, // Only run if id exists
     staleTime: 5 * 60 * 1000, // 5 minutes - student detail changes less frequently
@@ -86,7 +97,7 @@ export function useCreateStudent() {
   return useMutation({
     mutationFn: async (data: StudentFormData) => {
       const response = await apiService.createStudent(data)
-      return response.data
+      return response
     },
     onSuccess: (newStudent) => {
       // Invalidate students list to refetch with new data
@@ -119,7 +130,7 @@ export function useUpdateStudent() {
   return useMutation({
     mutationFn: async ({ id, data }: { id: number; data: StudentFormData }) => {
       const response = await apiService.updateStudent(id, data)
-      return response.data
+      return response
     },
     // Optimistic update - update cache immediately before request completes
     onMutate: async ({ id, data }) => {
@@ -236,7 +247,7 @@ export function usePrefetchStudents() {
       queryKey: studentsKeys.list(),
       queryFn: async () => {
         const response = await apiService.getStudents()
-        return response.data?.results || response.data || []
+        return response.results || response || []
       },
       staleTime: 2 * 60 * 1000,
     })

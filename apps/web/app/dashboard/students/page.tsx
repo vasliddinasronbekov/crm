@@ -56,6 +56,22 @@ const normalizeStudentAccountStatus = (value: unknown): StudentAccountStatus => 
   return 'active'
 }
 
+const buildStudentForm = (defaultBranchId: number | null) => ({
+  username: '',
+  password: '',
+  first_name: '',
+  last_name: '',
+  email: '',
+  phone: '',
+  address: '',
+  birth_date: '',
+  parent_phone: '',
+  parent_email: '',
+  notes: '',
+  branch_ids: defaultBranchId !== null ? [defaultBranchId] : [],
+  primary_branch_id: defaultBranchId,
+})
+
 export default function StudentsPage() {
   const router = useRouter()
   const { user } = useAuth()
@@ -93,6 +109,7 @@ export default function StudentsPage() {
     }),
     [activeBranchId, user?.id],
   )
+  const branchScopeKey = activeBranchId ?? 'all'
 
   const activeBranchName = useMemo(() => {
     if (activeBranchId === null) {
@@ -111,6 +128,7 @@ export default function StudentsPage() {
   const { data: studentsData, isLoading, isFetching } = useStudents({
     page,
     limit,
+    scopeKey: branchScopeKey,
     search: debouncedSearchQuery,
     has_email: filterStatus === 'with_email' ? true : filterStatus === 'missing_email' ? false : undefined,
     has_phone: filterStatus === 'with_phone' ? true : filterStatus === 'missing_phone' ? false : undefined,
@@ -128,19 +146,7 @@ export default function StudentsPage() {
   const [selectedStudent, setSelectedStudent] = useState<Student | null>(null)
 
   // Form state
-  const [studentForm, setStudentForm] = useState({
-    username: '',
-    password: '',
-    first_name: '',
-    last_name: '',
-    email: '',
-    phone: '',
-    address: '',
-    birth_date: '',
-    parent_phone: '',
-    parent_email: '',
-    notes: ''
-  })
+  const [studentForm, setStudentForm] = useState(() => buildStudentForm(activeBranchId))
 
   const students: Student[] = studentsData?.results || []
   const studentIdsParam: string = students.map((student: Student) => student.id).join(',')
@@ -151,6 +157,15 @@ export default function StudentsPage() {
   useEffect(() => {
     setSelectedIds([])
   }, [page, limit, filterStatus, debouncedSearchQuery, recentOnly, studentFocus])
+
+  useEffect(() => {
+    setPage(1)
+  }, [branchScopeKey])
+
+  useEffect(() => {
+    if (showAddModal || showEditModal) return
+    setStudentForm(buildStudentForm(activeBranchId))
+  }, [activeBranchId, showAddModal, showEditModal])
 
   useEffect(() => {
     setHasLoadedStudentFocusPref(false)
@@ -386,6 +401,16 @@ export default function StudentsPage() {
     }
   }
 
+  const withToggledBranch = (branchIds: number[] | undefined, branchId: number, checked: boolean): number[] => {
+    const current = new Set(branchIds || [])
+    if (checked) {
+      current.add(branchId)
+    } else {
+      current.delete(branchId)
+    }
+    return Array.from(current)
+  }
+
   const handleDelete = async (student: Student) => {
     if (!canDeleteStudent) {
       toast.error('You do not have permission to delete students')
@@ -410,6 +435,11 @@ export default function StudentsPage() {
       return
     }
 
+    if (!studentForm.branch_ids || studentForm.branch_ids.length === 0) {
+      toast.error('Assign at least one branch for this student')
+      return
+    }
+
     createStudent.mutate(studentForm as StudentFormData, {
       onSuccess: () => {
         setShowAddModal(false)
@@ -425,6 +455,11 @@ export default function StudentsPage() {
       return
     }
     if (!selectedStudent) return
+
+    if (!studentForm.branch_ids || studentForm.branch_ids.length === 0) {
+      toast.error('Assign at least one branch for this student')
+      return
+    }
 
     updateStudent.mutate(
       { id: selectedStudent.id, data: studentForm as StudentFormData },
@@ -445,6 +480,7 @@ export default function StudentsPage() {
     }
 
     setSelectedStudent(student)
+    const resolvedBranchIds = student.branch_ids || (student.primary_branch_id ? [student.primary_branch_id] : [])
     setStudentForm({
       username: student.username,
       password: '',
@@ -456,7 +492,9 @@ export default function StudentsPage() {
       birth_date: student.birth_date || '',
       parent_phone: student.parent_phone || '',
       parent_email: student.parent_email || '',
-      notes: student.notes || ''
+      notes: student.notes || '',
+      branch_ids: resolvedBranchIds,
+      primary_branch_id: student.primary_branch_id ?? resolvedBranchIds[0] ?? null,
     })
     setShowEditModal(true)
   }
@@ -467,19 +505,7 @@ export default function StudentsPage() {
   }
 
   const resetForm = () => {
-    setStudentForm({
-      username: '',
-      password: '',
-      first_name: '',
-      last_name: '',
-      email: '',
-      phone: '',
-      address: '',
-      birth_date: '',
-      parent_phone: '',
-      parent_email: '',
-      notes: ''
-    })
+    setStudentForm(buildStudentForm(activeBranchId))
   }
 
   const getInitials = (student: Student) => {
@@ -1427,6 +1453,77 @@ export default function StudentsPage() {
               <p className="text-xs text-text-secondary">
                 You can use phone format for login, e.g. username/password: +998901234567.
               </p>
+
+              <div className="rounded-xl border border-border bg-background/60 p-4">
+                <p className="text-sm font-semibold">Branch assignment</p>
+                <p className="mt-1 text-xs text-text-secondary">
+                  Student records will appear only in selected branches.
+                </p>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {branches.map((branch) => {
+                    const checked = (studentForm.branch_ids || []).includes(branch.id)
+                    return (
+                      <label
+                        key={branch.id}
+                        className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        <span>{branch.name}</span>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => {
+                            const nextBranchIds = withToggledBranch(
+                              studentForm.branch_ids,
+                              branch.id,
+                              event.target.checked,
+                            )
+                            const nextPrimary =
+                              nextBranchIds.length === 0
+                                ? null
+                                : studentForm.primary_branch_id &&
+                                    nextBranchIds.includes(studentForm.primary_branch_id)
+                                  ? studentForm.primary_branch_id
+                                  : nextBranchIds[0]
+
+                            setStudentForm({
+                              ...studentForm,
+                              branch_ids: nextBranchIds,
+                              primary_branch_id: nextPrimary,
+                            })
+                          }}
+                        />
+                      </label>
+                    )
+                  })}
+                </div>
+                <div className="mt-3">
+                  <label className="block text-sm font-medium mb-2">Primary branch</label>
+                  <select
+                    value={studentForm.primary_branch_id ?? ''}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      const nextPrimary = value ? Number(value) : null
+                      setStudentForm({
+                        ...studentForm,
+                        primary_branch_id: nextPrimary,
+                      })
+                    }}
+                    disabled={(studentForm.branch_ids || []).length === 0}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+                  >
+                    <option value="">Select primary branch</option>
+                    {(studentForm.branch_ids || []).map((branchId) => {
+                      const branch = branches.find((item) => item.id === branchId)
+                      return (
+                        <option key={branchId} value={branchId}>
+                          {branch?.name || `Branch #${branchId}`}
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => { setShowAddModal(false); resetForm() }} className="flex-1 px-6 py-3 bg-background border border-border rounded-xl hover:bg-border/50 font-medium">
                   Cancel
@@ -1499,6 +1596,77 @@ export default function StudentsPage() {
                   />
                 </div>
               </div>
+
+              <div className="rounded-xl border border-border bg-background/60 p-4">
+                <p className="text-sm font-semibold">Branch assignment</p>
+                <p className="mt-1 text-xs text-text-secondary">
+                  Keep this student visible only in selected branches.
+                </p>
+                <div className="mt-3 grid gap-2 md:grid-cols-2">
+                  {branches.map((branch) => {
+                    const checked = (studentForm.branch_ids || []).includes(branch.id)
+                    return (
+                      <label
+                        key={branch.id}
+                        className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                      >
+                        <span>{branch.name}</span>
+                        <input
+                          type="checkbox"
+                          checked={checked}
+                          onChange={(event) => {
+                            const nextBranchIds = withToggledBranch(
+                              studentForm.branch_ids,
+                              branch.id,
+                              event.target.checked,
+                            )
+                            const nextPrimary =
+                              nextBranchIds.length === 0
+                                ? null
+                                : studentForm.primary_branch_id &&
+                                    nextBranchIds.includes(studentForm.primary_branch_id)
+                                  ? studentForm.primary_branch_id
+                                  : nextBranchIds[0]
+
+                            setStudentForm({
+                              ...studentForm,
+                              branch_ids: nextBranchIds,
+                              primary_branch_id: nextPrimary,
+                            })
+                          }}
+                        />
+                      </label>
+                    )
+                  })}
+                </div>
+                <div className="mt-3">
+                  <label className="block text-sm font-medium mb-2">Primary branch</label>
+                  <select
+                    value={studentForm.primary_branch_id ?? ''}
+                    onChange={(event) => {
+                      const value = event.target.value
+                      const nextPrimary = value ? Number(value) : null
+                      setStudentForm({
+                        ...studentForm,
+                        primary_branch_id: nextPrimary,
+                      })
+                    }}
+                    disabled={(studentForm.branch_ids || []).length === 0}
+                    className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+                  >
+                    <option value="">Select primary branch</option>
+                    {(studentForm.branch_ids || []).map((branchId) => {
+                      const branch = branches.find((item) => item.id === branchId)
+                      return (
+                        <option key={branchId} value={branchId}>
+                          {branch?.name || `Branch #${branchId}`}
+                        </option>
+                      )
+                    })}
+                  </select>
+                </div>
+              </div>
+
               <div className="flex gap-3 pt-4">
                 <button type="button" onClick={() => { setShowEditModal(false); setSelectedStudent(null); resetForm() }} className="flex-1 px-6 py-3 bg-background border border-border rounded-xl hover:bg-border/50 font-medium">
                   Cancel
