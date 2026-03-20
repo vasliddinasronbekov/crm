@@ -63,6 +63,7 @@ class UserViewSet(viewsets.ReadOnlyModelViewSet):
         return (
             queryset.filter(
                 Q(branch_id=active_branch_id)
+                | Q(branch_memberships__branch_id=active_branch_id, branch_memberships__is_active=True)
                 | Q(student_groups__branch_id=active_branch_id)
                 | Q(main_teacher_groups__branch_id=active_branch_id)
                 | Q(assistant_teacher_groups__branch_id=active_branch_id)
@@ -121,6 +122,7 @@ class StudentViewSet(viewsets.ModelViewSet):
                 return queryset.none()
             queryset = queryset.filter(
                 Q(branch_id=active_branch_id)
+                | Q(branch_memberships__branch_id=active_branch_id, branch_memberships__is_active=True)
                 | Q(student_groups__branch_id=active_branch_id)
                 | Q(balances__group__branch_id=active_branch_id)
                 | Q(attendances__group__branch_id=active_branch_id)
@@ -635,6 +637,7 @@ class TeacherViewSet(viewsets.ModelViewSet):
                 return queryset.none()
             queryset = queryset.filter(
                 Q(branch_id=active_branch_id)
+                | Q(branch_memberships__branch_id=active_branch_id, branch_memberships__is_active=True)
                 | Q(main_teacher_groups__branch_id=active_branch_id)
                 | Q(assistant_teacher_groups__branch_id=active_branch_id)
             ).distinct()

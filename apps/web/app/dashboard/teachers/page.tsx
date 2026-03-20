@@ -51,7 +51,7 @@ const FILTER_OPTIONS: Array<{
   { key: 'inactive', label: 'Inactive', activeClass: 'bg-error/20 text-error border-error/30' },
 ]
 
-const EMPTY_TEACHER_FORM = {
+const buildTeacherForm = (defaultBranchId: number | null) => ({
   username: '',
   password: '',
   first_name: '',
@@ -59,7 +59,9 @@ const EMPTY_TEACHER_FORM = {
   email: '',
   phone: '',
   is_staff: false,
-}
+  branch_ids: defaultBranchId !== null ? [defaultBranchId] : [],
+  primary_branch_id: defaultBranchId,
+})
 
 const getInitials = (teacher: Teacher) => {
   if (teacher.first_name && teacher.last_name) {
@@ -129,7 +131,12 @@ export default function TeachersPage() {
   const [editingTeacher, setEditingTeacher] = useState<Teacher | null>(null)
   const [isAddingTeacher, setIsAddingTeacher] = useState(false)
   const [viewMode, setViewMode] = useState<ViewMode>('grid')
-  const [newTeacher, setNewTeacher] = useState(EMPTY_TEACHER_FORM)
+  const [newTeacher, setNewTeacher] = useState(() => buildTeacherForm(activeBranchId))
+
+  useEffect(() => {
+    if (isAddingTeacher) return
+    setNewTeacher(buildTeacherForm(activeBranchId))
+  }, [activeBranchId, isAddingTeacher])
 
   const teachers = useMemo<Teacher[]>(() => (teachersData?.results ?? []) as Teacher[], [teachersData?.results])
   const totalTeachers = teachersData?.count ?? 0
@@ -167,12 +174,27 @@ export default function TeachersPage() {
     deleteTeacher.mutate(teacher.id)
   }
 
+  const withToggledBranch = (branchIds: number[] | undefined, branchId: number, checked: boolean): number[] => {
+    const current = new Set(branchIds || [])
+    if (checked) {
+      current.add(branchId)
+    } else {
+      current.delete(branchId)
+    }
+    return Array.from(current)
+  }
+
   const handleEdit = (teacher: Teacher) => {
     if (!canEditTeacher) {
       toast.error('You do not have permission to edit teachers')
       return
     }
-    setEditingTeacher(teacher)
+    const resolvedBranchIds = teacher.branch_ids || (teacher.primary_branch_id ? [teacher.primary_branch_id] : [])
+    setEditingTeacher({
+      ...teacher,
+      branch_ids: resolvedBranchIds,
+      primary_branch_id: teacher.primary_branch_id ?? resolvedBranchIds[0] ?? null,
+    })
   }
 
   const handleSaveEdit = () => {
@@ -191,6 +213,8 @@ export default function TeachersPage() {
           last_name: editingTeacher.last_name,
           email: editingTeacher.email,
           phone: editingTeacher.phone,
+          branch_ids: editingTeacher.branch_ids || [],
+          primary_branch_id: editingTeacher.primary_branch_id ?? null,
         },
       },
       {
@@ -210,10 +234,15 @@ export default function TeachersPage() {
       return
     }
 
+    if (!newTeacher.branch_ids || newTeacher.branch_ids.length === 0) {
+      toast.warning('Assign at least one branch for this teacher')
+      return
+    }
+
     createTeacher.mutate(newTeacher, {
       onSuccess: () => {
         setIsAddingTeacher(false)
-        setNewTeacher(EMPTY_TEACHER_FORM)
+        setNewTeacher(buildTeacherForm(activeBranchId))
       },
     })
   }
@@ -258,7 +287,10 @@ export default function TeachersPage() {
             </div>
 
             <button
-              onClick={() => setIsAddingTeacher(true)}
+              onClick={() => {
+                setNewTeacher(buildTeacherForm(activeBranchId))
+                setIsAddingTeacher(true)
+              }}
               disabled={!canCreateTeacher}
               title={!canCreateTeacher ? 'You do not have permission to create teachers' : undefined}
               className={`px-5 py-3 rounded-xl text-sm font-semibold transition-all border ${
@@ -648,6 +680,78 @@ export default function TeachersPage() {
                     />
                   </div>
 
+                  <div className="rounded-xl border border-white/10 bg-background/40 p-4 space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">Branch Assignments *</p>
+                      <p className="text-xs text-text-secondary">
+                        Teacher will be visible only in selected branches.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {branches.map((branch) => {
+                        const checked = (newTeacher.branch_ids || []).includes(branch.id)
+                        return (
+                          <label
+                            key={branch.id}
+                            className="flex items-center gap-2 rounded-lg border border-white/10 bg-background/50 px-3 py-2 text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) => {
+                                const nextBranchIds = withToggledBranch(
+                                  newTeacher.branch_ids,
+                                  branch.id,
+                                  event.target.checked,
+                                )
+                                const nextPrimary =
+                                  nextBranchIds.length === 0
+                                    ? null
+                                    : newTeacher.primary_branch_id &&
+                                        nextBranchIds.includes(newTeacher.primary_branch_id)
+                                      ? newTeacher.primary_branch_id
+                                      : nextBranchIds[0]
+
+                                setNewTeacher({
+                                  ...newTeacher,
+                                  branch_ids: nextBranchIds,
+                                  primary_branch_id: nextPrimary,
+                                })
+                              }}
+                            />
+                            <span>{branch.name}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-text-secondary">Primary Branch</label>
+                      <select
+                        value={newTeacher.primary_branch_id ?? ''}
+                        onChange={(event) => {
+                          const nextPrimary = event.target.value ? Number(event.target.value) : null
+                          setNewTeacher({
+                            ...newTeacher,
+                            primary_branch_id: nextPrimary,
+                          })
+                        }}
+                        className="w-full px-3 py-2 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm"
+                        disabled={(newTeacher.branch_ids || []).length === 0}
+                      >
+                        <option value="">Select primary branch</option>
+                        {(newTeacher.branch_ids || []).map((branchId) => {
+                          const branch = branches.find((item) => item.id === branchId)
+                          return (
+                            <option key={branchId} value={branchId}>
+                              {branch?.name || `Branch #${branchId}`}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </div>
+                  </div>
+
                   <label className="flex items-center gap-3 p-3 rounded-xl border border-white/10 bg-background/50">
                     <input
                       type="checkbox"
@@ -672,7 +776,7 @@ export default function TeachersPage() {
                   <button
                     onClick={() => {
                       setIsAddingTeacher(false)
-                      setNewTeacher(EMPTY_TEACHER_FORM)
+                      setNewTeacher(buildTeacherForm(activeBranchId))
                     }}
                     className="px-4 py-3 rounded-xl border border-white/15 bg-background/60 font-semibold"
                   >
@@ -736,6 +840,78 @@ export default function TeachersPage() {
                       }
                       className="w-full px-4 py-3 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40"
                     />
+                  </div>
+
+                  <div className="rounded-xl border border-white/10 bg-background/40 p-4 space-y-3">
+                    <div>
+                      <p className="text-sm font-medium">Branch Assignments</p>
+                      <p className="text-xs text-text-secondary">
+                        This teacher will appear only inside selected branches.
+                      </p>
+                    </div>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                      {branches.map((branch) => {
+                        const checked = (editingTeacher.branch_ids || []).includes(branch.id)
+                        return (
+                          <label
+                            key={branch.id}
+                            className="flex items-center gap-2 rounded-lg border border-white/10 bg-background/50 px-3 py-2 text-sm"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) => {
+                                const nextBranchIds = withToggledBranch(
+                                  editingTeacher.branch_ids,
+                                  branch.id,
+                                  event.target.checked,
+                                )
+                                const nextPrimary =
+                                  nextBranchIds.length === 0
+                                    ? null
+                                    : editingTeacher.primary_branch_id &&
+                                        nextBranchIds.includes(editingTeacher.primary_branch_id)
+                                      ? editingTeacher.primary_branch_id
+                                      : nextBranchIds[0]
+
+                                setEditingTeacher({
+                                  ...editingTeacher,
+                                  branch_ids: nextBranchIds,
+                                  primary_branch_id: nextPrimary,
+                                })
+                              }}
+                            />
+                            <span>{branch.name}</span>
+                          </label>
+                        )
+                      })}
+                    </div>
+
+                    <div>
+                      <label className="block text-xs font-medium mb-1 text-text-secondary">Primary Branch</label>
+                      <select
+                        value={editingTeacher.primary_branch_id ?? ''}
+                        onChange={(event) => {
+                          const nextPrimary = event.target.value ? Number(event.target.value) : null
+                          setEditingTeacher({
+                            ...editingTeacher,
+                            primary_branch_id: nextPrimary,
+                          })
+                        }}
+                        className="w-full px-3 py-2 bg-background/70 border border-white/10 rounded-xl focus:outline-none focus:ring-2 focus:ring-primary/40 text-sm"
+                        disabled={(editingTeacher.branch_ids || []).length === 0}
+                      >
+                        <option value="">Select primary branch</option>
+                        {(editingTeacher.branch_ids || []).map((branchId) => {
+                          const branch = branches.find((item) => item.id === branchId)
+                          return (
+                            <option key={branchId} value={branchId}>
+                              {branch?.name || `Branch #${branchId}`}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </div>
                   </div>
                 </div>
 

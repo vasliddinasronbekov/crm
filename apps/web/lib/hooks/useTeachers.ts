@@ -16,6 +16,9 @@ export interface Teacher {
   date_joined?: string
   last_login?: string | null
   is_staff: boolean
+  branch_ids?: number[]
+  primary_branch_id?: number | null
+  branch_names?: string[]
 }
 
 export interface TeacherFormData {
@@ -27,6 +30,8 @@ export interface TeacherFormData {
   phone?: string
   is_staff?: boolean
   is_active?: boolean
+  branch_ids?: number[]
+  primary_branch_id?: number | null
 }
 
 // Query keys factory for consistent cache management

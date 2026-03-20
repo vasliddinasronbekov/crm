@@ -5,11 +5,47 @@ from rest_framework import serializers
 from rest_framework_simplejwt.exceptions import AuthenticationFailed
 from rest_framework_simplejwt.serializers import TokenObtainPairSerializer
 
-from student_profile.models import ExamScore, Group, StudentCoins
-from users.models import User, UserRoleEnum
+from student_profile.models import Branch, ExamScore, Group, StudentCoins
+from users.branch_scope import (
+    get_accessible_branch_ids,
+    get_effective_branch_id,
+    is_global_branch_user,
+)
+from users.models import BranchMembership, User, UserRoleEnum
 
 
 class UserSerializer(serializers.ModelSerializer):
+    branch_ids = serializers.SerializerMethodField()
+    primary_branch_id = serializers.SerializerMethodField()
+    branch_names = serializers.SerializerMethodField()
+
+    def _get_active_branch_memberships(self, obj: User):
+        memberships = getattr(obj, 'branch_memberships', None)
+        if memberships is None:
+            return []
+        return list(
+            memberships.filter(is_active=True)
+            .select_related('branch')
+            .order_by('-is_primary', 'branch__name', 'id')
+        )
+
+    def get_branch_ids(self, obj: User) -> list[int]:
+        return [membership.branch_id for membership in self._get_active_branch_memberships(obj)]
+
+    def get_primary_branch_id(self, obj: User) -> int | None:
+        memberships = self._get_active_branch_memberships(obj)
+        for membership in memberships:
+            if membership.is_primary:
+                return membership.branch_id
+        return obj.branch_id or None
+
+    def get_branch_names(self, obj: User) -> list[str]:
+        return [
+            membership.branch.name
+            for membership in self._get_active_branch_memberships(obj)
+            if membership.branch
+        ]
+
     class Meta:
         model = User
         fields = [
@@ -25,6 +61,9 @@ class UserSerializer(serializers.ModelSerializer):
             'is_staff',
             'is_superuser',
             'role',
+            'branch_ids',
+            'primary_branch_id',
+            'branch_names',
             'date_joined',
             'last_login',
         ]
@@ -34,6 +73,9 @@ class UserSerializer(serializers.ModelSerializer):
             'is_staff',
             'is_superuser',
             'role',
+            'branch_ids',
+            'primary_branch_id',
+            'branch_names',
             'date_joined',
             'last_login',
         ]
@@ -145,7 +187,168 @@ class StudentTokenObtainPairSerializer(MyTokenObtainPairSerializer):
         return data
 
 
-class StudentWriteSerializer(serializers.ModelSerializer):
+class BranchMembershipWriteMixin(serializers.Serializer):
+    branch_ids = serializers.ListField(
+        child=serializers.IntegerField(min_value=1),
+        write_only=True,
+        required=False,
+        allow_empty=True,
+    )
+    primary_branch_id = serializers.IntegerField(write_only=True, required=False, allow_null=True)
+
+    def _resolve_default_branch_assignment(self) -> tuple[list[int], int | None]:
+        request = self.context.get('request')
+        request_user = getattr(request, 'user', None)
+
+        if not request or not request_user or not request_user.is_authenticated:
+            return [], None
+
+        try:
+            effective_branch_id = get_effective_branch_id(request, request_user)
+        except Exception:
+            effective_branch_id = None
+
+        if effective_branch_id is None:
+            return [], None
+
+        return [effective_branch_id], effective_branch_id
+
+    def validate_branch_membership_payload(self, attrs):
+        branch_ids_present = 'branch_ids' in attrs
+        primary_branch_present = 'primary_branch_id' in attrs
+
+        if not branch_ids_present and not primary_branch_present:
+            return attrs
+
+        branch_ids = list(dict.fromkeys(attrs.get('branch_ids') or []))
+        primary_branch_id = attrs.get('primary_branch_id')
+
+        if primary_branch_id is not None and primary_branch_id not in branch_ids:
+            branch_ids.append(primary_branch_id)
+
+        if branch_ids:
+            existing_branch_ids = set(
+                Branch.objects.filter(id__in=branch_ids).values_list('id', flat=True)
+            )
+            missing_branch_ids = [branch_id for branch_id in branch_ids if branch_id not in existing_branch_ids]
+            if missing_branch_ids:
+                raise serializers.ValidationError(
+                    {'branch_ids': f'Invalid branch IDs: {missing_branch_ids}'}
+                )
+
+        request = self.context.get('request')
+        request_user = getattr(request, 'user', None)
+        if request_user and request_user.is_authenticated and not is_global_branch_user(request_user):
+            accessible_branch_ids = set(get_accessible_branch_ids(request_user))
+            blocked_branch_ids = [
+                branch_id for branch_id in branch_ids if branch_id not in accessible_branch_ids
+            ]
+            if blocked_branch_ids:
+                raise serializers.ValidationError(
+                    {'branch_ids': f'You do not have access to branches: {blocked_branch_ids}'}
+                )
+
+        attrs['branch_ids'] = branch_ids
+        attrs['primary_branch_id'] = primary_branch_id
+        return attrs
+
+    def sync_branch_memberships(
+        self,
+        *,
+        user: User,
+        branch_ids: list[int] | None,
+        primary_branch_id: int | None,
+        apply_default_when_empty: bool,
+    ) -> None:
+        if branch_ids is None and primary_branch_id is None:
+            if not apply_default_when_empty:
+                return
+            branch_ids, primary_branch_id = self._resolve_default_branch_assignment()
+            if not branch_ids:
+                return
+
+        branch_ids = list(dict.fromkeys(branch_ids or []))
+
+        if primary_branch_id is not None and primary_branch_id not in branch_ids:
+            branch_ids.append(primary_branch_id)
+
+        if branch_ids and primary_branch_id is None:
+            primary_branch_id = branch_ids[0]
+
+        request = self.context.get('request')
+        assigned_by = getattr(request, 'user', None)
+        if assigned_by and not assigned_by.is_authenticated:
+            assigned_by = None
+
+        target_branch_ids = set(branch_ids)
+        memberships = {
+            membership.branch_id: membership
+            for membership in user.branch_memberships.all()
+        }
+
+        for branch_id, membership in memberships.items():
+            if branch_id in target_branch_ids:
+                update_fields = []
+                if not membership.is_active:
+                    membership.is_active = True
+                    update_fields.append('is_active')
+                if membership.is_primary:
+                    membership.is_primary = False
+                    update_fields.append('is_primary')
+                if membership.role != user.role:
+                    membership.role = user.role
+                    update_fields.append('role')
+                if update_fields:
+                    membership.save(update_fields=update_fields + ['updated_at'])
+            else:
+                update_fields = []
+                if membership.is_active:
+                    membership.is_active = False
+                    update_fields.append('is_active')
+                if membership.is_primary:
+                    membership.is_primary = False
+                    update_fields.append('is_primary')
+                if membership.role != user.role:
+                    membership.role = user.role
+                    update_fields.append('role')
+                if update_fields:
+                    membership.save(update_fields=update_fields + ['updated_at'])
+
+        for branch_id in branch_ids:
+            if branch_id in memberships:
+                continue
+            BranchMembership.objects.create(
+                user=user,
+                branch_id=branch_id,
+                role=user.role,
+                is_primary=False,
+                is_active=True,
+                assigned_by=assigned_by,
+            )
+
+        if primary_branch_id is not None and primary_branch_id in target_branch_ids:
+            primary_membership = user.branch_memberships.filter(branch_id=primary_branch_id).first()
+            if primary_membership:
+                update_fields = []
+                if not primary_membership.is_active:
+                    primary_membership.is_active = True
+                    update_fields.append('is_active')
+                if not primary_membership.is_primary:
+                    primary_membership.is_primary = True
+                    update_fields.append('is_primary')
+                if primary_membership.role != user.role:
+                    primary_membership.role = user.role
+                    update_fields.append('role')
+                if update_fields:
+                    primary_membership.save(update_fields=update_fields + ['updated_at'])
+
+        next_legacy_branch_id = primary_branch_id if target_branch_ids else None
+        if user.branch_id != next_legacy_branch_id:
+            user.branch_id = next_legacy_branch_id
+            user.save(update_fields=['branch'])
+
+
+class StudentWriteSerializer(BranchMembershipWriteMixin, serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, min_length=8)
 
     class Meta:
@@ -160,35 +363,54 @@ class StudentWriteSerializer(serializers.ModelSerializer):
             'email',
             'photo',
             'is_active',
+            'branch_ids',
+            'primary_branch_id',
         ]
         read_only_fields = ['id']
 
     def validate(self, attrs):
+        attrs = self.validate_branch_membership_payload(attrs)
         if self.instance is None and not attrs.get('password'):
             raise serializers.ValidationError({'password': 'This field is required.'})
         return attrs
 
     def create(self, validated_data):
         password = validated_data.pop('password')
+        branch_ids = validated_data.pop('branch_ids', None)
+        primary_branch_id = validated_data.pop('primary_branch_id', None)
         validated_data.setdefault('is_active', True)
         user = User(**validated_data)
         user.role = UserRoleEnum.STUDENT.value
         user.set_password(password)
         user.save()
+        self.sync_branch_memberships(
+            user=user,
+            branch_ids=branch_ids,
+            primary_branch_id=primary_branch_id,
+            apply_default_when_empty=True,
+        )
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
+        branch_ids = validated_data.pop('branch_ids', None)
+        primary_branch_id = validated_data.pop('primary_branch_id', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.role = UserRoleEnum.STUDENT.value
         if password:
             instance.set_password(password)
         instance.save()
+        self.sync_branch_memberships(
+            user=instance,
+            branch_ids=branch_ids,
+            primary_branch_id=primary_branch_id,
+            apply_default_when_empty=False,
+        )
         return instance
 
 
-class TeacherWriteSerializer(serializers.ModelSerializer):
+class TeacherWriteSerializer(BranchMembershipWriteMixin, serializers.ModelSerializer):
     password = serializers.CharField(write_only=True, required=False, min_length=8)
 
     class Meta:
@@ -204,31 +426,50 @@ class TeacherWriteSerializer(serializers.ModelSerializer):
             'photo',
             'is_staff',
             'is_active',
+            'branch_ids',
+            'primary_branch_id',
         ]
         read_only_fields = ['id']
 
     def validate(self, attrs):
+        attrs = self.validate_branch_membership_payload(attrs)
         if self.instance is None and not attrs.get('password'):
             raise serializers.ValidationError({'password': 'This field is required.'})
         return attrs
 
     def create(self, validated_data):
         password = validated_data.pop('password')
+        branch_ids = validated_data.pop('branch_ids', None)
+        primary_branch_id = validated_data.pop('primary_branch_id', None)
         validated_data.setdefault('is_active', True)
         user = User(**validated_data)
         user.role = UserRoleEnum.TEACHER.value
         user.set_password(password)
         user.save()
+        self.sync_branch_memberships(
+            user=user,
+            branch_ids=branch_ids,
+            primary_branch_id=primary_branch_id,
+            apply_default_when_empty=True,
+        )
         return user
 
     def update(self, instance, validated_data):
         password = validated_data.pop('password', None)
+        branch_ids = validated_data.pop('branch_ids', None)
+        primary_branch_id = validated_data.pop('primary_branch_id', None)
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
         instance.role = UserRoleEnum.TEACHER.value
         if password:
             instance.set_password(password)
         instance.save()
+        self.sync_branch_memberships(
+            user=instance,
+            branch_ids=branch_ids,
+            primary_branch_id=primary_branch_id,
+            apply_default_when_empty=False,
+        )
         return instance
 
 
