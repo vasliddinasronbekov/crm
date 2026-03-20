@@ -42,18 +42,23 @@ export const teachersKeys = {
  * Hook to fetch all teachers with automatic caching
  * @param filters - Optional filters for teachers list
  */
-export function useTeachers({ page = 1, limit = 10, search = "", ...restFilters } = {}) {
-  const filters = {
+export function useTeachers({ page = 1, limit = 10, search = "", scopeKey = "default", ...restFilters } = {}) {
+  const requestFilters = {
     page,
     limit,
     search,
     ...restFilters,
   }
 
+  const cacheFilters = {
+    ...requestFilters,
+    scopeKey,
+  }
+
   return useQuery({
-    queryKey: teachersKeys.list(filters),
+    queryKey: teachersKeys.list(cacheFilters),
     queryFn: async () => {
-      const data = await apiService.getTeachers(filters)
+      const data = await apiService.getTeachers(requestFilters)
       return data
     },
     staleTime: 2 * 60 * 1000,
@@ -66,9 +71,11 @@ export function useTeachers({ page = 1, limit = 10, search = "", ...restFilters 
  * Hook to fetch a single teacher by ID
  * @param id - Teacher ID
  */
-export function useTeacher(id: number | string | null) {
+export function useTeacher(id: number | string | null, { scopeKey = "default" }: { scopeKey?: string | number | null } = {}) {
+  const resolvedScopeKey = scopeKey ?? "all"
+
   return useQuery({
-    queryKey: teachersKeys.detail(id!),
+    queryKey: [...teachersKeys.detail(id!), resolvedScopeKey],
     queryFn: async () => {
       const response = await apiService.getTeacher(Number(id))
       return response

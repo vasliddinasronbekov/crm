@@ -5,11 +5,13 @@ import NextImage from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft,
+  Building2,
   Calendar,
   CheckCircle2,
   Clock3,
   Coins,
   Edit3,
+  Loader2,
   Mail,
   Phone,
   Shield,
@@ -238,15 +240,17 @@ export default function TeacherDetailPage() {
   const params = useParams()
   const router = useRouter()
   const { user } = useAuth()
-  const { activeBranchId } = useBranchContext()
+  const { branches, activeBranchId, isGlobalScope } = useBranchContext()
   const permissionState = usePermissions(user)
   const { formatCurrencyFromMinor } = useSettings()
 
   const teacherId = Number(params.id)
   const canEditTeacher = permissionState.hasPermission('teachers.edit')
+  const canManagePayouts = permissionState.hasPermission('payments.manage')
 
   const { data: teacher, isLoading: teacherLoading, refetch: refetchTeacher } = useTeacher(
     Number.isFinite(teacherId) ? teacherId : null,
+    { scopeKey: activeBranchId ?? 'all' },
   )
   const updateTeacher = useUpdateTeacher()
 
@@ -261,6 +265,8 @@ export default function TeacherDetailPage() {
   const [attendanceGroupId, setAttendanceGroupId] = useState<string>('all')
   const [earningsMonth, setEarningsMonth] = useState(() => new Date().toISOString().slice(0, 7))
   const [earningsStatus, setEarningsStatus] = useState<EarningsStatusFilter>('all')
+  const [isBulkPaying, setIsBulkPaying] = useState(false)
+  const [payingEarningIds, setPayingEarningIds] = useState<number[]>([])
   const [hasLoadedDetailPrefs, setHasLoadedDetailPrefs] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [editForm, setEditForm] = useState<TeacherEditForm>({
@@ -276,6 +282,20 @@ export default function TeacherDetailPage() {
     const parsed = Number(user?.id)
     return Number.isFinite(parsed) ? parsed : null
   }, [user?.id])
+
+  const activeBranchName = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'All branches' : 'Your branch scope'
+    }
+    return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+  }, [activeBranchId, branches, isGlobalScope])
+
+  const branchScopeDescription = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'Cross-branch dataset' : 'Current branch scope'
+    }
+    return activeBranchName
+  }, [activeBranchId, activeBranchName, isGlobalScope])
 
   const detailStorageKeys = useMemo(() => {
     if (!Number.isFinite(teacherId) || persistedUserId === null) {
@@ -344,14 +364,17 @@ export default function TeacherDetailPage() {
           apiService.getGroups({
             page,
             limit: 100,
+            ...(activeBranchId !== null ? { branch_id: activeBranchId } : {}),
           }),
         ),
         apiService.getTeacherEarnings({
           teacher: teacherId,
           limit: 200,
+          ...(activeBranchId !== null ? { branch_id: activeBranchId } : {}),
         }),
         apiService.getTeacherEarningsSummary({
           teacher: teacherId,
+          ...(activeBranchId !== null ? { branch_id: activeBranchId } : {}),
         }),
       ])
 
@@ -371,7 +394,7 @@ export default function TeacherDetailPage() {
     } finally {
       setInsightsLoading(false)
     }
-  }, [fetchAllPages, teacherId])
+  }, [activeBranchId, fetchAllPages, teacherId])
 
   useEffect(() => {
     void loadTeacherInsights()
@@ -472,6 +495,7 @@ export default function TeacherDetailPage() {
               group: groupId,
               date_from: dateRange.from,
               date_to: dateRange.to,
+              ...(activeBranchId !== null ? { branch_id: activeBranchId } : {}),
             }),
           ),
         ),
@@ -491,7 +515,7 @@ export default function TeacherDetailPage() {
     } finally {
       setAttendanceLoading(false)
     }
-  }, [attendanceGroupId, attendanceMonth, fetchAllPages, groups, teacherId])
+  }, [activeBranchId, attendanceGroupId, attendanceMonth, fetchAllPages, groups, teacherId])
 
   useEffect(() => {
     void loadAttendanceInsights()
@@ -653,10 +677,90 @@ export default function TeacherDetailPage() {
     })
   }, [earnings, earningsMonth, earningsStatus])
 
+  const unpaidFilteredEarningIds = useMemo(
+    () =>
+      filteredEarnings
+        .filter((entry) => !entry.is_paid_to_teacher)
+        .map((entry) => entry.id),
+    [filteredEarnings],
+  )
+
   const currentMonthEarningsTiyin = useMemo(
     () => filteredEarnings.reduce((sum, entry) => sum + toMoneyTiyin(entry.amount_tiyin, entry.amount), 0),
     [filteredEarnings],
   )
+
+  const markSingleEarningPaid = useCallback(
+    async (earningId: number) => {
+      if (!canManagePayouts) {
+        toast.error('You do not have permission to manage payouts')
+        return
+      }
+
+      if (payingEarningIds.includes(earningId)) return
+
+      setPayingEarningIds((prev) => [...prev, earningId])
+      try {
+        await apiService.markTeacherEarningPaid(earningId, {
+          paid_date: new Date().toISOString().slice(0, 10),
+        })
+        toast.success('Payout marked as paid')
+        await loadTeacherInsights()
+      } catch (error: any) {
+        console.error('Failed to mark earning paid:', error)
+        const message = error?.response?.data?.detail || 'Failed to mark payout as paid'
+        toast.error(message)
+      } finally {
+        setPayingEarningIds((prev) => prev.filter((id) => id !== earningId))
+      }
+    },
+    [canManagePayouts, loadTeacherInsights, payingEarningIds],
+  )
+
+  const markVisibleUnpaidAsPaid = useCallback(async () => {
+    if (!canManagePayouts) {
+      toast.error('You do not have permission to manage payouts')
+      return
+    }
+
+    if (unpaidFilteredEarningIds.length === 0) {
+      toast('No unpaid accruals in current filter')
+      return
+    }
+
+    if (!confirm(`Mark ${unpaidFilteredEarningIds.length} accrual(s) as paid?`)) {
+      return
+    }
+
+    setIsBulkPaying(true)
+    try {
+      const results = await Promise.allSettled(
+        unpaidFilteredEarningIds.map((earningId) =>
+          apiService.markTeacherEarningPaid(earningId, {
+            paid_date: new Date().toISOString().slice(0, 10),
+          }),
+        ),
+      )
+
+      const successCount = results.filter((result) => result.status === 'fulfilled').length
+      const failedCount = results.length - successCount
+
+      if (successCount > 0) {
+        toast.success(`Marked ${successCount} payout(s) as paid`)
+      }
+      if (failedCount > 0) {
+        toast.error(`${failedCount} payout(s) failed. Please retry.`)
+      }
+
+      await loadTeacherInsights()
+    } catch (error: any) {
+      console.error('Bulk payout update failed:', error)
+      const message = error?.response?.data?.detail || 'Failed to update payouts'
+      toast.error(message)
+    } finally {
+      setIsBulkPaying(false)
+    }
+  }, [canManagePayouts, loadTeacherInsights, unpaidFilteredEarningIds])
 
   const trendByMonth = useMemo(() => {
     const monthKeys = getRecentMonthKeys(6)
@@ -918,6 +1022,15 @@ export default function TeacherDetailPage() {
                 >
                   {teacher.is_staff ? 'Staff Access' : 'Teacher Access'}
                 </span>
+                <span className="px-3 py-1 rounded-lg text-xs font-semibold border border-primary/20 bg-primary/5 text-primary inline-flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5" />
+                  {branchScopeDescription}
+                </span>
+                {activeBranchId === null && isGlobalScope && (
+                  <span className="px-3 py-1 rounded-lg text-xs font-semibold border border-border text-text-secondary">
+                    Cross-branch view
+                  </span>
+                )}
               </div>
             </div>
           </div>
@@ -1366,6 +1479,15 @@ export default function TeacherDetailPage() {
                 <option value="paid">Paid</option>
                 <option value="unpaid">Unpaid</option>
               </select>
+              {canManagePayouts && (
+                <button
+                  onClick={() => void markVisibleUnpaidAsPaid()}
+                  disabled={isBulkPaying || unpaidFilteredEarningIds.length === 0}
+                  className="px-3 py-2 rounded-xl border border-success/30 bg-success/10 text-success text-sm font-semibold hover:bg-success/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                >
+                  {isBulkPaying ? 'Updating...' : `Mark ${unpaidFilteredEarningIds.length} unpaid as paid`}
+                </button>
+              )}
             </div>
 
             <div className="overflow-x-auto">
@@ -1379,6 +1501,7 @@ export default function TeacherDetailPage() {
                     <th className="text-right py-3 px-4">Amount</th>
                     <th className="text-right py-3 px-4">Payment</th>
                     <th className="text-right py-3 px-4">Status</th>
+                    {canManagePayouts && <th className="text-right py-3 px-4">Action</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -1410,6 +1533,29 @@ export default function TeacherDetailPage() {
                           {entry.is_paid_to_teacher ? 'Paid' : 'Pending'}
                         </span>
                       </td>
+                      {canManagePayouts && (
+                        <td className="py-3 px-4 text-right">
+                          {entry.is_paid_to_teacher ? (
+                            <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-xs font-semibold bg-success/10 text-success">
+                              <CheckCircle2 className="h-3.5 w-3.5" />
+                              Done
+                            </span>
+                          ) : (
+                            <button
+                              onClick={() => void markSingleEarningPaid(entry.id)}
+                              disabled={payingEarningIds.includes(entry.id)}
+                              className="inline-flex items-center gap-1 px-3 py-1.5 rounded-md text-xs font-semibold border border-success/30 bg-success/10 text-success hover:bg-success/20 disabled:opacity-60 disabled:cursor-not-allowed"
+                            >
+                              {payingEarningIds.includes(entry.id) ? (
+                                <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                              ) : (
+                                <CheckCircle2 className="h-3.5 w-3.5" />
+                              )}
+                              Mark paid
+                            </button>
+                          )}
+                        </td>
+                      )}
                     </tr>
                   ))}
                 </tbody>
