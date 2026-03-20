@@ -25,6 +25,7 @@ interface BranchContextValue {
   isSwitching: boolean
   setActiveBranch: (branchId: number | null) => Promise<void>
   refreshBranchContext: () => Promise<void>
+  patchBranchOption: (branchId: number, updates: Partial<BranchOption>) => void
 }
 
 const BranchContext = createContext<BranchContextValue | undefined>(undefined)
@@ -114,6 +115,29 @@ export function BranchProvider({ children }: { children: ReactNode }) {
     [contextPayload?.active_branch_id, isAuthenticated, queryClient],
   )
 
+  const patchBranchOption = useCallback((branchId: number, updates: Partial<BranchOption>) => {
+    setContextPayload((previousPayload) => {
+      if (!previousPayload) return previousPayload
+
+      let changed = false
+      const nextBranches = previousPayload.branches.map((branch) => {
+        if (branch.id !== branchId) return branch
+        changed = true
+        return {
+          ...branch,
+          ...updates,
+        }
+      })
+
+      if (!changed) return previousPayload
+
+      return {
+        ...previousPayload,
+        branches: nextBranches,
+      }
+    })
+  }, [])
+
   const value = useMemo<BranchContextValue>(
     () => ({
       branches: contextPayload?.branches ?? [],
@@ -123,8 +147,9 @@ export function BranchProvider({ children }: { children: ReactNode }) {
       isSwitching,
       setActiveBranch,
       refreshBranchContext: loadContext,
+      patchBranchOption,
     }),
-    [contextPayload, isLoading, isSwitching, setActiveBranch, loadContext],
+    [contextPayload, isLoading, isSwitching, setActiveBranch, loadContext, patchBranchOption],
   )
 
   return <BranchContext.Provider value={value}>{children}</BranchContext.Provider>

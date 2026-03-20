@@ -246,6 +246,7 @@ export default function BranchDetailPage() {
     setActiveBranch,
     isSwitching,
     refreshBranchContext,
+    patchBranchOption,
   } = useBranchContext()
 
   const branchId = Number(params.id)
@@ -694,6 +695,7 @@ export default function BranchDetailPage() {
         longitude: editForm.longitude.trim() || null,
       }
       setBranch(optimisticBranch)
+      patchBranchOption(branch.id, { name: trimmedName })
       setShowEditModal(false)
 
       try {
@@ -703,6 +705,7 @@ export default function BranchDetailPage() {
         await Promise.allSettled([loadDetail(true), refreshBranchContext()])
       } catch (error: any) {
         setBranch(previousBranchSnapshot)
+        patchBranchOption(previousBranchSnapshot.id, { name: previousBranchSnapshot.name })
         setShowEditModal(true)
         console.error('Failed to update branch:', error)
         const message = error?.response?.data?.detail || 'Failed to update branch.'
@@ -711,7 +714,7 @@ export default function BranchDetailPage() {
         setIsSavingEdit(false)
       }
     },
-    [branch, canManageBranches, editForm, loadDetail, refreshBranchContext],
+    [branch, canManageBranches, editForm, loadDetail, patchBranchOption, refreshBranchContext],
   )
 
   if (isLoading) {
