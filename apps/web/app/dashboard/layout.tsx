@@ -2,8 +2,9 @@
 
 import type { ReactNode } from 'react'
 import { useEffect, useMemo, useState } from 'react'
+import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
-import { Menu } from 'lucide-react'
+import { Building2, Menu } from 'lucide-react'
 import { Sidebar } from '@/components/Sidebar'
 import { useAuth } from '@/contexts/AuthContext'
 import { useSettings } from '@/contexts/SettingsContext'
@@ -33,6 +34,7 @@ export default function DashboardLayout({
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false)
   const content = children as ReactNode
   const showSidebar = permissions.isStaffSideRole
+  const canAccessBranchesPage = permissions.canAccessPage('/dashboard/branches')
   const routeAccess = useMemo(
     () => getDashboardRouteAccess(permissions.role, pathname),
     [pathname, permissions.role],
@@ -163,6 +165,16 @@ export default function DashboardLayout({
 
           {/* Right: Inbox Button + AI Mode Button + Date Calendar */}
           <div className="flex items-center gap-3">
+            {showSidebar && canAccessBranchesPage && (
+              <Link
+                href="/dashboard/branches"
+                className="inline-flex h-9 items-center gap-2 rounded-xl border border-border/70 bg-background/55 px-3 text-sm font-medium text-text-secondary transition-colors hover:bg-background/80 hover:text-text-primary"
+                title={translateText('Branches')}
+              >
+                <Building2 className="h-4 w-4 text-primary" />
+                <span className="hidden lg:inline">{translateText('Branches')}</span>
+              </Link>
+            )}
             <div className="hidden md:block">
               <BranchSwitcher />
             </div>
