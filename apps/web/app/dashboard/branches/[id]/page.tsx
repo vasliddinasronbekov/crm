@@ -524,11 +524,14 @@ export default function BranchDetailPage() {
   }, [loadDetail])
 
   const activeBranchLabel = useMemo(() => {
+    if (activeBranchId !== null && branch && activeBranchId === branch.id) {
+      return branch.name
+    }
     if (activeBranchId === null) {
       return isGlobalScope ? 'All branches' : 'Assigned branch scope'
     }
     return accessibleBranches.find((branchOption) => branchOption.id === activeBranchId)?.name || `Branch #${activeBranchId}`
-  }, [activeBranchId, accessibleBranches, isGlobalScope])
+  }, [activeBranchId, accessibleBranches, branch, isGlobalScope])
 
   const branchHasCoordinates = Boolean(
     branch && String(branch.latitude || '').trim() && String(branch.longitude || '').trim(),
@@ -683,18 +686,24 @@ export default function BranchDetailPage() {
       }
 
       setIsSavingEdit(true)
+      const previousBranchSnapshot = { ...branch }
+      const optimisticBranch: BranchRecord = {
+        ...branch,
+        name: trimmedName,
+        latitude: editForm.latitude.trim() || null,
+        longitude: editForm.longitude.trim() || null,
+      }
+      setBranch(optimisticBranch)
+      setShowEditModal(false)
 
       try {
-        await apiService.updateBranch(branch.id, {
-          name: trimmedName,
-          latitude: editForm.latitude.trim() || null,
-          longitude: editForm.longitude.trim() || null,
-        })
+        await apiService.updateBranch(branch.id, optimisticBranch)
 
         toast.success('Branch updated successfully.')
-        closeEditModal()
         await Promise.allSettled([loadDetail(true), refreshBranchContext()])
       } catch (error: any) {
+        setBranch(previousBranchSnapshot)
+        setShowEditModal(true)
         console.error('Failed to update branch:', error)
         const message = error?.response?.data?.detail || 'Failed to update branch.'
         toast.error(message)
@@ -702,7 +711,7 @@ export default function BranchDetailPage() {
         setIsSavingEdit(false)
       }
     },
-    [branch, canManageBranches, closeEditModal, editForm, loadDetail, refreshBranchContext],
+    [branch, canManageBranches, editForm, loadDetail, refreshBranchContext],
   )
 
   if (isLoading) {
