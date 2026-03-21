@@ -77,9 +77,10 @@ export const hrKeys = {
 /**
  * Hook to fetch teachers
  */
-export function useTeachers() {
+export function useTeachers({ scopeKey = "default" }: { scopeKey?: string | number | null } = {}) {
+  const resolvedScopeKey = scopeKey ?? "all"
   return useQuery({
-    queryKey: hrKeys.teachers(),
+    queryKey: [...hrKeys.teachers(), resolvedScopeKey],
     queryFn: async () => {
       const data = await apiService.getTeachers()
       return (data.results || data || []) as Teacher[]
@@ -92,9 +93,10 @@ export function useTeachers() {
 /**
  * Hook to fetch groups
  */
-export function useGroups() {
+export function useGroups({ scopeKey = "default" }: { scopeKey?: string | number | null } = {}) {
+  const resolvedScopeKey = scopeKey ?? "all"
   return useQuery({
-    queryKey: hrKeys.groups(),
+    queryKey: [...hrKeys.groups(), resolvedScopeKey],
     queryFn: async () => {
       const data = await apiService.getGroups()
       return (data.results || data || []) as Group[]
@@ -112,9 +114,10 @@ export function useTeacherSalaries(filters: {
   limit?: number
   month?: string
   status?: string
-}) {
+}, { scopeKey = "default" }: { scopeKey?: string | number | null } = {}) {
+  const resolvedScopeKey = scopeKey ?? "all"
   return useQuery({
-    queryKey: hrKeys.teacherSalaries(filters),
+    queryKey: [...hrKeys.teacherSalaries(filters), resolvedScopeKey],
     queryFn: async () => {
       const params: any = { ...filters }
       if (filters.status === 'all') {
@@ -131,9 +134,10 @@ export function useTeacherSalaries(filters: {
 /**
  * Hook to fetch group salaries with optional filters
  */
-export function useGroupSalaries(filters?: { month?: string }) {
+export function useGroupSalaries(filters?: { month?: string }, { scopeKey = "default" }: { scopeKey?: string | number | null } = {}) {
+  const resolvedScopeKey = scopeKey ?? "all"
   return useQuery({
-    queryKey: hrKeys.groupSalaries(filters),
+    queryKey: [...hrKeys.groupSalaries(filters), resolvedScopeKey],
     queryFn: async () => {
       const params: any = {}
       if (filters?.month) {
@@ -311,9 +315,9 @@ export function useEnrichedTeacherSalaries(filters: {
   limit?: number
   month?: string
   status?: string
-}) {
-  const { data: teachers = [] } = useTeachers()
-  const { data, ...salariesQuery } = useTeacherSalaries(filters)
+}, { scopeKey = "default" }: { scopeKey?: string | number | null } = {}) {
+  const { data: teachers = [] } = useTeachers({ scopeKey })
+  const { data, ...salariesQuery } = useTeacherSalaries(filters, { scopeKey })
 
   const salaries = data?.results || []
   const count = data?.count || 0
@@ -332,10 +336,10 @@ export function useEnrichedTeacherSalaries(filters: {
 /**
  * Helper hook to enrich group salaries with teacher and group names
  */
-export function useEnrichedGroupSalaries(filters?: { month?: string }) {
-  const { data: teachers = [] } = useTeachers()
-  const { data: groups = [] } = useGroups()
-  const { data: groupSalaries = [], ...groupSalariesQuery } = useGroupSalaries(filters)
+export function useEnrichedGroupSalaries(filters?: { month?: string }, { scopeKey = "default" }: { scopeKey?: string | number | null } = {}) {
+  const { data: teachers = [] } = useTeachers({ scopeKey })
+  const { data: groups = [] } = useGroups({ scopeKey })
+  const { data: groupSalaries = [], ...groupSalariesQuery } = useGroupSalaries(filters, { scopeKey })
 
   const enrichedGroupSalaries = groupSalaries.map((gs) => {
     const teacher = teachers.find((t) => t.id === gs.mentor)

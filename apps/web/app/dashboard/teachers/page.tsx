@@ -3,7 +3,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import {
-  Building2,
   Edit,
   Eye,
   Grid,
@@ -28,6 +27,7 @@ import {
   type Teacher,
 } from '@/lib/hooks/useTeachers'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranchContext } from '@/contexts/BranchContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
@@ -99,13 +99,6 @@ export default function TeachersPage() {
     }
     return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
   }, [activeBranchId, branches, isGlobalScope])
-
-  const branchScopeDescription = useMemo(() => {
-    if (activeBranchId === null) {
-      return isGlobalScope ? 'Cross-branch dataset' : 'Current branch scope'
-    }
-    return activeBranchName
-  }, [activeBranchId, activeBranchName, isGlobalScope])
 
   useEffect(() => {
     setPage(1)
@@ -270,20 +263,7 @@ export default function TeachersPage() {
               <p className="text-text-secondary mt-1">
                 Advanced teacher accounts, access, and profile operations.
               </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                  <Building2 className="h-3.5 w-3.5" />
-                  Branch scope
-                </span>
-                <span className="rounded-full border border-border/70 bg-background/80 px-3 py-1 text-xs text-text-secondary">
-                  {branchScopeDescription}
-                </span>
-                {activeBranchId === null && isGlobalScope && (
-                  <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
-                    Cross-branch view
-                  </span>
-                )}
-              </div>
+              <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
             </div>
 
             <button

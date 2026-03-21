@@ -18,8 +18,10 @@ import {
   Users,
 } from 'lucide-react'
 
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import {
@@ -88,7 +90,14 @@ function getDealStageLabel(deal: Deal): string {
 export default function CRMPage() {
   const { formatCurrency } = useSettings()
   const { user } = useAuth()
+  const { activeBranchId, branches, isGlobalScope } = useBranchContext()
   const permissions = usePermissions(user)
+  const activeBranchName = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'All branches' : 'Your branch scope'
+    }
+    return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+  }, [activeBranchId, branches, isGlobalScope])
 
   const canViewCRM = permissions.hasAnyPermission(['crm.view', 'leads.view'])
   const canCreateLead = permissions.hasAnyPermission(['crm.create', 'leads.create'])
@@ -344,6 +353,7 @@ export default function CRMPage() {
             <p className="text-text-secondary mt-1">
               Lead funnel, pipeline health, and action priorities in one operating view.
             </p>
+            <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
             {!canManageLeads && (
               <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
                 <AlertTriangle className="h-4 w-4" />

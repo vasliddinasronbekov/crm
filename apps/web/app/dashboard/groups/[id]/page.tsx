@@ -33,6 +33,7 @@ import { useBranchContext } from '@/contexts/BranchContext'
 import { usePermissions } from '@/lib/permissions'
 import { useOngoingGroups } from '@/lib/hooks/useGroups'
 import { WEEK_DAYS } from '@/lib/utils/schedule'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 
@@ -384,7 +385,7 @@ export default function GroupDetailPage() {
 
   const { formatCurrencyFromMinor, toSelectedCurrency, fromSelectedCurrency, currency } = useSettings()
   const { user } = useAuth()
-  const { activeBranchId } = useBranchContext()
+  const { activeBranchId, branches, isGlobalScope } = useBranchContext()
   const permissionState = usePermissions(user)
   const canConfigureGroup = permissionState.hasPermission('groups.edit')
   const canRecordPayment = permissionState.hasPermission('payments.record')
@@ -426,6 +427,13 @@ export default function GroupDetailPage() {
     const parsed = Number(user?.id)
     return Number.isFinite(parsed) ? parsed : null
   }, [user?.id])
+
+  const activeBranchName = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'All branches' : 'Your branch scope'
+    }
+    return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+  }, [activeBranchId, branches, isGlobalScope])
 
   const detailStorageKeys = useMemo(() => {
     if (!Number.isFinite(groupIdNumber) || persistedUserId === null) {
@@ -1451,6 +1459,7 @@ export default function GroupDetailPage() {
               {group.branch_name && (
                 <p className="text-sm text-text-secondary mt-1">Branch: {group.branch_name}</p>
               )}
+              <BranchScopeChip scopeName={activeBranchName} className="mt-2" />
               {!canConfigureGroup && (
                 <div className="mt-3 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
                   <AlertCircle className="h-4 w-4" />

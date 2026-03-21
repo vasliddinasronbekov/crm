@@ -5,7 +5,6 @@ import NextImage from 'next/image'
 import { useParams, useRouter } from 'next/navigation'
 import {
   ArrowLeft,
-  Building2,
   Calendar,
   CheckCircle2,
   Clock3,
@@ -21,6 +20,7 @@ import {
   Users,
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranchContext } from '@/contexts/BranchContext'
@@ -111,6 +111,8 @@ interface TeacherEditForm {
   phone: string
   is_staff: boolean
   is_active: boolean
+  branch_ids: number[]
+  primary_branch_id: number | null
 }
 
 const TIYIN_PER_UZS = 100
@@ -276,6 +278,8 @@ export default function TeacherDetailPage() {
     phone: '',
     is_staff: false,
     is_active: true,
+    branch_ids: [],
+    primary_branch_id: null,
   })
 
   const persistedUserId = useMemo(() => {
@@ -289,13 +293,6 @@ export default function TeacherDetailPage() {
     }
     return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
   }, [activeBranchId, branches, isGlobalScope])
-
-  const branchScopeDescription = useMemo(() => {
-    if (activeBranchId === null) {
-      return isGlobalScope ? 'Cross-branch dataset' : 'Current branch scope'
-    }
-    return activeBranchName
-  }, [activeBranchId, activeBranchName, isGlobalScope])
 
   const detailStorageKeys = useMemo(() => {
     if (!Number.isFinite(teacherId) || persistedUserId === null) {
@@ -871,8 +868,19 @@ export default function TeacherDetailPage() {
     trendByMonth,
   ])
 
+  const withToggledBranch = (branchIds: number[] | undefined, branchId: number, checked: boolean): number[] => {
+    const current = new Set(branchIds || [])
+    if (checked) {
+      current.add(branchId)
+    } else {
+      current.delete(branchId)
+    }
+    return Array.from(current)
+  }
+
   const openEditModal = () => {
     if (!teacher) return
+    const resolvedBranchIds = teacher.branch_ids || (teacher.primary_branch_id ? [teacher.primary_branch_id] : [])
     setEditForm({
       first_name: teacher.first_name || '',
       last_name: teacher.last_name || '',
@@ -880,6 +888,8 @@ export default function TeacherDetailPage() {
       phone: teacher.phone || '',
       is_staff: !!teacher.is_staff,
       is_active: teacher.is_active !== false,
+      branch_ids: resolvedBranchIds,
+      primary_branch_id: teacher.primary_branch_id ?? resolvedBranchIds[0] ?? null,
     })
     setIsEditModalOpen(true)
   }
@@ -887,6 +897,11 @@ export default function TeacherDetailPage() {
   const saveTeacherProfile = () => {
     if (!canEditTeacher) {
       toast.error('You do not have permission to edit teachers')
+      return
+    }
+
+    if (!editForm.branch_ids || editForm.branch_ids.length === 0) {
+      toast.error('Assign at least one branch for this teacher')
       return
     }
 
@@ -900,6 +915,8 @@ export default function TeacherDetailPage() {
           phone: editForm.phone,
           is_staff: editForm.is_staff,
           is_active: editForm.is_active,
+          branch_ids: editForm.branch_ids,
+          primary_branch_id: editForm.primary_branch_id,
         },
       },
       {
@@ -1022,15 +1039,7 @@ export default function TeacherDetailPage() {
                 >
                   {teacher.is_staff ? 'Staff Access' : 'Teacher Access'}
                 </span>
-                <span className="px-3 py-1 rounded-lg text-xs font-semibold border border-primary/20 bg-primary/5 text-primary inline-flex items-center gap-1.5">
-                  <Building2 className="h-3.5 w-3.5" />
-                  {branchScopeDescription}
-                </span>
-                {activeBranchId === null && isGlobalScope && (
-                  <span className="px-3 py-1 rounded-lg text-xs font-semibold border border-border text-text-secondary">
-                    Cross-branch view
-                  </span>
-                )}
+                <BranchScopeChip scopeName={activeBranchName} />
               </div>
             </div>
           </div>
@@ -1605,6 +1614,75 @@ export default function TeacherDetailPage() {
                   className="w-full px-4 py-3 rounded-xl border border-border bg-background"
                   placeholder="Phone"
                 />
+
+                <div className="rounded-xl border border-border bg-background/60 p-4">
+                  <p className="text-sm font-semibold">Branch assignment</p>
+                  <p className="mt-1 text-xs text-text-secondary">
+                    This teacher will appear only inside selected branches.
+                  </p>
+                  <div className="mt-3 grid gap-2 md:grid-cols-2">
+                    {branches.map((branch) => {
+                      const checked = (editForm.branch_ids || []).includes(branch.id)
+                      return (
+                        <label
+                          key={branch.id}
+                          className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                        >
+                          <span>{branch.name}</span>
+                          <input
+                            type="checkbox"
+                            checked={checked}
+                            onChange={(event) => {
+                              const nextBranchIds = withToggledBranch(
+                                editForm.branch_ids,
+                                branch.id,
+                                event.target.checked,
+                              )
+                              const nextPrimary =
+                                nextBranchIds.length === 0
+                                  ? null
+                                  : editForm.primary_branch_id &&
+                                      nextBranchIds.includes(editForm.primary_branch_id)
+                                    ? editForm.primary_branch_id
+                                    : nextBranchIds[0]
+                              setEditForm((prev) => ({
+                                ...prev,
+                                branch_ids: nextBranchIds,
+                                primary_branch_id: nextPrimary,
+                              }))
+                            }}
+                          />
+                        </label>
+                      )
+                    })}
+                  </div>
+                  <div className="mt-3">
+                    <label className="block text-sm font-medium mb-2">Primary branch</label>
+                    <select
+                      value={editForm.primary_branch_id ?? ''}
+                      onChange={(event) => {
+                        const value = event.target.value
+                        const nextPrimary = value ? Number(value) : null
+                        setEditForm((prev) => ({
+                          ...prev,
+                          primary_branch_id: nextPrimary,
+                        }))
+                      }}
+                      disabled={(editForm.branch_ids || []).length === 0}
+                      className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+                    >
+                      <option value="">Select primary branch</option>
+                      {(editForm.branch_ids || []).map((branchId) => {
+                        const branch = branches.find((item) => item.id === branchId)
+                        return (
+                          <option key={branchId} value={branchId}>
+                            {branch?.name || `Branch #${branchId}`}
+                          </option>
+                        )
+                      })}
+                    </select>
+                  </div>
+                </div>
 
                 <label className="flex items-center gap-3 p-3 rounded-xl border border-border bg-background">
                   <Shield className="h-4 w-4 text-warning" />

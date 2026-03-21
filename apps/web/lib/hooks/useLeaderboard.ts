@@ -44,9 +44,22 @@ export const leaderboardKeys = {
     [...leaderboardKeys.lists(), filters] as const,
 };
 
-export function useGetLeaderboard(filters: LeaderboardFilters = {}) {
+interface ScopeOptions {
+  scopeKey?: string | number | null;
+}
+
+function resolveScopeKey(scopeKey?: string | number | null): string | number {
+  return scopeKey ?? "all";
+}
+
+export function useGetLeaderboard(
+  filters: LeaderboardFilters = {},
+  { scopeKey = "default" }: ScopeOptions = {},
+) {
+  const resolvedScopeKey = resolveScopeKey(scopeKey);
+
   return useQuery({
-    queryKey: leaderboardKeys.list(filters),
+    queryKey: [...leaderboardKeys.list(filters), resolvedScopeKey],
     queryFn: async () => {
       const params: Record<string, any> = {};
 

@@ -18,7 +18,6 @@ import {
   Rows3,
   ChevronRight,
   ShieldAlert,
-  Building2,
 } from 'lucide-react'
 import toast from '@/lib/toast'
 import apiService from '@/lib/api'
@@ -27,6 +26,7 @@ import { useCourses, Course } from '@/lib/hooks/useCourses'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
 import { normalizeDayToken, parseGroupDays, type WeekDay } from '@/lib/utils/schedule'
 import LoadingScreen from '@/components/LoadingScreen'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranchContext } from '@/contexts/BranchContext'
@@ -565,20 +565,7 @@ export default function GroupsPage() {
               <p className="text-text-secondary mt-1">
                 Create, plan, and operate academic groups with conflict-aware scheduling.
               </p>
-              <div className="mt-3 flex flex-wrap items-center gap-2">
-                <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                  <Building2 className="h-3.5 w-3.5" />
-                  Branch scope
-                </span>
-                <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
-                  {branchScopeDescription}
-                </span>
-                {activeBranchId === null && isGlobalScope && (
-                  <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
-                    Cross-branch view
-                  </span>
-                )}
-              </div>
+              <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
               {!canManageGroups && (
                 <div className="mt-4 inline-flex items-center gap-2 rounded-xl border border-warning/40 bg-warning/10 px-3 py-2 text-sm text-warning">
                   <AlertTriangle className="h-4 w-4" />

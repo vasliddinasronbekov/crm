@@ -15,7 +15,9 @@ import {
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 
 type ConversationType = 'platform' | 'sms'
@@ -120,6 +122,12 @@ const getInitials = (user: MessagingUser | null | undefined): string => {
 
 export default function MessagingPage() {
   const { user: currentUser } = useAuth()
+  const { activeBranchId, branches } = useBranchContext()
+  const branchScopeKey = activeBranchId ?? 'all'
+  const activeBranchName = useMemo(
+    () => (activeBranchId === null ? 'All branches' : branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`),
+    [activeBranchId, branches],
+  )
 
   const [conversations, setConversations] = useState<MessagingConversation[]>([])
   const [activeConversationId, setActiveConversationId] = useState<number | null>(null)
@@ -144,6 +152,11 @@ export default function MessagingPage() {
   const debouncedUserSearch = useDebouncedValue(userSearch, 260)
 
   const messagesEndRef = useRef<HTMLDivElement>(null)
+  const branchScopeRef = useRef<string>(String(branchScopeKey))
+
+  useEffect(() => {
+    branchScopeRef.current = String(branchScopeKey)
+  }, [branchScopeKey])
 
   const activeConversation = useMemo(
     () => conversations.find((conversation) => conversation.id === activeConversationId) || null,
@@ -186,9 +199,15 @@ export default function MessagingPage() {
 
   const loadConversations = useCallback(
     async (preserveSelection: boolean = true) => {
+      const requestScope = String(branchScopeKey)
       try {
         const payload = await apiService.getConversations()
         const normalized = parseListPayload<any>(payload).map(normalizeConversation)
+
+        if (branchScopeRef.current !== requestScope) {
+          return
+        }
+
         setConversations(normalized)
 
         setActiveConversationId((previous) => {
@@ -198,14 +217,18 @@ export default function MessagingPage() {
           return normalized[0]?.id || null
         })
       } catch (error) {
+        if (branchScopeRef.current !== requestScope) {
+          return
+        }
         console.error('Failed to load conversations:', error)
         toast.error('Failed to load conversations.')
       }
     },
-    [],
+    [branchScopeKey],
   )
 
   const loadUsers = useCallback(async () => {
+    const requestScope = String(branchScopeKey)
     try {
       const [studentsPayload, teachersPayload] = await Promise.all([
         apiService.getStudents({ page: 1, limit: 1000 }),
@@ -222,27 +245,45 @@ export default function MessagingPage() {
         }
       })
 
+      if (branchScopeRef.current !== requestScope) {
+        return
+      }
+
       setUsers(Array.from(dedupe.values()))
     } catch (error) {
+      if (branchScopeRef.current !== requestScope) {
+        return
+      }
       console.error('Failed to load users:', error)
       toast.error('Failed to load users.')
     }
-  }, [currentUser?.id])
+  }, [branchScopeKey, currentUser?.id])
 
   const loadMessages = useCallback(async (conversationId: number) => {
+    const requestScope = String(branchScopeKey)
     setIsLoadingMessages(true)
     try {
       const payload = await apiService.getConversationMessages(conversationId, { page: 1, limit: 200 })
       const normalizedMessages = parseListPayload<any>(payload).map(normalizeMessage)
+
+      if (branchScopeRef.current !== requestScope) {
+        return
+      }
+
       setMessages(normalizedMessages)
       await apiService.markConversationRead(conversationId)
     } catch (error) {
+      if (branchScopeRef.current !== requestScope) {
+        return
+      }
       console.error('Failed to load messages:', error)
       toast.error('Failed to load messages.')
     } finally {
-      setIsLoadingMessages(false)
+      if (branchScopeRef.current === requestScope) {
+        setIsLoadingMessages(false)
+      }
     }
-  }, [])
+  }, [branchScopeKey])
 
   useEffect(() => {
     const bootstrap = async () => {
@@ -415,6 +456,7 @@ export default function MessagingPage() {
             <div>
               <h1 className="text-xl font-semibold">Messaging Hub</h1>
               <p className="text-xs text-text-secondary mt-1">Main communication center</p>
+              <BranchScopeChip scopeName={activeBranchName} className="mt-2" />
             </div>
             <button
               onClick={() => setIsCreateModalOpen(true)}

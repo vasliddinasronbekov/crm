@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import {
   Activity,
   AlertTriangle,
@@ -36,7 +36,9 @@ import {
 import { useGetLeaderboard } from '@/lib/hooks/useLeaderboard'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { usePermissions } from '@/lib/permissions'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 import apiService from '@/lib/api'
 
@@ -159,21 +161,32 @@ function resolveAttendanceStatus(row: AttendanceLite): 'present' | 'absence' | '
 
 export default function AnalyticsPage() {
   const { user } = useAuth()
+  const { activeBranchId, branches } = useBranchContext()
   const permissionState = usePermissions(user)
   const { formatCurrencyFromMinor } = useSettings()
   const canGenerateReports = permissionState.hasPermission('reports.create')
   const canExportReports = permissionState.hasPermission('reports.export')
+  const branchScopeKey = activeBranchId ?? 'all'
+  const branchScopeRef = useRef<string>(String(branchScopeKey))
+  const activeBranchName = useMemo(
+    () => (activeBranchId === null ? 'All branches' : branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`),
+    [activeBranchId, branches],
+  )
 
-  const { data: dashboardStats, isLoading: statsLoading } = useDashboardStats()
-  const { data: analytics, isLoading: analyticsLoading } = useAnalytics()
+  useEffect(() => {
+    branchScopeRef.current = String(branchScopeKey)
+  }, [branchScopeKey])
+
+  const { data: dashboardStats, isLoading: statsLoading } = useDashboardStats({ scopeKey: branchScopeKey })
+  const { data: analytics, isLoading: analyticsLoading } = useAnalytics({ scopeKey: branchScopeKey })
   const {
     data: reportsData = { results: [], count: 0, next: null, previous: null },
     isLoading: reportsLoading,
-  } = useReports()
+  } = useReports({}, { scopeKey: branchScopeKey })
   const { data: topStudents = [], isLoading: leaderboardLoading } = useGetLeaderboard({
     metric: 'score',
     filter: 'top10',
-  })
+  }, { scopeKey: branchScopeKey })
 
   const generateReport = useGenerateReport()
   const refreshAnalytics = useRefreshAnalytics()
@@ -291,6 +304,8 @@ export default function AnalyticsPage() {
   }, [])
 
   const loadTeacherPerformance = useCallback(async () => {
+    const requestScope = String(branchScopeKey)
+
     const dateToToken = (date: Date): string => {
       const year = date.getFullYear()
       const month = String(date.getMonth() + 1).padStart(2, '0')
@@ -497,15 +512,23 @@ export default function AnalyticsPage() {
       })
 
       scoreRows.sort((left, right) => right.overallScore - left.overallScore)
+      if (branchScopeRef.current !== requestScope) {
+        return
+      }
       setTeacherPerformanceRows(scoreRows)
     } catch (error: any) {
+      if (branchScopeRef.current !== requestScope) {
+        return
+      }
       console.error('Failed to load teacher performance data:', error)
       toast.error(error?.response?.data?.detail || 'Failed to load teacher performance scorecards')
       setTeacherPerformanceRows([])
     } finally {
-      setTeacherPerformanceLoading(false)
+      if (branchScopeRef.current === requestScope) {
+        setTeacherPerformanceLoading(false)
+      }
     }
-  }, [fetchAllPages])
+  }, [fetchAllPages, branchScopeKey])
 
   useEffect(() => {
     void loadTeacherPerformance()
@@ -581,6 +604,7 @@ export default function AnalyticsPage() {
             <p className="text-text-secondary mt-1">
               Enrollment, learning quality, finance, CRM, and operations in one production dashboard.
             </p>
+            <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
           </div>
 
           <button

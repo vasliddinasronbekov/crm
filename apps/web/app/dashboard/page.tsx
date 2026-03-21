@@ -4,10 +4,12 @@ import { useState, useEffect, useMemo, useRef } from 'react'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useRealtimeAccountingDashboard } from '@/lib/hooks/useAccounting'
 import { useOngoingGroups } from '@/lib/hooks/useGroups'
 import { type Permission, usePermissions } from '@/lib/permissions'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import {
   Users, GraduationCap, BookOpen, DollarSign,
   ShoppingCart, Calendar, MessageCircle, Mail,
@@ -51,6 +53,7 @@ const DASHBOARD_MODULE_SEARCH_STORAGE_KEY = 'dashboard.home.quick_access_search'
 
 export default function DashboardPage() {
   const { user } = useAuth()
+  const { activeBranchId, branches, isGlobalScope } = useBranchContext()
   const permissions = usePermissions(user)
   const { language, translateText, formatCurrencyFromMinor } = useSettings()
   const {
@@ -252,6 +255,12 @@ export default function DashboardPage() {
   }
 
   const dateLocale = language === 'uz' ? 'uz-UZ' : language === 'ru' ? 'ru-RU' : 'en-US'
+  const activeBranchName = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'All branches' : 'Your branch scope'
+    }
+    return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+  }, [activeBranchId, branches, isGlobalScope])
 
   const focusFilters: FocusFilter[] = [
     { id: 'all', label: 'All', description: 'Everything at a glance' },
@@ -649,6 +658,7 @@ export default function DashboardPage() {
                   day: 'numeric'
                 })}
               </p>
+              <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
             </div>
             <div className="glass-panel rounded-2xl p-6 min-w-[280px]">
               <div className="flex items-center gap-3">

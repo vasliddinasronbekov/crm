@@ -176,12 +176,22 @@ export const analyticsKeys = {
     [...analyticsKeys.reports(), 'generations', filters] as const,
 }
 
+interface ScopeOptions {
+  scopeKey?: string | number | null
+}
+
+function resolveScopeKey(scopeKey?: string | number | null): string | number {
+  return scopeKey ?? 'all'
+}
+
 /**
  * Hook to fetch dashboard statistics
  */
-export function useDashboardStats() {
+export function useDashboardStats({ scopeKey = 'default' }: ScopeOptions = {}) {
+  const resolvedScopeKey = resolveScopeKey(scopeKey)
+
   return useQuery({
-    queryKey: analyticsKeys.dashboardStats(),
+    queryKey: [...analyticsKeys.dashboardStats(), resolvedScopeKey],
     queryFn: async () => {
       const data = await apiService.getDashboardStats()
       return data as DashboardStats
@@ -194,9 +204,11 @@ export function useDashboardStats() {
 /**
  * Hook to fetch analytics data
  */
-export function useAnalytics() {
+export function useAnalytics({ scopeKey = 'default' }: ScopeOptions = {}) {
+  const resolvedScopeKey = resolveScopeKey(scopeKey)
+
   return useQuery({
-    queryKey: analyticsKeys.analytics(),
+    queryKey: [...analyticsKeys.analytics(), resolvedScopeKey],
     queryFn: async () => {
       const data = await apiService.getAnalytics()
       return data as AnalyticsData
@@ -209,9 +221,14 @@ export function useAnalytics() {
 /**
  * Hook to fetch reports list
  */
-export function useReports(filters: { page?: number; limit?: number; [key: string]: any } = {}) {
+export function useReports(
+  filters: { page?: number; limit?: number; [key: string]: any } = {},
+  { scopeKey = 'default' }: ScopeOptions = {},
+) {
+  const resolvedScopeKey = resolveScopeKey(scopeKey)
+
   return useQuery<PaginatedResponse<Report>, Error>({
-    queryKey: analyticsKeys.reportsList(filters),
+    queryKey: [...analyticsKeys.reportsList(filters), resolvedScopeKey],
     queryFn: async () => {
       const data = await apiService.getReports(filters)
       return data as PaginatedResponse<Report>
@@ -224,9 +241,11 @@ export function useReports(filters: { page?: number; limit?: number; [key: strin
 /**
  * Hook to fetch single report detail
  */
-export function useReport(reportId: string | null) {
+export function useReport(reportId: string | null, { scopeKey = 'default' }: ScopeOptions = {}) {
+  const resolvedScopeKey = resolveScopeKey(scopeKey)
+
   return useQuery<Report, Error>({
-    queryKey: [...analyticsKeys.reports(), 'detail', reportId],
+    queryKey: [...analyticsKeys.reports(), 'detail', reportId, resolvedScopeKey],
     queryFn: async () => {
       if (!reportId) {
         throw new Error('reportId is required')
@@ -242,9 +261,14 @@ export function useReport(reportId: string | null) {
 /**
  * Hook to fetch scheduled reports
  */
-export function useScheduledReports(filters: { page?: number; limit?: number; [key: string]: any } = {}) {
+export function useScheduledReports(
+  filters: { page?: number; limit?: number; [key: string]: any } = {},
+  { scopeKey = 'default' }: ScopeOptions = {},
+) {
+  const resolvedScopeKey = resolveScopeKey(scopeKey)
+
   return useQuery<PaginatedResponse<ScheduledReport>, Error>({
-    queryKey: analyticsKeys.scheduledReports(filters),
+    queryKey: [...analyticsKeys.scheduledReports(filters), resolvedScopeKey],
     queryFn: async () => {
       const data = await apiService.getScheduledReports(filters)
       return data as PaginatedResponse<ScheduledReport>
@@ -257,9 +281,14 @@ export function useScheduledReports(filters: { page?: number; limit?: number; [k
 /**
  * Hook to fetch report generation history
  */
-export function useReportGenerations(filters: { page?: number; limit?: number; [key: string]: any } = {}) {
+export function useReportGenerations(
+  filters: { page?: number; limit?: number; [key: string]: any } = {},
+  { scopeKey = 'default' }: ScopeOptions = {},
+) {
+  const resolvedScopeKey = resolveScopeKey(scopeKey)
+
   return useQuery<PaginatedResponse<ReportGeneration>, Error>({
-    queryKey: analyticsKeys.reportGenerations(filters),
+    queryKey: [...analyticsKeys.reportGenerations(filters), resolvedScopeKey],
     queryFn: async () => {
       const data = await apiService.getReportGenerations(filters)
       return data as PaginatedResponse<ReportGeneration>
@@ -397,13 +426,14 @@ export function useRefreshAnalytics() {
  * Hook to prefetch analytics data
  * Useful for improving perceived performance
  */
-export function usePrefetchAnalytics() {
+export function usePrefetchAnalytics({ scopeKey = 'default' }: ScopeOptions = {}) {
   const queryClient = useQueryClient()
+  const resolvedScopeKey = resolveScopeKey(scopeKey)
 
   return () => {
     // Prefetch all analytics queries
     queryClient.prefetchQuery({
-      queryKey: analyticsKeys.dashboardStats(),
+      queryKey: [...analyticsKeys.dashboardStats(), resolvedScopeKey],
       queryFn: async () => {
         const data = await apiService.getDashboardStats()
         return data as DashboardStats
@@ -412,7 +442,7 @@ export function usePrefetchAnalytics() {
     })
 
     queryClient.prefetchQuery({
-      queryKey: analyticsKeys.analytics(),
+      queryKey: [...analyticsKeys.analytics(), resolvedScopeKey],
       queryFn: async () => {
         const data = await apiService.getAnalytics()
         return data as AnalyticsData
@@ -421,7 +451,7 @@ export function usePrefetchAnalytics() {
     })
 
     queryClient.prefetchQuery({
-      queryKey: analyticsKeys.reportsList(),
+      queryKey: [...analyticsKeys.reportsList(), resolvedScopeKey],
       queryFn: async () => {
         const data = await apiService.getReports()
         return data as PaginatedResponse<Report>

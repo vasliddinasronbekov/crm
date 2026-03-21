@@ -1,8 +1,9 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useMemo } from 'react'
 import apiService from '@/lib/api'
 import toast from '@/lib/toast'
+import { useBranchContext } from '@/contexts/BranchContext'
 import {
   Calendar,
   Users,
@@ -14,6 +15,7 @@ import {
   AlertCircle,
   BarChart3
 } from 'lucide-react'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 
 interface AttendanceRecord {
@@ -80,10 +82,17 @@ const normalizeAttendanceRecord = (raw: any): AttendanceRecord => {
 }
 
 export default function AttendancePage() {
+  const { activeBranchId, branches, isGlobalScope } = useBranchContext()
   const [attendance, setAttendance] = useState<AttendanceRecord[]>([])
   const [students, setStudents] = useState<Student[]>([])
   const [groups, setGroups] = useState<Group[]>([])
   const [loading, setLoading] = useState(true)
+  const activeBranchName = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'All branches' : 'Your branch scope'
+    }
+    return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+  }, [activeBranchId, branches, isGlobalScope])
 
   // View mode
   const [viewMode, setViewMode] = useState<'list' | 'bulk'>('list')
@@ -242,6 +251,7 @@ export default function AttendancePage() {
           Attendance Management
         </h1>
         <p className="text-text-secondary">Track and manage student attendance</p>
+        <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
       </div>
 
       {/* Statistics Cards */}

@@ -7,7 +7,6 @@ import {
   AlertTriangle,
   ArrowRight,
   BarChart3,
-  Building2,
   CheckCircle2,
   Clock3,
   CreditCard,
@@ -23,6 +22,7 @@ import {
   XCircle,
 } from 'lucide-react'
 import toast from '@/lib/toast'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranchContext } from '@/contexts/BranchContext'
@@ -884,20 +884,7 @@ export default function FinanceDashboard() {
             <p className="text-text-secondary mt-1">
               Real revenue, receivables, payroll, and risk signals for production operations.
             </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                <Building2 className="h-3.5 w-3.5" />
-                Branch scope
-              </span>
-              <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
-                {branchScopeDescription}
-              </span>
-              {activeBranchId === null && isGlobalScope && (
-                <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
-                  Cross-branch view
-                </span>
-              )}
-            </div>
+            <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
             {dashboard.latestSummary?.date && (
               <p className="text-xs text-text-secondary mt-2">
                 Latest accounting summary: {formatShortDate(dashboard.latestSummary.date)}

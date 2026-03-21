@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, Suspense } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef, Suspense } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import {
   Calendar,
@@ -23,6 +23,7 @@ import apiService from '@/lib/api';
 import { toast } from 'react-hot-toast';
 import { ProtectedRoute } from '@/components/ProtectedRoute';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useBranchContext } from '@/contexts/BranchContext';
 import {
   exportDateDataToExcel,
   exportCategoryToCSV,
@@ -30,6 +31,7 @@ import {
   generateExportSummary,
 } from '@/lib/exportUtils';
 import LoadingScreen from '@/components/LoadingScreen'
+import BranchScopeChip from '@/components/BranchScopeChip';
 
 interface DateData {
   students: any[];
@@ -45,9 +47,19 @@ interface DateData {
 
 function DataViewContent() {
   const { formatCurrency } = useSettings();
+  const { activeBranchId, branches } = useBranchContext();
   const searchParams = useSearchParams();
   const router = useRouter();
   const dateParam = searchParams.get('date');
+  const branchScopeKey = activeBranchId ?? 'all';
+  const activeBranchName = useMemo(
+    () => (
+      activeBranchId === null
+        ? 'All branches'
+        : branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+    ),
+    [activeBranchId, branches],
+  );
 
   const [selectedDate, setSelectedDate] = useState<Date>(
     dateParam ? new Date(dateParam) : new Date()
@@ -68,12 +80,14 @@ function DataViewContent() {
   >('all');
   const [exportFormat, setExportFormat] = useState<'excel' | 'csv' | 'json'>('excel');
   const [isExporting, setIsExporting] = useState(false);
+  const branchScopeRef = useRef<string>(String(branchScopeKey));
 
   useEffect(() => {
-    loadDataForDate(selectedDate);
-  }, [selectedDate]);
+    branchScopeRef.current = String(branchScopeKey);
+  }, [branchScopeKey]);
 
-  const loadDataForDate = async (date: Date) => {
+  const loadDataForDate = useCallback(async (date: Date) => {
+    const requestScope = String(branchScopeKey);
     setIsLoading(true);
     try {
       const dateStr = date.toISOString().split('T')[0];
@@ -99,6 +113,10 @@ function DataViewContent() {
         apiService.getGroups({ date: dateStr }),
       ]);
 
+      if (branchScopeRef.current !== requestScope) {
+        return;
+      }
+
       setData({
         students: studentsRes.status === 'fulfilled' ? studentsRes.value.results || studentsRes.value || [] : [],
         teachers: teachersRes.status === 'fulfilled' ? teachersRes.value.results || teachersRes.value || [] : [],
@@ -110,12 +128,21 @@ function DataViewContent() {
         groups: groupsRes.status === 'fulfilled' ? groupsRes.value.results || groupsRes.value || [] : [],
       });
     } catch (error) {
+      if (branchScopeRef.current !== requestScope) {
+        return;
+      }
       console.error('Failed to load data:', error);
       toast.error('Failed to load data for selected date');
     } finally {
-      setIsLoading(false);
+      if (branchScopeRef.current === requestScope) {
+        setIsLoading(false);
+      }
     }
-  };
+  }, [branchScopeKey]);
+
+  useEffect(() => {
+    void loadDataForDate(selectedDate);
+  }, [loadDataForDate, selectedDate]);
 
   const formatDate = (date: Date) => {
     return date.toLocaleDateString('en-US', {
@@ -300,6 +327,7 @@ function DataViewContent() {
               {formatDate(selectedDate)}
             </h1>
             <p className="text-text-secondary">Complete system data overview</p>
+            <BranchScopeChip scopeName={activeBranchName} className="mt-2" />
           </div>
         </div>
       </div>

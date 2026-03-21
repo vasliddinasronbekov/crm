@@ -22,7 +22,9 @@ import {
 } from 'lucide-react'
 import LoadingScreen from '@/components/LoadingScreen'
 import PaginationControls from '@/components/PaginationControls'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { useSettings } from '@/contexts/SettingsContext'
 import {
   Report,
@@ -535,8 +537,14 @@ function ReportPreviewModal({
 
 export default function ReportsPage() {
   const { user } = useAuth()
+  const { activeBranchId, branches } = useBranchContext()
   const permissions = usePermissions(user)
   const { formatCurrency } = useSettings()
+  const branchScopeKey = activeBranchId ?? 'all'
+  const activeBranchName = useMemo(
+    () => (activeBranchId === null ? 'All branches' : branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`),
+    [activeBranchId, branches],
+  )
 
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
@@ -586,7 +594,7 @@ export default function ReportsPage() {
     data: reportsData,
     isLoading: isLoadingReports,
     isError: isReportsError,
-  } = useReports(reportFilters)
+  } = useReports(reportFilters, { scopeKey: branchScopeKey })
 
   const scheduledFilters = useMemo(
     () => ({
@@ -606,7 +614,7 @@ export default function ReportsPage() {
     data: scheduledReportsData,
     isLoading: isLoadingScheduledReports,
     isError: isScheduledReportsError,
-  } = useScheduledReports(scheduledFilters)
+  } = useScheduledReports(scheduledFilters, { scopeKey: branchScopeKey })
 
   const generationFilters = useMemo(
     () => ({
@@ -622,7 +630,7 @@ export default function ReportsPage() {
     data: reportGenerationData,
     isLoading: isLoadingGenerations,
     isError: isReportGenerationsError,
-  } = useReportGenerations(generationFilters)
+  } = useReportGenerations(generationFilters, { scopeKey: branchScopeKey })
 
   const generateReportMutation = useGenerateReport()
   const createScheduledReportMutation = useCreateScheduledReport()
@@ -633,7 +641,7 @@ export default function ReportsPage() {
   const {
     data: previewReport,
     isLoading: isLoadingPreview,
-  } = useReport(previewReportId)
+  } = useReport(previewReportId, { scopeKey: branchScopeKey })
 
   const reportRows = useMemo(() => reportsData?.results ?? [], [reportsData?.results])
   const scheduledRows = useMemo(
@@ -885,6 +893,7 @@ export default function ReportsPage() {
               <p className="mt-1 text-text-secondary">
                 Generate, audit, and export operational reports with persisted history from backend truth.
               </p>
+              <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
             </div>
             <button
               onClick={() => handleGenerate()}

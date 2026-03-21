@@ -1,6 +1,6 @@
 'use client'
 
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import NextImage from 'next/image'
 import { useRouter, useParams } from 'next/navigation'
 import apiService from '@/lib/api'
@@ -11,6 +11,7 @@ import { cachedFetch, invalidateEntityCache, CACHE_KEYS, CACHE_TTL } from '@/lib
 import { toast } from 'react-hot-toast'
 import { useSettings } from '@/contexts/SettingsContext'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import {
   Mail, Phone, Calendar,
   DollarSign, TrendingUp, CheckCircle, AlertCircle,
@@ -19,6 +20,7 @@ import {
   UserCheck, PauseCircle, UserX
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 import { usePermissions } from '@/lib/permissions'
 
@@ -144,25 +146,63 @@ interface StudentDetailData {
   }
 }
 
+interface StudentEditForm {
+  first_name: string
+  last_name: string
+  email: string
+  phone: string
+  branch_ids: number[]
+  primary_branch_id: number | null
+}
+
+interface StudentProfileRecord {
+  id: number
+  first_name?: string
+  last_name?: string
+  email?: string
+  phone?: string
+  branch_ids?: number[]
+  primary_branch_id?: number | null
+}
+
 export default function StudentDetailPage() {
   const router = useRouter()
   const params = useParams()
   const { user } = useAuth()
+  const { branches, activeBranchId, isGlobalScope } = useBranchContext()
   const permissionState = usePermissions(user)
   const { formatCurrencyFromMinor } = useSettings()
   const studentId = parseInt(params.id as string)
+  const canEditStudent = permissionState.hasPermission('students.edit')
   const canManageAccountStatus = permissionState.hasPermission('students.edit')
+  const activeBranchName = useMemo(() => {
+    if (activeBranchId === null) {
+      return isGlobalScope ? 'All branches' : 'Your branch scope'
+    }
+    return branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
+  }, [activeBranchId, branches, isGlobalScope])
 
   const [student, setStudent] = useState<StudentDetailData | null>(null)
   const [loading, setLoading] = useState(true)
   const [statusAction, setStatusAction] = useState<StudentAccountStatus | null>(null)
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false)
+  const [isLoadingEditProfile, setIsLoadingEditProfile] = useState(false)
+  const [isSavingProfile, setIsSavingProfile] = useState(false)
+  const [editForm, setEditForm] = useState<StudentEditForm>({
+    first_name: '',
+    last_name: '',
+    email: '',
+    phone: '',
+    branch_ids: [],
+    primary_branch_id: null,
+  })
 
   const loadStudentDetail = useCallback(async () => {
     setLoading(true)
     const result = await safeAsync(
       async () => {
         const data = await cachedFetch(
-          `${CACHE_KEYS.STUDENTS_LIST}_detail_${studentId}`,
+          `${CACHE_KEYS.STUDENTS_LIST}_detail_${studentId}_b${activeBranchId ?? 'all'}`,
           () => apiService.getStudentDetail(studentId),
           CACHE_TTL.MEDIUM
         )
@@ -176,7 +216,7 @@ export default function StudentDetailPage() {
       router.push('/dashboard/students')
     }
     setLoading(false)
-  }, [router, studentId])
+  }, [router, studentId, activeBranchId])
 
   useEffect(() => {
     void loadStudentDetail()
@@ -288,6 +328,86 @@ export default function StudentDetailPage() {
     }
   }
 
+  const withToggledBranch = (branchIds: number[] | undefined, branchId: number, checked: boolean): number[] => {
+    const current = new Set(branchIds || [])
+    if (checked) {
+      current.add(branchId)
+    } else {
+      current.delete(branchId)
+    }
+    return Array.from(current)
+  }
+
+  const openEditModal = async () => {
+    if (!canEditStudent) {
+      toast.error('You do not have permission to edit students')
+      return
+    }
+
+    setIsLoadingEditProfile(true)
+    try {
+      const profile = await apiService.getStudent(studentId) as StudentProfileRecord
+      const fallbackBranchIds = activeBranchId !== null ? [activeBranchId] : []
+      const branchIds = profile.branch_ids || (profile.primary_branch_id ? [profile.primary_branch_id] : fallbackBranchIds)
+      const primaryBranchId =
+        profile.primary_branch_id ??
+        (branchIds.length > 0 ? branchIds[0] : null)
+
+      setEditForm({
+        first_name: profile.first_name || '',
+        last_name: profile.last_name || '',
+        email: profile.email || '',
+        phone: profile.phone || '',
+        branch_ids: branchIds,
+        primary_branch_id: primaryBranchId,
+      })
+      setIsEditModalOpen(true)
+    } catch (error: any) {
+      const message = error?.response?.data?.detail || 'Failed to load student profile'
+      toast.error(message)
+    } finally {
+      setIsLoadingEditProfile(false)
+    }
+  }
+
+  const saveStudentProfile = async () => {
+    if (!canEditStudent) {
+      toast.error('You do not have permission to edit students')
+      return
+    }
+
+    if (!editForm.first_name.trim() || !editForm.last_name.trim()) {
+      toast.error('First name and last name are required')
+      return
+    }
+
+    if (!editForm.branch_ids || editForm.branch_ids.length === 0) {
+      toast.error('Assign at least one branch for this student')
+      return
+    }
+
+    setIsSavingProfile(true)
+    try {
+      await apiService.updateStudent(studentId, {
+        first_name: editForm.first_name.trim(),
+        last_name: editForm.last_name.trim(),
+        email: editForm.email.trim(),
+        phone: editForm.phone.trim(),
+        branch_ids: editForm.branch_ids,
+        primary_branch_id: editForm.primary_branch_id,
+      })
+      toast.success('Student profile updated successfully')
+      setIsEditModalOpen(false)
+      invalidateEntityCache(CACHE_KEYS.STUDENTS_LIST)
+      void loadStudentDetail()
+    } catch (error: any) {
+      const message = error?.response?.data?.detail || 'Failed to update student profile'
+      toast.error(message)
+    } finally {
+      setIsSavingProfile(false)
+    }
+  }
+
   if (loading) {
     return <LoadingScreen message="Loading student details..." />
   }
@@ -377,6 +497,7 @@ export default function StudentDetailPage() {
                     <span className={`px-3 py-1 rounded-lg border text-xs font-medium ${accountStatusMeta.classes}`}>
                       {accountStatusMeta.label}
                     </span>
+                    <BranchScopeChip scopeName={activeBranchName} />
                   </div>
 
                   <div className="flex flex-wrap gap-4">
@@ -407,6 +528,18 @@ export default function StudentDetailPage() {
             </div>
 
             <div className="mt-6 flex flex-wrap gap-3">
+              <button
+                onClick={() => void openEditModal()}
+                disabled={!canEditStudent || isLoadingEditProfile}
+                title={!canEditStudent ? 'You do not have permission to edit students' : undefined}
+                className={`px-4 py-2 rounded-xl border transition-colors text-sm font-medium ${
+                  canEditStudent && !isLoadingEditProfile
+                    ? 'bg-primary/10 text-primary border-primary/30 hover:bg-primary/20'
+                    : 'glass-chip border-border text-text-secondary/70 cursor-not-allowed'
+                }`}
+              >
+                {isLoadingEditProfile ? 'Loading profile...' : 'Edit Profile'}
+              </button>
               <button
                 onClick={() => handleAccountStatusChange('active')}
                 disabled={!canManageAccountStatus || accountStatus === 'active' || isStatusMutationRunning}
@@ -775,6 +908,132 @@ export default function StudentDetailPage() {
               </div>
             </div>
           </div>
+
+          {isEditModalOpen && (
+            <div className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4">
+              <div className="w-full max-w-2xl glass-panel rounded-2xl p-6 max-h-[90vh] overflow-y-auto">
+                <h2 className="text-xl font-bold mb-4">Edit Student Profile</h2>
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-3">
+                    <input
+                      type="text"
+                      value={editForm.first_name}
+                      onChange={(event) => setEditForm((prev) => ({ ...prev, first_name: event.target.value }))}
+                      className="px-4 py-3 rounded-xl border border-border bg-background"
+                      placeholder="First name"
+                    />
+                    <input
+                      type="text"
+                      value={editForm.last_name}
+                      onChange={(event) => setEditForm((prev) => ({ ...prev, last_name: event.target.value }))}
+                      className="px-4 py-3 rounded-xl border border-border bg-background"
+                      placeholder="Last name"
+                    />
+                  </div>
+                  <input
+                    type="email"
+                    value={editForm.email}
+                    onChange={(event) => setEditForm((prev) => ({ ...prev, email: event.target.value }))}
+                    className="w-full px-4 py-3 rounded-xl border border-border bg-background"
+                    placeholder="Email"
+                  />
+                  <input
+                    type="text"
+                    value={editForm.phone}
+                    onChange={(event) => setEditForm((prev) => ({ ...prev, phone: event.target.value }))}
+                    className="w-full px-4 py-3 rounded-xl border border-border bg-background"
+                    placeholder="Phone"
+                  />
+
+                  <div className="rounded-xl border border-border bg-background/60 p-4">
+                    <p className="text-sm font-semibold">Branch assignment</p>
+                    <p className="mt-1 text-xs text-text-secondary">
+                      Keep this student visible only in selected branches.
+                    </p>
+                    <div className="mt-3 grid gap-2 md:grid-cols-2">
+                      {branches.map((branch) => {
+                        const checked = (editForm.branch_ids || []).includes(branch.id)
+                        return (
+                          <label
+                            key={branch.id}
+                            className="flex items-center justify-between rounded-lg border border-border bg-background px-3 py-2 text-sm"
+                          >
+                            <span>{branch.name}</span>
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={(event) => {
+                                const nextBranchIds = withToggledBranch(
+                                  editForm.branch_ids,
+                                  branch.id,
+                                  event.target.checked,
+                                )
+                                const nextPrimary =
+                                  nextBranchIds.length === 0
+                                    ? null
+                                    : editForm.primary_branch_id &&
+                                        nextBranchIds.includes(editForm.primary_branch_id)
+                                      ? editForm.primary_branch_id
+                                      : nextBranchIds[0]
+
+                                setEditForm((prev) => ({
+                                  ...prev,
+                                  branch_ids: nextBranchIds,
+                                  primary_branch_id: nextPrimary,
+                                }))
+                              }}
+                            />
+                          </label>
+                        )
+                      })}
+                    </div>
+                    <div className="mt-3">
+                      <label className="block text-sm font-medium mb-2">Primary branch</label>
+                      <select
+                        value={editForm.primary_branch_id ?? ''}
+                        onChange={(event) => {
+                          const value = event.target.value
+                          const nextPrimary = value ? Number(value) : null
+                          setEditForm((prev) => ({
+                            ...prev,
+                            primary_branch_id: nextPrimary,
+                          }))
+                        }}
+                        disabled={(editForm.branch_ids || []).length === 0}
+                        className="w-full px-3 py-2 bg-background border border-border rounded-lg focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-60"
+                      >
+                        <option value="">Select primary branch</option>
+                        {(editForm.branch_ids || []).map((branchId) => {
+                          const branch = branches.find((item) => item.id === branchId)
+                          return (
+                            <option key={branchId} value={branchId}>
+                              {branch?.name || `Branch #${branchId}`}
+                            </option>
+                          )
+                        })}
+                      </select>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="flex gap-3 mt-6">
+                  <button
+                    onClick={() => void saveStudentProfile()}
+                    disabled={isSavingProfile}
+                    className="flex-1 px-4 py-3 rounded-xl bg-primary text-background font-semibold disabled:opacity-60"
+                  >
+                    {isSavingProfile ? 'Saving...' : 'Save changes'}
+                  </button>
+                  <button
+                    onClick={() => setIsEditModalOpen(false)}
+                    className="flex-1 px-4 py-3 rounded-xl border border-border bg-background font-semibold"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
 
         </div>
       </div>

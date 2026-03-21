@@ -2,6 +2,7 @@
 
 import { useState } from 'react'
 import { useSettings } from '@/contexts/SettingsContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import {
   DollarSign,
   Plus,
@@ -25,28 +26,35 @@ import {
   type Group
 } from '@/lib/hooks/useHR'
 import toast from '@/lib/toast'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 
 export default function HRPage() {
   const { currency, formatCurrency, fromSelectedCurrency } = useSettings()
+  const { branches, activeBranchId, isGlobalScope } = useBranchContext()
   // Filters
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(10)
   const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7))
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const branchScopeKey = activeBranchId ?? 'all'
+  const activeBranchName =
+    activeBranchId === null
+      ? (isGlobalScope ? 'All branches' : 'Your branch scope')
+      : branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
 
   // React Query hooks
-  const { data: teachers = [] } = useTeachers()
-  const { data: groups = [] } = useGroups()
+  const { data: teachers = [] } = useTeachers({ scopeKey: branchScopeKey })
+  const { data: groups = [] } = useGroups({ scopeKey: branchScopeKey })
   const { data: teacherSalariesData, isLoading: isLoadingSalaries } = useEnrichedTeacherSalaries({
     page,
     limit,
     month: selectedMonth + '-01',
     status: statusFilter,
-  })
+  }, { scopeKey: branchScopeKey })
   const { data: groupSalaries = [], isLoading: isLoadingGroupSalaries } = useEnrichedGroupSalaries({
     month: selectedMonth + '-01',
-  })
+  }, { scopeKey: branchScopeKey })
 
   const teacherSalaries = teacherSalariesData?.results || []
   const totalSalariesCount = teacherSalariesData?.count || 0
@@ -197,6 +205,7 @@ export default function HRPage() {
       <div className="mb-8">
         <h1 className="text-4xl font-bold mb-2">HR & Salary Management 💰</h1>
         <p className="text-text-secondary">Track teacher salaries and payments</p>
+        <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
       </div>
 
       {/* Stats Cards */}

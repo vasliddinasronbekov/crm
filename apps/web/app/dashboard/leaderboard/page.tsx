@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
+import { useBranchContext } from "@/contexts/BranchContext";
 import { useRouter } from "next/navigation";
 import {
   Trophy,
@@ -20,6 +21,7 @@ import {
   type LeaderboardEntry,
   type LeaderboardMetric,
 } from "@/lib/hooks/useLeaderboard";
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 
 const metricOptions: Array<{
@@ -40,13 +42,23 @@ const metricOptions: Array<{
 
 export default function LeaderboardPage() {
   const { user, isLoading: authLoading } = useAuth();
+  const { activeBranchId, branches } = useBranchContext();
   const router = useRouter();
 
   const [filter, setFilter] = useState<"all" | "top10" | "top50">("all");
   const [metric, setMetric] = useState<LeaderboardMetric>("score");
+  const branchScopeKey = activeBranchId ?? "all";
+  const activeBranchName = useMemo(
+    () =>
+      activeBranchId === null
+        ? "All branches"
+        : branches.find((branch) => branch.id === activeBranchId)?.name ||
+          `Branch #${activeBranchId}`,
+    [activeBranchId, branches],
+  );
 
   const { data: leaderboard = [], isLoading: leaderboardLoading } =
-    useGetLeaderboard({ filter, metric });
+    useGetLeaderboard({ filter, metric }, { scopeKey: branchScopeKey });
 
   const loading = authLoading || leaderboardLoading;
 
@@ -138,6 +150,7 @@ export default function LeaderboardPage() {
           <p className="text-text-secondary">
             Top performing students and their rankings
           </p>
+          <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
         </div>
 
         {/* Statistics Cards */}

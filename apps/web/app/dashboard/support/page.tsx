@@ -2,10 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react'
 import { useAuth } from '@/contexts/AuthContext'
+import { useBranchContext } from '@/contexts/BranchContext'
 import { useRouter } from 'next/navigation'
 import apiService from '@/lib/api'
 import { toast } from 'react-hot-toast'
 import { MessageCircle, Search, X, Send, Clock, CheckCircle, AlertCircle, User, MessageSquare, ArrowLeft } from 'lucide-react'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import LoadingScreen from '@/components/LoadingScreen'
 
 interface Ticket {
@@ -39,6 +41,7 @@ interface Staff {
 
 export default function SupportPage() {
   const { user, isLoading: authLoading } = useAuth()
+  const { branches, activeBranchId, isGlobalScope } = useBranchContext()
   const router = useRouter()
 
   // States
@@ -55,6 +58,10 @@ export default function SupportPage() {
   // Search & filter
   const [searchTerm, setSearchTerm] = useState('')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const activeBranchName =
+    activeBranchId === null
+      ? (isGlobalScope ? 'All branches' : 'Your branch scope')
+      : branches.find((branch) => branch.id === activeBranchId)?.name || `Branch #${activeBranchId}`
 
   const loadTickets = useCallback(async () => {
     try {
@@ -98,7 +105,7 @@ export default function SupportPage() {
         void loadData()
       }
     }
-  }, [authLoading, loadData, router, user])
+  }, [authLoading, loadData, router, user, activeBranchId])
 
   const loadTicketChats = async (ticketId: number) => {
     try {
@@ -218,6 +225,7 @@ export default function SupportPage() {
             Support Tickets
           </h1>
           <p className="text-text-secondary">Manage student support requests and conversations</p>
+          <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
         </div>
       </div>
 

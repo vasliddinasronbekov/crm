@@ -6,9 +6,10 @@ import { toast } from 'react-hot-toast'
 import {
   Users, Plus, Edit, Trash2, X, Search, Mail, Phone,
   Calendar, Download, Upload, Eye, MoreVertical, Activity, CheckCircle, AlertTriangle, Sparkles,
-  UserCheck, PauseCircle, UserX, Building2
+  UserCheck, PauseCircle, UserX
 } from 'lucide-react'
 import { ProtectedRoute } from '@/components/ProtectedRoute'
+import BranchScopeChip from '@/components/BranchScopeChip'
 import { useAuth } from '@/contexts/AuthContext'
 import { useBranchContext } from '@/contexts/BranchContext'
 import { useDebouncedValue } from '@/lib/hooks/useDebouncedValue'
@@ -727,20 +728,7 @@ export default function StudentsPage() {
             <p className="text-text-secondary">
               Centralized student operations, data quality, and engagement signals.
             </p>
-            <div className="mt-3 flex flex-wrap items-center gap-2">
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-primary/25 bg-primary/10 px-3 py-1 text-xs font-medium text-primary">
-                <Building2 className="h-3.5 w-3.5" />
-                Branch scope
-              </span>
-              <span className="glass-chip rounded-full px-3 py-1 text-xs text-text-secondary">
-                {branchScopeDescription}
-              </span>
-              {activeBranchId === null && isGlobalScope && (
-                <span className="rounded-full border border-border/70 bg-background/70 px-3 py-1 text-xs text-text-secondary">
-                  Cross-branch view
-                </span>
-              )}
-            </div>
+            <BranchScopeChip scopeName={activeBranchName} className="mt-3" />
           </div>
           <div className="flex flex-wrap items-center gap-3">
             <button
