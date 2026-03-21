@@ -43,11 +43,25 @@ export const teachersKeys = {
   detail: (id: number | string) => [...teachersKeys.details(), id] as const,
 }
 
+type TeachersListFilters = {
+  page?: number
+  limit?: number
+  search?: string
+  scopeKey?: string | number | null
+  [key: string]: any
+}
+
 /**
  * Hook to fetch all teachers with automatic caching
  * @param filters - Optional filters for teachers list
  */
-export function useTeachers({ page = 1, limit = 10, search = "", scopeKey = "default", ...restFilters } = {}) {
+export function useTeachers({
+  page = 1,
+  limit = 10,
+  search = "",
+  scopeKey = "default",
+  ...restFilters
+}: TeachersListFilters = {}) {
   const requestFilters = {
     page,
     limit,
