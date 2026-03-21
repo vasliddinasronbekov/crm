@@ -721,7 +721,7 @@ export default function TeacherDetailPage() {
     }
 
     if (unpaidFilteredEarningIds.length === 0) {
-      toast('No unpaid accruals in current filter')
+      toast.info('No unpaid accruals in current filter')
       return
     }
 
